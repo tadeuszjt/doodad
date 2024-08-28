@@ -10,6 +10,7 @@ import std/option
 import std/unordered
 import std/time
 import std/maths
+import std/geom
 
 import builtin/all
 
@@ -17,27 +18,31 @@ import builtin/all
 include <SFML/Graphics.h>
 
 tuple Blob {
-    position   sf::Vec2f
-    velocity   sf::Vec2f
+    position   Vec2
+    velocity   Vec2
     blobColour sf::Colour
     sprite     sf::Quad
 }
-derives Blob (store)
-derives Blob (destroy)
+derives Blob (store, destroy)
 derives{P} Blob (print::print{P})
 
 
-fn vec2f(rand &Rand, rect sf::Rectf) sf::Vec2f
-    return (
-        rand.f32(rect.sf::min.sf::x, rect.sf::max.sf::x)
-        rand.f32(rect.sf::min.sf::y, rect.sf::max.sf::y)
+inst convert{sf::Vec2f, Vec2} (a); return (a.sf::x.convert, a.sf::y.convert)
+inst convert{Vec2, sf::Vec2f} (a); return (a.x.convert, a.y.convert)
+
+
+fn vec2(rand &Rand, rect Rect) Vec2
+    return Vec2(
+        rand.f64(rect.min.x, rect.max.x)
+        rand.f64(rect.min.y, rect.max.y)
     )
+
 
 fn colour(rand &Rand) sf::Colour
     return (
-        convert(rand.i64(0, 255))
-        convert(rand.i64(0, 255))
-        convert(rand.i64(0, 255))
+        rand.i64(0, 255).convert
+        rand.i64(0, 255).convert
+        rand.i64(0, 255).convert
         255
     )
 
@@ -53,11 +58,8 @@ fn makeQuad(position sf::Vec2f, colour sf::Colour) sf::Quad
     return quad
 
 
-fn length(v sf::Vec2f) F32
-    return sqrt(v.sf::x * v.sf::x + v.sf::y * v.sf::y)
 
-
-fn containsBlob(table &Blob.Table, point sf::Vec2f) Bool
+fn containsBlob(table &Blob.Table, point Vec2) Bool
     for (0, table.len) -> i
         if (point - table.position[i]).length < 10.0
             return true
@@ -76,14 +78,14 @@ fn main(io Io, rand Rand, w sf::Window)
 
     for (0, 100)
         let blob:Blob
-        blob.position   = rand.vec2f( ( arena.sf::min, arena.sf::max ) )
-        blob.velocity   = rand.vec2f( ( (-1.0, -1.0), (1.0, 1.0) ) )
+        blob.position   = rand.vec2( ( arena.sf::min.convert, arena.sf::max.convert ) )
+        blob.velocity   = rand.vec2( ( (-1.0, -1.0), (1.0, 1.0) ) )
         blob.blobColour = rand.colour
         blobs.push(blob)
 
     //io.stdout.printLn(blobs)
 
-    let mousePos = sf::Vec2f(0.0, 0.0)
+    let mousePos = Vec2(0.0, 0.0)
 
     while w.sf::isOpen()
         let prevNs = time::getTimestampNs()
@@ -92,12 +94,12 @@ fn main(io Io, rand Rand, w sf::Window)
             switch event
                 sf::closed(); w.sf::close()
                 sf::mouseMove(x, y)
-                    mousePos.sf::x = x.convert
-                    mousePos.sf::y = y.convert
+                    mousePos.x = x.convert
+                    mousePos.y = y.convert
 
         for (0, blobs.len) -> i
             //blobs[i].position = blobs[i].position + blobs[i].velocity
-            blobs[i].sprite   = makeQuad(blobs[i].position, blobs[i].blobColour)
+            blobs[i].sprite = makeQuad(blobs[i].position.convert, blobs[i].blobColour)
 
         
         let (width, height) = w.sf::getSize()

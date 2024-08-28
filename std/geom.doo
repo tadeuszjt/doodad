@@ -8,12 +8,9 @@ tuple Vec2 {
     x F64
     y F64
 }
+derives Vec2 (store, destroy, subtract, multiply, make2{F64, F64})
 
-derives Vec2 (subtract)
-derives Vec2 (multiply)
-
-fn length(v Vec2) F64
-    return maths::sqrt(v.x*v.x + v.y*v.y)
+fn length(v Vec2) F64; return maths::sqrt(v.x*v.x + v.y*v.y)
 
 
 
@@ -21,3 +18,9 @@ tuple Rect {
     min Vec2
     max Vec2
 }
+
+derives Rect (make2{Vec2, Vec2})
+
+
+fn contains(r Rect, v Vec2) Bool
+    return v.x >= r.min.x && v.y >= r.min.y && v.x < r.max.x && v.y < r.max.y

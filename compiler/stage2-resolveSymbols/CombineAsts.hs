@@ -99,11 +99,13 @@ combineMapper element = case element of
         modify $ \s -> s { featuresTop = Set.insert symbol (featuresTop s) }
         return element
 
-    ElemStmt stmt@(Derives _ _ derType _) -> do
-        let (TypeDef symbol, _) = unfoldType derType
-        symbol' <- genSymbol symbol
-        modify $ \s -> s { acquiresAll = Map.insert symbol' stmt (acquiresAll s) }
-        modify $ \s -> s { acquiresTop = Set.insert symbol' (acquiresTop s) }
+    ElemStmt stmt@(Derives pos generics typ ts) -> do
+        forM_ ts $ \t -> do
+            let (TypeDef symbol, _) = unfoldType typ
+            symbol' <- genSymbol symbol
+            let stmt' = Derives pos generics typ [t]
+            modify $ \s -> s { acquiresAll = Map.insert symbol' stmt' (acquiresAll s) }
+            modify $ \s -> s { acquiresTop = Set.insert symbol' (acquiresTop s) }
         return element
 
     -- filter out statements

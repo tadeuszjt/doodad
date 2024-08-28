@@ -155,8 +155,8 @@ tupleFields1 : symbol type_ 'N'              { [(snd $1, $2)] }
 -- Statements -------------------------------------------------------------------------------------
 
 
-derivesDef : derives generics type_ '(' callType ')'
-           { Derives (tokPos $1) $2 $3 ($5) }
+derivesDef : derives generics type_ '(' callTypes1 ')'
+           { Derives (tokPos $1) $2 $3 $5 }
 
 
 funcGenerics : '{' Idents1 funDeps '}'  { (map (\s -> Symbol.Sym [s]) $2, $3) }
@@ -340,6 +340,8 @@ expr   : literal                                 { $1 }
        | expr '!=' expr                          { Call (tokPos $2) (TypeDef $ Sym ["notEqualTo"]) [$1, $3] } 
        | expr '&&' expr                          { Call (tokPos $2) (TypeDef $ Sym ["boolean", "and"]) [$1, $3] } 
        | expr '||' expr                          { Call (tokPos $2) (TypeDef $ Sym ["boolean", "or"]) [$1, $3] } 
+       | expr '<=' expr                          { Call (tokPos $2) (TypeDef $ Sym ["compare", "lessThanEqual"]) [$1, $3] } 
+       | expr '>=' expr                          { Call (tokPos $2) (TypeDef $ Sym ["compare", "greaterThanEqual"]) [$1, $3] } 
 --       | expr '<=' expr                          { Call (tokPos $2) (Sym ["lessEqual"]) [$1, $3] } 
 --       | expr '>=' expr                          { Call (tokPos $2) (Sym ["greaterEqual"]) [$1, $3] } 
 --       | expr '!=' expr                          { Call (tokPos $2) (Sym ["Boolean", "not"]) [Call (tokPos $2) (Sym ["Compare", "equal"]) [$1, $3]] } 
@@ -360,6 +362,13 @@ literal : int_c                                  { Call (tokPos $1) (TypeDef $ S
 
 typeMaybe : {-empty-} { Nothing }
           | type_     { Just $1 }
+
+
+callTypes1 : callType                { [$1] }
+           | callType ',' callTypes1 { $1 : $3 }
+
+callType : symbol                  { TypeDef (snd $1) }
+         | symbol typeArgs         { foldType (TypeDef (snd $1) : $2) }
 
 
 type__ : type_ { $1 }
@@ -399,9 +408,6 @@ ordinal_t   : Bool                         { Type.Bool }
             | Char                         { Type.Char }
 
 tuple_t : '(' type_ ',' types1 ')' { foldl Apply Tuple ($2:$4) }
-
-callType : symbol                  { TypeDef (snd $1) }
-         | symbol typeArgs         { foldType (TypeDef (snd $1) : $2) }
 
 {
 parse :: MonadError Error m => [Token] -> m AST

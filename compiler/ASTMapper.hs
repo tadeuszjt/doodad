@@ -53,8 +53,8 @@ mapStmtM f stmt = withPos stmt $ do
             stmt' <- mapStmtM f stmt
             return $ FuncDef generics $ (AST.Func pos symbol args retty stmt')
 
-        Derives pos generics symbol symbols ->
-            return (Derives pos generics symbol symbols)
+        Derives pos generics symbol ts ->
+            return (Derives pos generics symbol ts)
 
         EmbedC pos m s -> return $ EmbedC pos m s
         Block stmts -> Block <$> mapM (mapStmtM f) stmts

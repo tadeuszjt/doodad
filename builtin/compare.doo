@@ -4,6 +4,7 @@ import builtin/builtin
 import builtin/store
 import builtin/assert
 import builtin/convert
+import builtin/boolean
 
 
 func{T} equal(T, T) Bool
@@ -17,6 +18,12 @@ inst equal{ F32 }  (a, b); return builtinEqual(a, b)
 inst equal{ Bool } (a, b); return builtinEqual(a, b)
 inst equal{ Char } (a, b); return builtinEqual(a, b)
 inst equal{ Tuple{} } (a, b); return true
+
+
+fn{T} lessThanEqual(a T, b T) Bool; return !greaterThan(a, b)
+fn{T} greaterThanEqual(a T, b T) Bool; return !lessThan(a, b)
+
+
 
 inst{A, B} equal{ Sum{A, B} } (a, b)
     let enA = a.builtin::builtinSumEnum

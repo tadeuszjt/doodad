@@ -185,7 +185,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
                         let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
                         return (applyType genericsToVars acqType)
 
-                    Derives pos generics argType featureType -> do
+                    Derives pos generics argType [featureType] -> do
                         let acqType = Apply featureType argType
                         let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
                         return (applyType genericsToVars acqType)

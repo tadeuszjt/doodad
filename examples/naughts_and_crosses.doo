@@ -13,9 +13,7 @@ enum Square {
     naught
     cross
 }
-derives Square (store)
-derives Square (equal)
-derives Square (destroy)
+derives Square (store, destroy, equal)
 
 
 enum Input {
@@ -23,18 +21,12 @@ enum Input {
     quit()
     error()
 }
-derives Input (builtin::destroy)
-derives Input (store::store)
-
+derives Input (store::store, builtin::destroy)
 
 type Board Array{3, Array{3, Square}}
 derives Board (destroy)
-
-derives Board (container::len)
-derives Board (container::at{I64, Array{3, Square}})
-derives Board (forAt{Array{3, Square}})
-derives Board (forBegin)
-derives Board (forEnd)
+derives Board (container::len, container::at{I64, Array{3, Square}})
+derives Board (forAt{Array{3, Square}}, forBegin, forEnd)
 
 
 inst{P} print{ P, Square } (p&, square)

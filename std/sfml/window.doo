@@ -28,13 +28,8 @@ tuple Vec2f {
     x F32
     y F32
 }
-derives    Vec2f (store)
-derives    Vec2f (builtin::destroy)
-derives    Vec2f (make2{F32, F32})
+derives    Vec2f (store, destroy, add, subtract, make2{F32, F32})
 derives{P} Vec2f (print::print{P})
-
-derives Vec2f (subtract)
-derives Vec2f (add)
 
 
 tuple Rectf {
@@ -50,9 +45,7 @@ tuple Colour {
     b U8
     a U8
 }
-derives Colour (store)
-derives Colour (builtin::destroy)
-derives Colour (make4{U8, U8, U8, U8})
+derives Colour (store, destroy, make4{U8, U8, U8, U8})
 derives{P} Colour (print::print{P})
 
 fn white() Colour; return (255, 255, 255, 255)
@@ -64,18 +57,13 @@ tuple Vertex {
     vertColour  Colour
     texCoord Vec2f
 }
-derives    Vertex (store)
-derives    Vertex (builtin::destroy)
-derives    Vertex (make3{Vec2f, Colour, Vec2f})
+derives    Vertex (store, destroy, make3{Vec2f, Colour, Vec2f})
 derives{P} Vertex (print::print{P})
 
 
 type Quad Array{6, window::Vertex}
+derives    Quad (at{ I64, Vertex }, store, destroy, makeSlice{Vertex})
 derives{P} Quad (print::print{P})
-derives    Quad (container::at{ I64, Vertex })
-derives    Quad (store::store)
-derives    Quad (builtin::destroy)
-derives    Quad (slice::makeSlice{window::Vertex})
 
 
 tuple Window {
@@ -91,8 +79,7 @@ enum Event {
     closed
     mouseMove(I64, I64)
 }
-derives Event (store)
-derives Event (builtin::destroy)
+derives Event (store, destroy)
 
 
 fn create(w &Window, sizeX I64, sizeY I64, name Char.Slice)

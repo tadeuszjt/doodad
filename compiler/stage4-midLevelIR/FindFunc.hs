@@ -64,7 +64,7 @@ makeAcquireInstance callType = do
     featuresAll <- gets featuresAll
     typeDefsAll <- gets typeDefsAll
     results <- fmap catMaybes $ forM (Map.toList acquiresAll) $ \(symbol, stmt) -> case stmt of
-        Derives _ generics argType featureType -> do
+        Derives _ generics argType [featureType] -> do
             let genericSubs = zip (map TypeDef generics) (map Type [1..])
             let upperType = applyType genericSubs $ Apply featureType argType
 
