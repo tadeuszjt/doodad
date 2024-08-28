@@ -11,3 +11,4 @@ export builtin/assert
 export builtin/container
 export builtin/builtin
 export builtin/arithmetic
+export builtin/array

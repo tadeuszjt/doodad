@@ -1,13 +1,29 @@
 module maths
 
 func{T} sqrt(T) T
+func{T} sin(T) T
+func{T} cos(T) T
+
 
 inst sqrt{F32} (a)
     let b
     ${ $b = sqrt($a); }
     return b
 
+
 inst sqrt{F64} (a)
     let b
     ${ $b = sqrt($a); }
+    return b
+
+
+inst sin{F64} (a)
+    let b
+    ${ $b = sin($a); }
+    return b
+
+
+inst cos{F64} (a)
+    let b
+    ${ $b = cos($a); }
     return b

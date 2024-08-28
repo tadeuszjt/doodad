@@ -58,14 +58,12 @@ fn makeQuad(position sf::Vec2f, colour sf::Colour) sf::Quad
     return quad
 
 
-
 fn containsBlob(table &Blob.Table, point Vec2) Bool
     for (0, table.len) -> i
         if (point - table.position[i]).length < 10.0
             return true
 
     return false
-        
 
 
 fn main(io Io, rand Rand, w sf::Window)
@@ -86,6 +84,11 @@ fn main(io Io, rand Rand, w sf::Window)
     //io.stdout.printLn(blobs)
 
     let mousePos = Vec2(0.0, 0.0)
+
+    let m = mat3Rotation(1.3)
+
+    io.stdout.printLn(m)
+
 
     while w.sf::isOpen()
         let prevNs = time::getTimestampNs()

@@ -2,25 +2,106 @@ module geom
 
 import builtin/all
 import std/maths
-
+import std/print
+import std/maths
 
 tuple Vec2 {
     x F64
     y F64
 }
-derives Vec2 (store, destroy, subtract, multiply, make2{F64, F64})
-
-fn length(v Vec2) F64; return maths::sqrt(v.x*v.x + v.y*v.y)
-
-
 
 tuple Rect {
     min Vec2
     max Vec2
 }
 
+type Mat3 Array{3, Array{3, F64}}
+
+type Mat4 Array{4, Array{4, F64}}
+
+
+derives Vec2 (store, destroy, subtract, multiply, make2{F64, F64})
 derives Rect (make2{Vec2, Vec2})
+derives Mat3 (store, destroy, add, subtract, len, at{I64, Array{3, F64}})
+derives Mat4 (store, destroy, add, subtract, at{I64, Array{4, F64}}, len)
+
+
+inst{P} printLn{P, Mat3} (p&, m)
+    for (0, m.len) -> row
+        p.printLn(m[row])
+
+
+inst{P} printLn{P, Mat4} (p&, m)
+    for (0, m.len) -> row
+        p.printLn(m[row])
+
+
+inst multiply{Mat3} (a, b)
+    let mat3
+
+    for (0, mat3.len) -> r
+        mat3[r][0] = a[r][0]*b[0][0] + a[r][1]*b[1][0] + a[r][2]*b[2][0]
+        mat3[r][1] = a[r][0]*b[0][1] + a[r][1]*b[1][1] + a[r][2]*b[2][1]
+        mat3[r][2] = a[r][0]*b[0][2] + a[r][1]*b[1][2] + a[r][2]*b[2][2]
+
+    return mat3
+
+
+inst multiply{Mat4} (a, b)
+    let mat4
+
+    for (0, mat4.len) -> r
+        mat4[r][0] = a[r][0]*b[0][0] + a[r][1]*b[1][0] + a[r][2]*b[2][0] + a[r][3]*b[3][0]
+        mat4[r][1] = a[r][0]*b[0][1] + a[r][1]*b[1][1] + a[r][2]*b[2][1] + a[r][3]*b[3][1]
+        mat4[r][2] = a[r][0]*b[0][2] + a[r][1]*b[1][2] + a[r][2]*b[2][2] + a[r][3]*b[3][2]
+        mat4[r][3] = a[r][0]*b[0][3] + a[r][1]*b[1][3] + a[r][2]*b[2][3] + a[r][3]*b[3][3]
+
+    return mat4
+
+
+fn length(v Vec2) F64
+    return maths::sqrt(v.x*v.x + v.y*v.y)
 
 
 fn contains(r Rect, v Vec2) Bool
     return v.x >= r.min.x && v.y >= r.min.y && v.x < r.max.x && v.y < r.max.y
+
+
+fn mat3Identity() Mat3
+    let mat3
+    mat3[0][0] = 1.0
+    mat3[1][1] = 1.0
+    mat3[2][2] = 1.0
+    return mat3
+
+
+fn mat4Identity() Mat4
+    let mat4
+    mat4[0][0] = 1.0
+    mat4[1][1] = 1.0
+    mat4[2][2] = 1.0
+    mat4[3][3] = 1.0
+    return mat4
+
+
+fn mat3Rotation(theta F64) Mat3
+    let c = maths::cos(theta)
+    let s = maths::sin(theta)
+    let mat3
+
+    mat3[0][0] = c
+    mat3[0][1] = -s
+    mat3[1][0] = s
+    mat3[1][1] = c
+    mat3[2][2] = 1.0
+
+    return mat3
+
+
+fn mat3Translation(v Vec2) Mat3
+    let mat3 = mat3Identity()
+
+    mat3[0][2] = v.x
+    mat3[1][2] = v.y
+
+    return mat3

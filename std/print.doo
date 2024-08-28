@@ -3,12 +3,8 @@ module print
 import builtin/all
 
 
-func{T, G} print(T, G)
-
-
-fn{P, T} printLn(p &P, t T)
-    p.print(t)
-    p.print('\n')
+func{P, T} print(P, T)
+func{P, T} printLn(P, T)
 
 
 inst print{ Char.Table, Char } (t&, c)
@@ -19,8 +15,34 @@ inst{T} print{ T, Char.Slice } (t&, s)
     for s -> c
         t.print(c)
 
+
+inst{P} printLn{ P, Char.Slice } (p&, s)
+    p.print(s)
+    p.print('\n')
+
+inst{P} printLn{ P, I64 } (p&, n)
+    p.print(n)
+    p.print('\n')
+
 inst{T} print{ T, U8 }  (p&, n); p.print(convert(n) : I64)
 inst{T} print{ T, I32 } (p&, n); p.print(convert(n) : I64)
+
+
+inst{P} print{P, F64} (p&, f)
+    let len = 0
+    let array : Array{64, Char}
+    ${
+        char str[64] = {0};
+        sprintf(str, "%g", $f);
+        for (int i = 0; str[i] != '\0'; i++) {
+            $array.arr[i] = str[i];
+            $len++;
+        }
+    }
+
+    for (0, len) -> i
+        p.print(array[i])
+
 
 inst{T} print{ T, I64 } (t&, n)
     if n < 0
@@ -65,6 +87,11 @@ inst{T, G} print{ T, G.Table } (t&, g&)
     t.print(']')
 
 
+inst{P, S, T} printLn{P, Array{S, T}} (p&, array)
+    p.print(array)
+    p.print('\n')
+
+
 inst{P, S, T} print{ P, Array{S, T} } (p&, array)
     p.print('[')
 
@@ -83,6 +110,7 @@ inst{P, A, B} print{ P, Tuple{A, B} } (a&, b)
     a.print( b.1 )
     a.print(')')
 
+
 inst{P, A, B, C} print{ P, Tuple{A, B, C} } (a&, b)
     a.print('(')
     a.print( b.0 )
@@ -91,6 +119,7 @@ inst{P, A, B, C} print{ P, Tuple{A, B, C} } (a&, b)
     a.print(", ")
     a.print( b.2 )
     a.print(')')
+
 
 inst{P, A, B, C, D} print{ P, Tuple{A, B, C, D} } (a&, b)
     a.print('(')

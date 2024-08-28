@@ -61,8 +61,3 @@ inst{A, B, C} store{ Sum{A, B, C} } (a&, b)
         a.2 = b.2
 
 
-inst{T, S} store{ Array{S, T} } (a&, b)
-    let idx = 0
-    while builtin::builtinLessThan(idx, b.builtinArrayLen)
-        a.builtinArrayAt(idx) = b.builtinArrayAt(idx)
-        idx = builtinAdd(idx, 1)

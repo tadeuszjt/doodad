@@ -1,0 +1,41 @@
+module array
+
+import builtin/arithmetic
+import builtin/tuple
+import builtin/convert
+import builtin/container
+import builtin/store
+import builtin/builtin
+import builtin/for
+import builtin/compare
+
+
+inst{S, T} add{ Array{S, T} } (a, b)
+    let c
+    for (0, c.len) -> i
+        c[i] = a[i] + b[i]
+    return c
+
+inst{S, T} subtract{ Array{S, T} } (a, b)
+    let c
+    for (0, c.len) -> i
+        c[i] = a[i] - b[i]
+    return c
+
+inst{S, T} multiply{ Array{S, T} } (a, b)
+    let c
+    for (0, c.len) -> i
+        c[i] = a[i] * b[i]
+    return c
+
+
+//inst{S, T} divide{ Array{S, T} } (a, b)
+//    let c
+//    for (0, c.len) -> i
+//        c[i] = a[i] / b[i]
+//    return c
+
+
+inst{T, S} store{ Array{S, T} } (a&, b)
+    for (0, a.len) -> idx
+        a.builtinArrayAt(idx) = b.builtinArrayAt(idx)
