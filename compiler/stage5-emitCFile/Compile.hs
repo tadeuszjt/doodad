@@ -99,9 +99,9 @@ generateFunc funcType = do
             return funcIr'''
 
 
-        --liftIO $ putStrLn ""
-        --liftIO $ putStrLn $ show funcIrHeader
-        --liftIO $ IR.prettyIR "" funcIr
+        liftIO $ putStrLn ""
+        liftIO $ putStrLn $ show funcIrHeader
+        liftIO $ IR.prettyIR "" funcIr'
 
         generatedSymbol <- CGenerate.genSymbol symbol
         let header' = (funcIrHeader) { IR.irFuncSymbol = generatedSymbol }
@@ -138,16 +138,20 @@ idName x = "_" ++ show x
 
 
 
-processCEmbed :: String -> Generate String
-processCEmbed str = case str of
-    ('$':'%':xs) -> do
-        let num = takeWhile (\c -> isDigit c) xs
-        check (length num > 0)     "invalid identifier following '$' token"
-        let rest = drop (length num) xs
+processCEmbed :: [(String, IR.ID)] -> String -> Generate String
+processCEmbed strMap str = case str of
+    ('$':x:xs) -> do
+        unless (isAlpha x) (fail "invalid identifier following '$' token")
+        let ident = takeWhile (\c -> isAlpha c || isDigit c) (x:xs)
+        let rest = drop (length ident) (x:xs)
 
-        (("_" ++ num) ++) <$> processCEmbed rest
+        num <- case lookup ident strMap of
+            Just id -> return id
+            Nothing -> fail ("invalid ident in C embed: " ++ ident)
 
-    (x:xs) -> (x:) <$> processCEmbed xs
+        (("_" ++ show num) ++) <$> processCEmbed strMap rest
+
+    (x:xs) -> (x:) <$> processCEmbed strMap xs
     []     -> return ""
 
 
@@ -166,7 +170,7 @@ generateStmt :: IR.FuncIR -> IR.ID -> Generate ()
 generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
     IR.Break -> void $ appendElem $ C.Break
     IR.Block ids -> mapM_ (generateStmt funcIr) ids
-    IR.EmbedC _ str  -> void $ appendElem . C.Embed =<< processCEmbed str
+    IR.EmbedC strMap str  -> void $ appendElem . C.Embed =<< processCEmbed strMap str
     IR.Return arg -> void $ appendElem . C.Return =<< generateArg arg
     IR.ReturnVoid -> void $ appendElem C.ReturnVoid
 
@@ -189,21 +193,6 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
 
 
     IR.SSA ssaTyp ssaRefTyp operation -> case operation of
-
-        IR.MakeValueFromValue arg -> do
-            let IR.Value = ssaRefTyp
-
-            cType <- cTypeOf ssaTyp
-            cexpr <- generateArg arg
-            void $ appendAssign cType (idName id) cexpr
-
-        IR.MakeRefFromRef arg -> do
-            let IR.Ref = ssaRefTyp
-
-            cType <- cRefTypeOf ssaTyp
-            cexpr <- generateArg arg
-            void $ appendAssign cType (idName id) cexpr
-
         IR.InitVar marg -> do
             let IR.Value = ssaRefTyp
             cType <- cTypeOf ssaTyp
@@ -222,7 +211,7 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
             void $ appendAssign cType (idName id) $ C.Initialiser [C.String str, C.Int len, C.Int len]
 
 
-        IR.MakeReferenceFromValue argId -> case (IR.irTypes funcIr) Map.! argId of
+        IR.MakeReferenceFromValue (IR.ArgID argId) -> case (IR.irTypes funcIr) Map.! argId of
             (typ, IR.Value) -> do
                 cexpr <- generateArg (IR.ArgID argId)
                 base <- baseTypeOf typ
@@ -496,7 +485,7 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
                         x -> error (show x)
 
 
-        IR.MakeValueFromReference argId -> case (IR.irTypes funcIr) Map.! argId of
+        IR.MakeValueFromReference (IR.ArgID argId) -> case (IR.irTypes funcIr) Map.! argId of
             (typ, IR.Ref) -> do
                 cType <- cTypeOf typ
                 cexpr <- generateArg (IR.ArgID argId)

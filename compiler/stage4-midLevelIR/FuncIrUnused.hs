@@ -67,8 +67,8 @@ funcIrUnused func = do
         Else _ -> addUsed id
         Break  -> addUsed id
 
-        EmbedC ids _ -> do
-            mapM addUsed ids
+        EmbedC strMap _ -> do
+            mapM addUsed (map snd strMap)
             addUsed id
 
         SSA typ Value (InitVar marg) -> case marg of
@@ -80,12 +80,8 @@ funcIrUnused func = do
         Return (ArgConst _ _) -> return ()
         ReturnVoid            -> return ()
 
-        SSA typ Ref (MakeReferenceFromValue i) -> addUsed i
-        SSA typ Value (MakeValueFromReference i) -> addUsed i
-        SSA _ Ref (MakeRefFromRef (ArgID i)) -> addUsed i
-        SSA _ Value (MakeValueFromValue (ArgID i)) -> addUsed i
-
-        SSA _ Value (MakeValueFromValue (ArgConst _ _)) -> return ()
+        SSA typ Ref (MakeReferenceFromValue (ArgID i)) -> addUsed i
+        SSA typ Value (MakeValueFromReference (ArgID i)) -> addUsed i
 
         SSA _ _ (MakeString str) -> return ()
 

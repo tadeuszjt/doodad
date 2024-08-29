@@ -53,20 +53,16 @@ instance Show Arg where
 data Operation
     = InitVar (Maybe Arg)
     | Call Type [Arg]
-    | MakeReferenceFromValue ID
-    | MakeValueFromReference ID
-    | MakeValueFromValue Arg
-    | MakeRefFromRef Arg
+    | MakeReferenceFromValue Arg
+    | MakeValueFromReference Arg
     | MakeString String
     deriving (Eq)
 
 instance Show Operation where
     show operation = case operation of
         InitVar marg -> "init " ++ maybe "" show marg
-        MakeReferenceFromValue id -> "&" ++ show (ArgID id)
-        MakeValueFromReference id -> "*" ++ show (ArgID id)
-        MakeValueFromValue arg    -> show arg
-        MakeRefFromRef arg        -> show arg
+        MakeReferenceFromValue arg -> "&" ++ show arg
+        MakeValueFromReference arg -> "*" ++ show arg
         MakeString str            -> show str
         Call callType args -> show callType ++ "(" ++ intercalate ", " (map show args) ++ ")"
         x -> error (show x)
@@ -77,7 +73,7 @@ data Stmt
     | Break
     | Return Arg
     | ReturnVoid
-    | EmbedC [ID] String
+    | EmbedC [(String, ID)] String
     | If Arg [ID]
     | Else [ID]
     | SSA Type RefType Operation
@@ -214,8 +210,8 @@ prettyIrStmt pre funcIr id = do
             putStrLn $ "block: "
             forM_ ids $ \id -> prettyIrStmt (pre ++ "\t") funcIr id
 
-        EmbedC uses str -> do
-            putStrLn $ "embedC " ++ intercalate ", " (map (show . ArgID) uses) ++ ": " ++ str
+        EmbedC idMap str -> do
+            putStrLn $ "embedC " ++ intercalate ", " (map show idMap) ++ ": " ++ str
 
         Return arg -> do
             putStrLn $ "return " ++ show arg

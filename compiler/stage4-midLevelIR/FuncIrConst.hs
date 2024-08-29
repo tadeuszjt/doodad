@@ -130,8 +130,8 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
     Break        -> void $ liftFuncIr $ appendStmtWithId id stmt
     ReturnVoid  -> void $ liftFuncIr $ appendStmtWithId id stmt
 
-    EmbedC ids _ -> do
-        mapM_ removeConst ids
+    EmbedC strMap _ -> do
+        mapM_ removeConst (map snd strMap)
         void $ liftFuncIr (appendStmtWithId id stmt)
 
     Return arg -> do
@@ -157,25 +157,13 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
         args' <- mapM processArg args
         void $ liftFuncIr $ appendStmtWithId id (SSA typ refType $ Call callType args')
 
-    SSA _ Ref (MakeReferenceFromValue i) -> do
+    SSA _ Ref (MakeReferenceFromValue (ArgID i)) -> do
         removeConst i
         modify $ \s -> s { unchangedSet = Set.delete i (unchangedSet s) }
         void $ liftFuncIr $ appendStmtWithId id stmt
 
     SSA _ Value (MakeValueFromReference _) -> void $ liftFuncIr $ appendStmtWithId id stmt
     SSA _ _ (MakeString str)               -> void $ liftFuncIr $ appendStmtWithId id stmt
-
-    SSA _ _ (MakeValueFromValue (ArgConst _ _)) ->
-        void $ liftFuncIr $ appendStmtWithId id stmt
-
-    SSA _ _ (MakeValueFromValue (ArgID i)) -> do
-        modify $ \s -> s { pointsMap = Map.insert id i (pointsMap s) }
-        modify $ \s -> s { unchangedSet = Set.insert id (unchangedSet s) }
-        void $ liftFuncIr $ appendStmtWithId id stmt
-
-    SSA _ _ (MakeRefFromRef (ArgID i)) -> do
-        --modify $ \s -> s { pointsMap = Map.insert id i (pointsMap s) }
-        void $ liftFuncIr $ appendStmtWithId id stmt
 
     x -> error (show x)
 

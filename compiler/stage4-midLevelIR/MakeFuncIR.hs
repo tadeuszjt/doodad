@@ -98,23 +98,6 @@ makeFuncIR func = do
     return (funcIrHeader, irFunc state)
 
 
-processCEmbed :: [(String, Symbol)] -> String -> DoM FuncIRState String
-processCEmbed strMap str = case str of
-    ('$':xs) -> do
-        let ident = takeWhile (\c -> isAlpha c || isDigit c || c == '_') xs
-        check (length ident > 0)     "invalid identifier following '$' token"
-        check (isAlpha $ ident !! 0) "invalid identifier following '$' token"
-        let rest = drop (length ident) xs
-
-        case lookup ident strMap of
-            Nothing -> error "here" 
-            Just symbol -> do
-                id <- look symbol
-                (("$%" ++ show id) ++) <$> processCEmbed strMap rest
-
-    (x:xs) -> (x:) <$> processCEmbed strMap xs
-    []     -> return ""
-
 
 makeStmt :: S.Stmt -> DoM FuncIRState ()
 makeStmt statement = withPos statement $ case statement of
@@ -123,9 +106,11 @@ makeStmt statement = withPos statement $ case statement of
         withCurrentID id (mapM_ makeStmt stmts)
 
     S.EmbedC _ strMap str -> do
-        str' <- processCEmbed strMap str
+        strMap' <- forM strMap $ \(s, symbol) -> do
+            id' <- look symbol
+            return (s, id')
         uses <- mapM look (map snd strMap)
-        void $ liftFuncIr $ appendStmt (EmbedC uses str')
+        void $ liftFuncIr $ appendStmt (EmbedC strMap' str)
 
     S.Let _ (S.PatAnnotated (S.PatIdent _ symbol) typ) (Just expr) Nothing -> do
         val <- makeVal expr
@@ -138,13 +123,13 @@ makeStmt statement = withPos statement $ case statement of
 
                     Just (SSA _ _ (MakeValueFromReference _)) -> do
                         id <- liftFuncIr $ appendSSA typ Value (InitVar Nothing)
-                        idRef <- liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue id)
+                        idRef <- liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue $ ArgID id)
                         store (ArgID idRef) (ArgID argId)
                         void $ define symbol id
 
                     Nothing -> do -- probably an arg TODO
                         id <- liftFuncIr $ appendSSA typ Value (InitVar Nothing)
-                        idRef <- liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue id)
+                        idRef <- liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue $ ArgID id)
                         store (ArgID idRef) (ArgID argId)
                         void $ define symbol id
 
@@ -182,7 +167,7 @@ makeStmt statement = withPos statement $ case statement of
                             Just (SSA _ _ (Call _ _))  -> void $ liftFuncIr $ appendStmt (Return val)
                             _                -> do
                                 id1 <- liftFuncIr $ appendSSA typ Value (InitVar Nothing)
-                                id2 <- liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue id1)
+                                id2 <- liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue $ ArgID id1)
                                 store (ArgID id2) (ArgID argId)
                                 void $ liftFuncIr $ appendStmt (Return $ ArgID id1)
 
@@ -240,7 +225,7 @@ makeVal (S.AExpr exprType expression) = withPos expression $ case expression of
         case refType of
             Value -> return (ArgID id)
             -- TODO might be slow, create makeAny function?
-            Ref   -> fmap ArgID $ liftFuncIr $ appendSSA typ Value (MakeValueFromReference id)
+            Ref   -> fmap ArgID $ liftFuncIr $ appendSSA typ Value (MakeValueFromReference (ArgID id))
 
     S.Array _ exprs -> do
         let (Type.Slice, [t]) = unfoldType exprType
@@ -272,7 +257,7 @@ makeVal (S.AExpr exprType expression) = withPos expression $ case expression of
             S.Retty Void -> fmap ArgID $ liftFuncIr $ appendSSA Void Const (Call funcType args)
             S.Retty typ -> fmap ArgID $ liftFuncIr $ appendSSA typ Value (Call funcType args)
             S.RefRetty typ -> do
-                fmap ArgID $ liftFuncIr $ appendSSA typ Value . MakeValueFromReference =<<
+                fmap ArgID $ liftFuncIr $ appendSSA typ Value . MakeValueFromReference . ArgID =<<
                     appendSSA typ Ref (Call funcType args)
 
             -- TODO slice
@@ -294,7 +279,7 @@ makeRef (S.AExpr exprType expression) = withPos expression $ case expression of
 
         case refType of
             Value -> do
-                liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue id)
+                liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue $ ArgID id)
 
             Ref -> return id
                 
@@ -316,7 +301,7 @@ makeRef (S.AExpr exprType expression) = withPos expression $ case expression of
 
             S.Retty typ -> do
                 id <- liftFuncIr $ appendSSA typ Value (Call funcType args)
-                liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue id)
+                liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue $ ArgID id)
 
             x -> error (show x)
 

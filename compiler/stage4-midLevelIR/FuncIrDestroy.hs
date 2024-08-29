@@ -175,7 +175,7 @@ destroy id = do
 
     case args of
         [S.RefParam _ argSymbol argType] -> do
-            id1 <- liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue id)
+            id1 <- liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue $ ArgID id)
             void $ liftFuncIr $ appendSSA Void Const $
                 Call (Apply (TypeDef destroySymbol) typ) [ArgID id1]
 
