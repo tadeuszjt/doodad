@@ -147,9 +147,6 @@ collectPattern (PatAnnotated pattern patType) = collectPos pattern $ case patter
     x -> error (show x)
 
 
-
-
-
 collectExpr :: Expr -> DoM CollectState ()
 collectExpr (AExpr exprType expression) = collectPos expression $ case expression of
     Float _ _    -> collect "float is F64" (ConsEq exprType F64)
@@ -163,58 +160,54 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
         unless (length exprs == length argTypes) (fail $ "invalid function type arguments: " ++ show callType)
 
         ast <- gets astResolved
-        when (Map.member funcSymbol $ featuresAll ast) $ do
-            let Feature _ featureGenerics funDeps _ _ _ = (featuresAll ast) Map.! funcSymbol
-
-            let (TypeDef funcSymbol, callTypeArgs) = unfoldType callType
-            unless (length callTypeArgs == length featureGenerics) (error "xs needs to be > 0")
+        let Feature _ featureGenerics funDeps _ _ _ = (featuresAll ast) Map.! funcSymbol
+        let (TypeDef funcSymbol, callTypeArgs) = unfoldType callType
+        unless (length callTypeArgs == length featureGenerics) (error "xs needs to be > 0")
 
 
-            -- These indices describe the type variables which are independed according to the 
-            -- functional dependencies. If the independent variables fully describe the call type,
-            -- it can be said that no other overlapping definition could conflict with it so we can
-            -- type check.
-            indices <- fmap catMaybes $ forM (zip featureGenerics [0..]) $ \(g, i) -> do
-                case findIndex (\(_, x) -> g == x) funDeps of
-                    Just _  -> return Nothing
-                    Nothing -> return (Just i) 
+        -- These indices describe the type variables which are independent according to the 
+        -- functional dependencies. If the independent variables fully describe the call type,
+        -- it can be said that no other overlapping definition could conflict with it so we can
+        -- type check.
+        indices <- fmap catMaybes $ forM (zip featureGenerics [0..]) $ \(g, i) -> do
+            case findIndex (g ==) (map snd funDeps) of
+                Just _  -> return Nothing
+                Nothing -> return (Just i) 
 
-            fullAcqs <- fmap catMaybes $ forM (Map.toList $ acquiresAll ast) $ \(symbol, stmt) -> do
-                appliedAcqType <- case stmt of
-                    Acquires _ generics acqType _ _ _ -> do
-                        let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
-                        return (applyType genericsToVars acqType)
+        fullAcqs <- fmap catMaybes $ forM (Map.elems $ acquiresAll ast) $ \stmt -> do
+            appliedAcqType <- case stmt of
+                Acquires _ generics acqType _ _ _ -> do
+                    let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
+                    return (applyType genericsToVars acqType)
 
-                    Derives pos generics argType [featureType] -> do
-                        let acqType = Apply featureType argType
-                        let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
-                        return (applyType genericsToVars acqType)
+                Derives pos generics argType [featureType] -> do
+                    let acqType = Apply featureType argType
+                    let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
+                    return (applyType genericsToVars acqType)
 
-                case typesCouldMatch appliedAcqType callType of
-                    False -> return Nothing
-                    True -> do
-                        let (TypeDef _, acqTypeArgs) = unfoldType appliedAcqType
-                        let b = all id $ map (\i -> typeFullyDescribes (acqTypeArgs !! i) (callTypeArgs !! i)) indices
-                        case b of
-                            True -> return (Just appliedAcqType) 
-                            False -> return Nothing
+            case typesCouldMatch appliedAcqType callType of
+                False -> return Nothing
+                True -> do
+                    let (TypeDef _, acqTypeArgs) = unfoldType appliedAcqType
+                    let b = all id $ map (\i -> typeFullyDescribes (acqTypeArgs !! i) (callTypeArgs !! i)) indices
+                    case b of
+                        True -> return (Just appliedAcqType) 
+                        False -> return Nothing
 
-            case fullAcqs of
-                [] -> return ()
-                [acq] -> do
-                    subs <- unify =<< getConstraintsFromTypes acq callType
-                    (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf (applyType subs acq)
-                    collect "call type" $ ConsEq callType (applyType subs acq)
-                    collect "call return" (ConsEq exprType retType)
-                    zipWithM (\x y -> collect "call argument" (ConsEq x y)) argTypes (map typeof exprs)
-                    return ()
-                x -> error (show x)
+        case fullAcqs of
+            [] -> return ()
+            [acq] -> do
+                subs <- unify =<< getConstraintsFromTypes acq callType
+                (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf (applyType subs acq)
+                collect "call type" $ ConsEq callType (applyType subs acq)
+                collect "call return" (ConsEq exprType retType)
+                zipWithM (\x y -> collect "call argument" (ConsEq x y)) argTypes (map typeof exprs)
+                return ()
+            x -> error (show x)
                 
-
         when (Symbol.sym funcSymbol == "convert" && symbolModule funcSymbol == "convert") $ do
             unless (length argTypes == 1) (error "invalid")
             collectDefault exprType (argTypes !! 0)
-
 
         when (Symbol.sym funcSymbol == "make2" && symbolModule funcSymbol == "tuple") $ do
             unless (length argTypes == 2) (error "invalid")
@@ -230,7 +223,6 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
 
         collect "call return" (ConsEq exprType retType)
         zipWithM (\x y -> collect "call argument" (ConsEq x y)) argTypes (map typeof exprs)
-
         mapM_ collectExpr exprs
 
 

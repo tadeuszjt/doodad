@@ -101,13 +101,16 @@ fn main(io Io, rand Rand, w sf::Window)
                 sf::closed()       ; w.sf::close()
                 sf::mouseMove(x, y); mousePos = (x, y).convert
 
-        blobs[0].position = translationInv.transformVec2(mousePos, 1.0)
 
         for (0, blobs.len) -> i
             if rand.uniform(0, 100) == 0
-                let childPos = blobs.position[i] + Vec2(rand.uniform(0, 40), 0).rotate(rand.uniform(0, 10))
+                let childPos = blobs.position[i] + Vec2(
+                    rand.uniform(0, 40)
+                    0
+                ).rotate(rand.uniform(0, 10))
+
                 let collides = false
-                for (0, blobs.len) -> j | !collides
+                for (0, blobs.position.len) -> j | !collides
                     let neighborPos = blobs.position[j]
                     if (childPos - neighborPos).length < 20 
                         collides = true

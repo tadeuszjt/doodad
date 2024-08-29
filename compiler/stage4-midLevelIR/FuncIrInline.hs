@@ -100,7 +100,7 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
 
     SSA typ callRefType (Call callType callArgs) -> do -- TODO can also inline ref calls
         ast <- gets astResolved
-        callAst <- fmap fst $ runDoMExcept ast (makeInstance callType)
+        Just callAst <- fmap fst $ runDoMExcept ast (makeInstance callType)
         callIr0  <- fmap (snd . fst) $ runDoMExcept (IR.initFuncIRState ast) (IR.makeFuncIR callAst)
         callIr1  <- fmap (FuncIrDestroy.funcIr . snd) $ runDoMExcept (FuncIrDestroy.initFuncIrDestroyState ast) (FuncIrDestroy.addFuncDestroy callIr0)
         callIr2  <- fmap (IR.funcIr . snd) $ runDoMExcept (IR.initFuncIrUnusedState ast) (IR.funcIrUnused callIr1)

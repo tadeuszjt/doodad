@@ -11,6 +11,7 @@ import Type
 import Apply
 import Constraint
 import Error
+import Symbol
 
 
 unifyOne :: MonadFail m => Constraint -> m [(Type, Type)]
@@ -50,19 +51,56 @@ getConstraintsFromTypes t1 t2 = case (t1, t2) of
     _ -> fail $ show (t1, t2)
 
 
-makeInstance :: Type -> DoM ASTResolved Func
-makeInstance funcType = do
-    mfunc <- makeAcquireInstance funcType
-    unless (isJust mfunc) (fail $ "no valid acquires for: " ++ show funcType)
-    return (fromJust mfunc)
-
-
-makeAcquireInstance :: Type -> DoM ASTResolved (Maybe Func)
-makeAcquireInstance callType = do
+makeHeaderInstance :: Type -> DoM ASTResolved (Maybe (Symbol, [Param], Retty))
+makeHeaderInstance callType = do
     -- In haskell, instances are globally visible, so we do not have to worry about different instances.
     acquiresAll <- gets acquiresAll
-    featuresAll <- gets featuresAll
-    typeDefsAll <- gets typeDefsAll
+    results <- fmap catMaybes $ forM (Map.toList acquiresAll) $ \(symbol, stmt) -> case stmt of
+        Derives _ generics argType [featureType] -> do
+            let genericSubs = zip (map TypeDef generics) (map Type [1..])
+            let upperType = applyType genericSubs $ Apply featureType argType
+
+            subsEither <- tryError (unify =<< getConstraintsFromTypes upperType callType)
+            case subsEither of
+                Left _ -> return Nothing
+                Right subs -> do
+                    lowerArgType <- fromJust <$> lowerTypeOfm argType
+                    let lowerType = applyType genericSubs (Apply featureType lowerArgType)
+                    let lower = applyType subs lowerType
+                    unless (applyType subs upperType == callType) (fail $ "type mismatch: " ++ show callType)
+                    unless (typeFullyResolved lower) (error "propagating type vars")
+                    makeHeaderInstance lower
+
+        Acquires pos generics implType args isRef scope -> do
+            --liftIO $ putStrLn $ "checking aquire: " ++ prettySymbol symbol
+            let genericSubs = zip (map TypeDef generics) (map Type [1..])
+            let typ = applyType genericSubs implType
+
+            subsEither <- tryError (unify =<< getConstraintsFromTypes typ callType)
+            case subsEither of
+                Left _ -> return Nothing
+                Right subs -> do
+                    unless (applyType subs typ == callType) (fail $ "type mismatch: " ++ show callType)
+                    (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType
+                    unless (length argTypes == length args) (error "something else went wrong")
+
+                    -- args need to be swapped from void
+                    let args'   = zipWith (\t p -> p { paramType = t}) argTypes args 
+                    let retty'  = (if isRef then RefRetty else Retty) retType
+                    return $ Just (symbol, args', retty')
+
+
+
+    case results of
+        []     -> return Nothing
+        [func] -> return (Just func)
+        funcs  -> fail $ "multiple acquires for: " ++ show callType
+
+
+makeInstance :: Type -> DoM ASTResolved (Maybe Func)
+makeInstance callType = do
+    -- In haskell, instances are globally visible, so we do not have to worry about different instances.
+    acquiresAll <- gets acquiresAll
     results <- fmap catMaybes $ forM (Map.toList acquiresAll) $ \(symbol, stmt) -> case stmt of
         Derives _ generics argType [featureType] -> do
             let genericSubs = zip (map TypeDef generics) (map Type [1..])
@@ -78,7 +116,7 @@ makeAcquireInstance callType = do
 
                     unless (applyType subs upperType == callType) (fail $ "type mismatch: " ++ show callType)
                     unless (typeFullyResolved lower) (error "propagating type vars")
-                    makeAcquireInstance lower
+                    makeInstance lower
 
         Acquires pos generics implType args isRef scope -> do
             --liftIO $ putStrLn $ "checking aquire: " ++ prettySymbol symbol

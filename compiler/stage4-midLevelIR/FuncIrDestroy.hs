@@ -168,10 +168,12 @@ destroy id = do
         [x] -> return x
 
 
-    acq <- fmap fst $ runDoMExcept ast $ makeAcquireInstance (foldType [TypeDef destroySymbol, typ])
-    unless (isJust acq) (fail $ "no destroy for: " ++ show typ)
+    resm <- fmap fst $ runDoMExcept ast $ makeHeaderInstance (foldType [TypeDef destroySymbol, typ])
+    args <- case resm of
+        Nothing -> fail ("no destroy instance")
+        Just (_, as, S.Retty Void) -> return as
 
-    case S.funcArgs (fromJust acq) of
+    case args of
         [S.RefParam _ argSymbol argType] -> do
             id1 <- liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue id)
             void $ liftFuncIr $ appendSSA Void Const $
