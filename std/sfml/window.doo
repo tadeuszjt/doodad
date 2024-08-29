@@ -1,20 +1,10 @@
 module window
 
-import builtin/builtin
-import builtin/store
-import builtin/assert
-import builtin/tuple
+import builtin/all
 import std/option
-import builtin/arithmetic
-import builtin/boolean
-import builtin/convert
-import builtin/container
 import std/print
 import std/sparse
 import std/io
-import builtin/destroy
-import builtin/for
-import builtin/slice
 
 import std/sfml/texture
 

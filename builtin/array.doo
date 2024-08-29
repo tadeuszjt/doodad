@@ -39,3 +39,10 @@ inst{S, T} multiply{ Array{S, T} } (a, b)
 inst{T, S} store{ Array{S, T} } (a&, b)
     for (0, a.len) -> idx
         a.builtinArrayAt(idx) = b.builtinArrayAt(idx)
+
+
+inst{S, T} destroy{ Array{S, T} } (arr&)
+    for (0, arr.len) -> i
+        arr[i].destroy
+    
+

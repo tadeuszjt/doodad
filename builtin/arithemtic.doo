@@ -53,8 +53,6 @@ inst{A, B} subtract{ Tuple{A, B} } (a, b); return (a.0 - b.0, a.1 - b.1)
 inst{A, B} multiply{ Tuple{A, B} } (a, b); return (a.0 * b.0, a.1 * b.1)
 inst{A, B} divide{ Tuple{A, B} }   (a, b); return (a.0 / b.0, a.1 / b.1)
 
-inst{A, B, C} add{ Tuple{A, B, C} } (a, b)
-    return (a.0 + b.0, a.1 + b.1, a.2 + b.2)
+inst{A, B, C} add{ Tuple{A, B, C} } (a, b); return (a.0 + b.0, a.1 + b.1, a.2 + b.2)
 
-inst{A, B, C, D} add{ Tuple{A, B, C, D} } (a, b)
-    return (a.0 + b.0, a.1 + b.1, a.2 + b.2, a.3 + b.3)
+inst{A, B, C, D} add{ Tuple{A, B, C, D} } (a, b); return (a.0 + b.0, a.1 + b.1, a.2 + b.2, a.3 + b.3)

@@ -1,4 +1,4 @@
-module blobs
+module main
 
 import std/io
 import qualified std/sfml/window  as sf
@@ -22,6 +22,7 @@ tuple Blob {
     velocity   Vec2
     blobColour sf::Colour
     sprite     sf::Quad
+    age        I64
 }
 derives    Blob (store, destroy)
 derives{P} Blob (print::print{P})
@@ -101,13 +102,12 @@ fn main(io Io, rand Rand, w sf::Window)
                 sf::closed()       ; w.sf::close()
                 sf::mouseMove(x, y); mousePos = (x, y).convert
 
-
         for (0, blobs.len) -> i
             if rand.uniform(0, 100) == 0
                 let childPos = blobs.position[i] + Vec2(
                     rand.uniform(0, 40)
                     0
-                ).rotate(rand.uniform(0, 10))
+                ).rotate(rand.uniform(0, 2 * maths::pi()))
 
                 let collides = false
                 for (0, blobs.position.len) -> j | !collides

@@ -20,29 +20,6 @@ inst destroy{ U8 } (n&); return
 inst{T} destroy{ Slice{T} } (slice&); return
 
 
-inst{A} destroy{ Tuple{A} } (tup&)
-    tup.0 .destroy
-
-inst{A, B} destroy{ Tuple{A, B} } (tup&)
-    tup.0 .destroy
-    tup.1 .destroy
-
-inst{A, B, C} destroy{ Tuple{A, B, C} } (tup&)
-    tup.0 .destroy
-    tup.1 .destroy
-    tup.2 .destroy
-
-inst{A, B, C, D} destroy{ Tuple{A, B, C, D} } (tup&)
-    tup.0 .destroy
-    tup.1 .destroy
-    tup.2 .destroy
-    tup.3 .destroy
-
-
-inst{N, T} destroy{ Array{N, T} } (arr&)
-    for (0, arr.len) -> i
-        arr[i].destroy
-    
 
 inst{T} destroy{ T.Table } (t&)
     for (0, t.len) -> i

@@ -4,8 +4,12 @@ import builtin/store
 import builtin/builtin
 import builtin/convert
 
+func{ A, B, C | C->A, C->B }                   make2(A, B) C
+func{ A, B, C, D | D->A, D->B, D->C }          make3(A, B, C) D
+func{ A, B, C, D, E | E->A, E->B, E->C, E->D } make4(A, B, C, D) E
 
 func{G, TupSize, TupField, T | T -> TupSize, TupField -> G } tuplePattern(T) G
+
 
 inst{A, B} tuplePattern{ A, 2, 0, Tuple{A, B}} (tup&) -> &; return tup.0
 inst{A, B} tuplePattern{ B, 2, 1, Tuple{A, B}} (tup&) -> &; return tup.1
@@ -19,10 +23,6 @@ inst{A, B, C, D} tuplePattern{B, 4, 1, Tuple{A, B, C, D}} (tup&) -> &; return tu
 inst{A, B, C, D} tuplePattern{C, 4, 2, Tuple{A, B, C, D}} (tup&) -> &; return tup.2
 inst{A, B, C, D} tuplePattern{D, 4, 3, Tuple{A, B, C, D}} (tup&) -> &; return tup.3
 
-
-func{ A, B, C | C->A, C->B }                   make2(A, B) C
-func{ A, B, C, D | D->A, D->B, D->C }          make3(A, B, C) D
-func{ A, B, C, D, E | E->A, E->B, E->C, E->D } make4(A, B, C, D) E
 
 inst{A, B} make2{ A, B, Tuple{A, B} } (a, b)
     let tup
@@ -46,7 +46,99 @@ inst{A, B, C, D} make4{ A, B, C, D, Tuple{A, B, C, D} } (a, b, c, d)
     return tup
 
 
+inst{A, B} field{0, A, Tuple{A, B}} (tup&) -> &; return tup.builtinField{0, A, Tuple{A, B}}
+inst{A, B} field{1, B, Tuple{A, B}} (tup&) -> &; return tup.builtinField{1, B, Tuple{A, B}}
+
+
+inst{A, B, C} field{0, A, Tuple{A, B, C}} (tup&) -> &; return tup.builtinField{0, A, Tuple{A, B, C}}
+inst{A, B, C} field{1, B, Tuple{A, B, C}} (tup&) -> &; return tup.builtinField{1, B, Tuple{A, B, C}}
+inst{A, B, C} field{2, C, Tuple{A, B, C}} (tup&) -> &; return tup.builtinField{2, C, Tuple{A, B, C}}
+
+
+inst{A, B, C, D} field{0, A, Tuple{A, B, C, D}} (tup&) -> &
+    return tup.builtinField{0, A, Tuple{A, B, C, D}}
+
+inst{A, B, C, D} field{1, B, Tuple{A, B, C, D}} (tup&) -> &
+    return tup.builtinField{1, B, Tuple{A, B, C, D}}
+
+inst{A, B, C, D} field{2, C, Tuple{A, B, C, D}} (tup&) -> &
+    return tup.builtinField{2, C, Tuple{A, B, C, D}}
+
+inst{A, B, C, D} field{3, D, Tuple{A, B, C, D}} (tup&) -> &
+    return tup.builtinField{3, D, Tuple{A, B, C, D}}
+
+
+inst{A, B, C, D, E} field{0, A, Tuple{A, B, C, D, E}} (t&) -> &
+    return t.builtinField{0, A, Tuple{A, B, C, D, E}}
+
+inst{A, B, C, D, E} field{1, B, Tuple{A, B, C, D, E}} (t&) -> &
+    return t.builtinField{1, B, Tuple{A, B, C, D, E}}
+
+inst{A, B, C, D, E} field{2, C, Tuple{A, B, C, D, E}} (t&) -> &
+    return t.builtinField{2, C, Tuple{A, B, C, D, E}}
+
+inst{A, B, C, D, E} field{3, D, Tuple{A, B, C, D, E}} (t&) -> &
+    return t.builtinField{3, D, Tuple{A, B, C, D, E}}
+
+inst{A, B, C, D, E} field{4, E, Tuple{A, B, C, D, E}} (t&) -> &
+    return t.builtinField{4, E, Tuple{A, B, C, D, E}}
+
+
 inst{A, B} convert{Tuple{A, A}, Tuple{B, B}} (a)
     return (a.0 .convert, a.1 .convert)
+
 inst{A, B} convert{Tuple{A, A, A}, Tuple{B, B, B}} (a)
     return (a.0 .convert, a.1 .convert, a.2 .convert)
+
+
+inst store{ Tuple{} } (a&, b); return
+
+inst{A} store{ Tuple{A} } (a&, b); a.0 = b.0
+
+inst{A, B} store{ Tuple{A, B} } (a&, b)
+    a.0 = b.0
+    a.1 = b.1
+
+inst{A, B, C} store{ Tuple{A, B, C} } (a&, b)
+    a.0 = b.0
+    a.1 = b.1
+    a.2 = b.2
+
+inst{A, B, C, D} store{ Tuple{A, B, C, D} } (a&, b)
+    a.0 = b.0
+    a.1 = b.1
+    a.2 = b.2
+    a.3 = b.3
+
+inst{A, B, C, D, E} store{Tuple{A, B, C, D, E}} (a&, b)
+    a.0 = b.0
+    a.1 = b.1
+    a.2 = b.2
+    a.3 = b.3
+    a.4 = b.4
+
+
+inst{A} destroy{ Tuple{A} } (tup&)
+    tup.0 .destroy
+
+inst{A, B} destroy{ Tuple{A, B} } (tup&)
+    tup.0 .destroy
+    tup.1 .destroy
+
+inst{A, B, C} destroy{ Tuple{A, B, C} } (tup&)
+    tup.0 .destroy
+    tup.1 .destroy
+    tup.2 .destroy
+
+inst{A, B, C, D} destroy{ Tuple{A, B, C, D} } (tup&)
+    tup.0 .destroy
+    tup.1 .destroy
+    tup.2 .destroy
+    tup.3 .destroy
+
+inst{A, B, C, D, E} destroy{Tuple{A, B, C, D, E}} (t&)
+    t.0 .destroy
+    t.1 .destroy
+    t.2 .destroy
+    t.3 .destroy
+    t.4 .destroy

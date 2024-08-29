@@ -170,7 +170,7 @@ destroy id = do
 
     resm <- fmap fst $ runDoMExcept ast $ makeHeaderInstance (foldType [TypeDef destroySymbol, typ])
     args <- case resm of
-        Nothing -> fail ("no destroy instance")
+        Nothing -> fail ("no destroy instance for: " ++ show typ)
         Just (_, as, S.Retty Void) -> return as
 
     case args of

@@ -255,6 +255,11 @@ makeVal (S.AExpr exprType expression) = withPos expression $ case expression of
 
     S.Call _ funcType exprs -> do
         ast <- gets astResolved
+        resm <- fmap fst $ runDoMExcept ast (makeHeaderInstance funcType)
+        (args, retty) <- case resm of
+            Nothing -> fail ("no instance for: " ++ show funcType)
+            Just (_, args, retty) -> return (args, retty)
+
         Just (_, args, retty) <- fmap fst $ runDoMExcept ast (makeHeaderInstance funcType)
         unless (length exprs == length args) (error "arg length mismatch")
 

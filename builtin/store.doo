@@ -16,28 +16,6 @@ inst store{ F32 }  (a&, b); builtinStore(&a, b)
 inst store{ Bool } (a&, b); builtinStore(&a, b)
 inst store{ Char } (a&, b); builtinStore(&a, b)
 
-
-inst store{ Tuple{} } (a&, b)
-    return
-
-inst{A} store{ Tuple{A} } (a&, b)
-    a.0 = b.0
-
-inst{A, B} store{ Tuple{A, B} } (a&, b)
-    a.0 = b.0
-    a.1 = b.1
-
-inst{A, B, C} store{ Tuple{A, B, C} } (a&, b)
-    a.0 = b.0
-    a.1 = b.1
-    a.2 = b.2
-
-inst{A, B, C, D} store{ Tuple{A, B, C, D} } (a&, b)
-    a.0 = b.0
-    a.1 = b.1
-    a.2 = b.2
-    a.3 = b.3
-
 inst{A} store{ Sum{A} } (a&, b)
     a.0 = b.0
 
