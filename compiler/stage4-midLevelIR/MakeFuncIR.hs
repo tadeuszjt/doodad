@@ -182,9 +182,13 @@ makeStmt statement = withPos statement $ case statement of
         id <- liftFuncIr $ appendStmt $ Loop []
         withCurrentID id $ do
             cnd <- makeVal expr
-            ifId <- liftFuncIr $ appendStmt (If cnd [])
-            elseId <- liftFuncIr $ appendStmt (Else [])
-            withCurrentID elseId $ do
+
+            trueBlkId <- liftFuncIr generateId
+            falseBlkId <- liftFuncIr generateId
+            liftFuncIr $ appendStmt (If cnd trueBlkId falseBlkId)
+            liftFuncIr $ addStmt trueBlkId (Block [])
+            liftFuncIr $ addStmt falseBlkId (Block [])
+            withCurrentID falseBlkId $ do
                 liftFuncIr $ appendStmt Break
                 
             mapM_ makeStmt stmts
@@ -192,14 +196,18 @@ makeStmt statement = withPos statement $ case statement of
 
     S.If _ expr (S.Block trueStmts) mfalse -> do
         arg <- makeVal expr
-        id <- liftFuncIr $ appendStmt (If arg [])
-        withCurrentID id (mapM_  makeStmt trueStmts)
 
+        trueBlkId <- liftFuncIr $ generateId
+        falseBlkId <- liftFuncIr $ generateId
+        liftFuncIr $ appendStmt (If arg trueBlkId falseBlkId)
+        liftFuncIr $ addStmt trueBlkId (Block [])
+        liftFuncIr $ addStmt falseBlkId (Block [])
+
+        withCurrentID trueBlkId (mapM_ makeStmt trueStmts)
         case mfalse of
             Nothing -> return ()
             Just (S.Block falseStmts) -> do
-                elseId <- liftFuncIr $ appendStmt (Else [])
-                withCurrentID elseId (mapM_ makeStmt falseStmts)
+                withCurrentID falseBlkId (mapM_ makeStmt falseStmts)
         
 
     x -> error (show x)

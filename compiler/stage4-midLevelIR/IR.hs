@@ -74,8 +74,7 @@ data Stmt
     | Return Arg
     | ReturnVoid
     | EmbedC [(String, ID)] String
-    | If Arg [ID]
-    | Else [ID]
+    | If Arg ID ID
     | SSA Type RefType Operation
     deriving (Show, Eq)
 
@@ -139,6 +138,12 @@ addType id typ refType = do
     modify $ \s -> s { irTypes = Map.insert id (typ, refType) (irTypes s) }
 
 
+addStmt :: ID -> Stmt -> DoM FuncIR ()
+addStmt id stmt = do
+    resm <- gets $ Map.lookup id . irStmts
+    unless (isNothing resm) (fail $ "stmt already added: " ++ show (id, stmt))
+    modify $ \s -> s { irStmts = Map.insert id stmt (irStmts s) }
+
 
 
 getType :: Arg -> DoM FuncIR (Type, RefType)
@@ -159,12 +164,10 @@ appendStmt stmt = do
     curStmt' <- case curStmt of
         Block xs -> return (Block $ xs ++ [id])
         Loop ids -> return (Loop $ ids ++ [id])
-        If arg ids    -> return (If arg $ ids ++ [id])
-        Else ids      -> return (Else $ ids ++ [id])
         x -> error (show x)
 
     modify $ \s -> s { irStmts = Map.insert curId curStmt' (irStmts s) }
-    modify $ \s -> s { irStmts = Map.insert id stmt (irStmts s) }
+    addStmt id stmt
     return id
 
 
@@ -182,12 +185,10 @@ appendStmtWithId id stmt = do
     curStmt' <- case curStmt of
         Block xs -> return (Block $ xs ++ [id])
         Loop ids -> return (Loop $ ids ++ [id])
-        If arg ids    -> return (If arg $ ids ++ [id])
-        Else ids      -> return (Else $ ids ++ [id])
         x -> error (show x)
 
     modify $ \s -> s { irStmts = Map.insert curId curStmt' (irStmts s) }
-    modify $ \s -> s { irStmts = Map.insert id stmt (irStmts s) }
+    addStmt id stmt
 
 
 prettyIR :: String -> FuncIR -> IO ()
@@ -224,13 +225,11 @@ prettyIrStmt pre funcIr id = do
 
         Break -> putStrLn "break"
 
-        If arg trueIds -> do
-            putStrLn $ "if " ++ show arg ++ ":"
-            mapM_ (prettyIrStmt (pre ++ "\t") funcIr) trueIds
-
-        Else ids -> do
-            putStrLn $ "else:"
-            mapM_ (prettyIrStmt (pre ++ "\t") funcIr) ids
+        If arg trueId falseId -> do
+            putStr $ "if " ++ show arg ++ ":"
+            prettyIrStmt pre funcIr trueId
+            putStr $ pre ++ "else:"
+            prettyIrStmt pre funcIr falseId
 
         SSA typ refType operation -> do
             putStrLn $ "%" ++ show id ++ " " ++ show refType ++ " " ++ show typ ++ " = " ++ show operation

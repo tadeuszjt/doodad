@@ -58,13 +58,12 @@ funcIrUnused func = do
     forM_ (Map.toList $ irStmts func) $ \(id, stmt) -> case stmt of
         Block _ -> addUsed id
         Loop _  -> addUsed id
-        If arg _ -> do
+        If arg _ _ -> do
             addUsed id
             case arg of
                 ArgID argId -> addUsed argId
                 _           -> return ()
 
-        Else _ -> addUsed id
         Break  -> addUsed id
 
         EmbedC strMap _ -> do
@@ -109,46 +108,53 @@ withCurrentId id f = do
 processStmt :: FuncIR -> ID -> DoM FuncIrUnusedState ()
 processStmt funcIr id = do
     hasReturned <- gets hasReturned
-    unless hasReturned $ do
-        let stmt = irStmts funcIr Map.! id in case stmt of
-            Block ids -> do
-                void $ liftFuncIr $ appendStmtWithId id (Block [])
-                withCurrentId id $ do
-                    mapM_ (processStmt funcIr) ids
+    unless hasReturned $ let stmt = irStmts funcIr Map.! id in case stmt of
+        Block ids -> do
+            unless (id == 0) $ liftFuncIr $ appendStmtWithId id (Block [])
+            withCurrentId id $ do
+                mapM_ (processStmt funcIr) ids
 
-            Loop ids -> do
-                void $ liftFuncIr $ appendStmtWithId id (Loop [])
-                withCurrentId id $ do
-                    mapM_ (processStmt funcIr) ids
+        Loop ids -> do
+            void $ liftFuncIr $ appendStmtWithId id (Loop [])
+            withCurrentId id $ do
+                mapM_ (processStmt funcIr) ids
 
-            If cnd ids -> do
-                void $ liftFuncIr $ appendStmtWithId id (If cnd [])
-                withCurrentId id $ do
-                    mapM_ (processStmt funcIr) ids
+        If (ArgConst _ (ConstBool True)) trueBlkId falseBlkId -> do
+            let Just (Block trueIds) = Map.lookup trueBlkId (irStmts funcIr)
+            mapM_ (processStmt funcIr) trueIds
+            
+        If (ArgConst _ (ConstBool False)) trueBlkId falseBlkId -> do
+            let Just (Block falseIds) = Map.lookup falseBlkId (irStmts funcIr)
+            mapM_ (processStmt funcIr) falseIds
 
-            Else ids -> do
-                void $ liftFuncIr $ appendStmtWithId id (Else [])
-                withCurrentId id $ do
-                    mapM_ (processStmt funcIr) ids
+        If cnd trueBlkId falseBlkId -> do
+            void $ liftFuncIr $ appendStmtWithId id (If cnd trueBlkId falseBlkId)
+            liftFuncIr $ addStmt trueBlkId (Block [])
+            liftFuncIr $ addStmt falseBlkId (Block [])
 
-            Break -> do
-                modify $ \s -> s { hasReturned = True }
-                void $ liftFuncIr $ appendStmtWithId id stmt
+            let Just (Block trueIds) = Map.lookup trueBlkId (irStmts funcIr)
+            let Just (Block falseIds) = Map.lookup falseBlkId (irStmts funcIr)
+            withCurrentId trueBlkId $ mapM_ (processStmt funcIr) trueIds
+            withCurrentId falseBlkId $ mapM_ (processStmt funcIr) falseIds
 
-            EmbedC _ _ ->
-                void $ liftFuncIr (appendStmtWithId id stmt)
+        Break -> do
+            modify $ \s -> s { hasReturned = True }
+            void $ liftFuncIr $ appendStmtWithId id stmt
 
-            Return arg -> do
-                modify $ \s -> s { hasReturned = True }
-                void $ liftFuncIr (appendStmtWithId id stmt)
+        EmbedC _ _ ->
+            void $ liftFuncIr (appendStmtWithId id stmt)
 
-            ReturnVoid -> do
-                modify $ \s -> s { hasReturned = True }
-                void $ liftFuncIr (appendStmtWithId id stmt)
+        Return arg -> do
+            modify $ \s -> s { hasReturned = True }
+            void $ liftFuncIr (appendStmtWithId id stmt)
 
-            SSA _ _ _ -> do
-                used <- isUsed id
-                when used $ void $ liftFuncIr (appendStmtWithId id stmt)
+        ReturnVoid -> do
+            modify $ \s -> s { hasReturned = True }
+            void $ liftFuncIr (appendStmtWithId id stmt)
 
-            x -> error (show x)
+        SSA _ _ _ -> do
+            used <- isUsed id
+            when used $ void $ liftFuncIr (appendStmtWithId id stmt)
+
+        x -> error (show x)
 

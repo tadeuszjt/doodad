@@ -88,20 +88,16 @@ generateFunc funcType = do
         Just funcAst <- fmap fst $ runDoMExcept ast (makeInstance funcType)
         (funcIrHeader, funcIr') <- fmap fst $ runDoMExcept (IR.initFuncIRState ast) (IR.makeFuncIR funcAst)
         funcIr'' <- fmap (IR.funcIr . snd) $ runDoMExcept (IR.initFuncIrDestroyState ast) (IR.addFuncDestroy funcIr')
-        funcIr''' <- fmap (IrUnused.funcIr . snd) $ runDoMExcept (IrUnused.initFuncIrUnusedState ast) (IrUnused.funcIrUnused funcIr'')
 
-        --funcIr <- fmap (IrInline.funcIr . snd) $ runDoMExcept (IrInline.initFuncIrInlineState ast) (IrInline.funcIrInline funcIr''')
-
-        (funcIr, ()) <- runDoMExcept () $ fmap fst $ runDoMUntilSameResult funcIr''' $ \funcIr -> do
+        (funcIr, ()) <- runDoMExcept () $ fmap fst $ runDoMUntilSameResult funcIr'' $ \funcIr -> do
             funcIr' <- fmap (IrInline.funcIr . snd) $ runDoMExcept (IrInline.initFuncIrInlineState ast) (IrInline.funcIrInline funcIr)
             funcIr'' <- fmap (IrConst.funcIr . snd) $ runDoMExcept (IrConst.initFuncIrConstState ast) (IrConst.funcIrConst funcIr')
             funcIr''' <- fmap (IrUnused.funcIr . snd) $ runDoMExcept (IrUnused.initFuncIrUnusedState ast) (IrUnused.funcIrUnused funcIr'')
             return funcIr'''
 
-
         liftIO $ putStrLn ""
         liftIO $ putStrLn $ show funcIrHeader
-        liftIO $ IR.prettyIR "" funcIr'
+        liftIO $ IR.prettyIR "" funcIr
 
         generatedSymbol <- CGenerate.genSymbol symbol
         let header' = (funcIrHeader) { IR.irFuncSymbol = generatedSymbol }
@@ -180,18 +176,13 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
             mapM_ (generateStmt funcIr) ids
 
 
-    IR.If arg ids -> do
+    IR.If arg trueBlkId falseBlkId -> do
         val <- generateArg arg
         ifId <- appendElem (C.If val [])
-        withCurID ifId $ do
-            mapM_ (generateStmt funcIr) ids
-        
-    IR.Else ids -> do
         elseId <- appendElem (C.Else [])
-        withCurID elseId $ do
-            mapM_ (generateStmt funcIr) ids
-
-
+        withCurID ifId $ generateStmt funcIr trueBlkId
+        withCurID elseId $ generateStmt funcIr falseBlkId
+        
     IR.SSA ssaTyp ssaRefTyp operation -> case operation of
         IR.InitVar marg -> do
             let IR.Value = ssaRefTyp

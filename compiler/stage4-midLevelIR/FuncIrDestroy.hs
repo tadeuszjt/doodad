@@ -25,9 +25,9 @@ data FuncIrDestroyState = FuncIrDestroyState
 
 
 initFuncIrDestroyState ast = FuncIrDestroyState
-    { funcIr      = initFuncIr
+    { funcIr       = initFuncIr
     , destroyStack = []
-    , astResolved = ast
+    , astResolved  = ast
     }
 
 
@@ -62,7 +62,7 @@ addFuncDestroy func = do
     -- generate new ids from here
     liftFuncIr $ modify $ \s -> s { irIdSupply = irIdSupply func }
 
-    void $ processStmt func 0
+    processStmt func 0
 
 
 withCurrentId :: ID -> DoM FuncIrDestroyState a -> DoM FuncIrDestroyState a
@@ -77,7 +77,7 @@ withCurrentId id f = do
 processStmt :: FuncIR -> ID -> DoM FuncIrDestroyState ()
 processStmt funcIr id = let stmt = irStmts funcIr Map.! id in case stmt of
     Block ids -> do
-        void $ liftFuncIr $ appendStmtWithId id (Block [])
+        unless (id == 0) $ void $ liftFuncIr $ appendStmtWithId id (Block [])
         withCurrentId id $ do
             pushStack
             mapM_ (processStmt funcIr) ids
@@ -98,27 +98,29 @@ processStmt funcIr id = let stmt = irStmts funcIr Map.! id in case stmt of
             forM_ set $ \idToDestroy -> destroy idToDestroy
             popStack
 
-    If cnd ids -> do
-        void $ liftFuncIr $ appendStmtWithId id (If cnd [])
-        withCurrentId id $ do
+    If cnd trueBlkId falseBlkId -> do
+        void $ liftFuncIr $ appendStmtWithId id (If cnd trueBlkId falseBlkId)
+        liftFuncIr $ addStmt trueBlkId (Block [])
+        liftFuncIr $ addStmt falseBlkId (Block [])
+
+        withCurrentId trueBlkId $ do
+            let Block ids = irStmts funcIr Map.! trueBlkId
             pushStack
             mapM_ (processStmt funcIr) ids
-
             -- destroy
             set <- Set.toList <$> gets (head . destroyStack)
             forM_ set $ \idToDestroy -> destroy idToDestroy
             popStack
 
-    Else ids -> do
-        void $ liftFuncIr $ appendStmtWithId id (Else [])
-        withCurrentId id $ do
+        withCurrentId falseBlkId $ do
+            let Block ids = irStmts funcIr Map.! falseBlkId
             pushStack
             mapM_ (processStmt funcIr) ids
-
             -- destroy
             set <- Set.toList <$> gets (head . destroyStack)
             forM_ set $ \idToDestroy -> destroy idToDestroy
             popStack
+
 
     Break -> do
         -- destroy

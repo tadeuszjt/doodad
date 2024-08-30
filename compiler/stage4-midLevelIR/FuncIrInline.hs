@@ -12,6 +12,7 @@ import Monad
 import ASTResolved
 import Symbol
 import Type
+import Error
 import FindFunc
 import qualified AST as S
 import qualified MakeFuncIR as IR
@@ -45,7 +46,7 @@ liftFuncIr f = do
 addIdMap :: ID -> Arg -> DoM FuncIrInlineState ()
 addIdMap idFrom argTo = do
     resm <- gets $ Map.lookup idFrom . idMap
-    unless (isNothing resm) (error $ "id already mapped")
+    unless (isNothing resm) (error $ "id already mapped: " ++ show (idFrom, argTo))
     modify $ \s -> s { idMap = Map.insert idFrom argTo (idMap s) }
 
 
@@ -81,23 +82,8 @@ processArg arg = case arg of
 processStmt :: FuncIR -> ID -> DoM FuncIrInlineState ()
 processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case stmt of
     Block ids -> do
-        void $ liftFuncIr $ appendStmtWithId id (Block [])
+        unless (id == 0) $ void $ liftFuncIr $ appendStmtWithId id (Block [])
         withCurrentId id $ mapM_ (processStmt funcIr) ids
-
-    Loop ids -> do
-        void $ liftFuncIr $ appendStmtWithId id (Loop [])
-        withCurrentId id $ mapM_ (processStmt funcIr) ids
-
-    If arg ids -> do
-        arg' <- processArg arg
-        void $ liftFuncIr $ appendStmtWithId id (If arg' [])
-        withCurrentId id $ mapM_ (processStmt funcIr) ids
-
-    Else ids -> do
-        void $ liftFuncIr $ appendStmtWithId id (Else [])
-        withCurrentId id $ mapM_ (processStmt funcIr) ids
-
-    Break      -> void $ liftFuncIr $ appendStmtWithId id stmt
 
     EmbedC strMap str -> do
         strMap' <- forM strMap $ \(s, id) -> do
@@ -105,6 +91,24 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
             return (s, id')
         void $ liftFuncIr $ appendStmtWithId id (EmbedC strMap' str)
 
+
+    Loop ids -> do
+        void $ liftFuncIr $ appendStmtWithId id (Loop [])
+        withCurrentId id $ mapM_ (processStmt funcIr) ids
+
+    If arg trueBlkId falseBlkId -> do
+        arg' <- processArg arg
+        void $ liftFuncIr $ appendStmtWithId id (If arg' trueBlkId falseBlkId)
+        liftFuncIr $ addStmt trueBlkId (Block [])
+        liftFuncIr $ addStmt falseBlkId (Block [])
+
+        let Just (Block trueIds) = Map.lookup trueBlkId (irStmts funcIr)
+        let Just (Block falseIds) = Map.lookup falseBlkId (irStmts funcIr)
+        withCurrentId trueBlkId $ mapM_ (processStmt funcIr) trueIds
+        withCurrentId falseBlkId $ mapM_ (processStmt funcIr) falseIds
+
+
+    Break      -> void $ liftFuncIr $ appendStmtWithId id stmt
     Return arg -> void $ liftFuncIr . appendStmtWithId id . Return =<< processArg arg
     ReturnVoid -> void $ liftFuncIr (appendStmtWithId id stmt)
 
@@ -117,15 +121,18 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
         callIr1  <- fmap (FuncIrDestroy.funcIr . snd) $ runDoMExcept (FuncIrDestroy.initFuncIrDestroyState ast) (FuncIrDestroy.addFuncDestroy callIr0)
         callIr2  <- fmap (IR.funcIr . snd) $ runDoMExcept (IR.initFuncIrUnusedState ast) (IR.funcIrUnused callIr1)
 
+        --void $ liftFuncIr $ appendStmtWithId id $ SSA typ callRefType (Call callType callArgs')
         isInline <- fmap fst $ runDoMExcept () (functionIsInlineable callIr2)
+        --liftIO $ putStrLn $ "isinline: " ++ show callType ++ ", " ++ show isInline
         case isInline of
             False -> void $ liftFuncIr $ appendStmtWithId id $ SSA typ callRefType (Call callType callArgs')
             True  -> do
+                --liftIO $ putStrLn $ "inlining: " ++ show callType
                 -- give the inline processor an idMap from inline to local
                 oldMap <- gets idMap
                 modify $ \s -> s { idMap = Map.empty }
                 zipWithM_ addIdMap [1..] callArgs'
-                retArg <- processInline callIr2 0
+                retArg <- withErrorPrefix "here: " $ processInline callIr2 0
                 modify $ \s -> s { idMap = oldMap }
                 case typ of
                     Void -> return ()
@@ -159,10 +166,19 @@ processInline callIr stmtId = let Just stmt = Map.lookup stmtId (irStmts callIr)
         blkId <- liftFuncIr $ appendStmt (Block [])
         withCurrentId blkId $ last <$> mapM (processInline callIr) ids
 
-    If arg ids -> do
+    If arg trueBlkId falseBlkId -> do
         arg' <- processArg arg
-        ifId <- liftFuncIr $ appendStmt (If arg' [])
-        withCurrentId ifId $ mapM_ (processInline callIr) ids
+
+        trueBlkId' <- liftFuncIr $ generateId
+        falseBlkId' <- liftFuncIr $ generateId
+        liftFuncIr $ appendStmt (If arg' trueBlkId' falseBlkId')
+        liftFuncIr $ addStmt trueBlkId' (Block [])
+        liftFuncIr $ addStmt falseBlkId' (Block [])
+
+        let Just (Block trueIds) = Map.lookup trueBlkId (irStmts callIr)
+        let Just (Block falseIds) = Map.lookup falseBlkId (irStmts callIr)
+        withCurrentId trueBlkId' $ mapM_ (processInline callIr) trueIds
+        withCurrentId falseBlkId' $ mapM_ (processInline callIr) falseIds
         return undefined
 
     EmbedC idMap str -> do
@@ -209,6 +225,7 @@ functionIsInlineable funcIr = do
     let stmtCount = Map.size (irStmts funcIr)
     let Just (Block ids) = Map.lookup 0 (irStmts funcIr)
     let Just lastStmt = Map.lookup (last ids) (irStmts funcIr)
+
     case (embedCount, returnCount, lastStmt, stmtCount) of
         (0, 1, Return _, x) | stmtCount < 10 -> return True
         (0, 0, _, x)        | stmtCount < 10 -> return True
