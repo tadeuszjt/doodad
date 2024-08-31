@@ -5,7 +5,6 @@ import builtin/convert
 import builtin/container
 import builtin/builtin
 import builtin/for
-import builtin/store
 import builtin/assert
 import builtin/compare
 

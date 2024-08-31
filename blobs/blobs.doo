@@ -24,7 +24,7 @@ tuple Blob {
     sprite     sf::Quad
     age        I64
 }
-derives    Blob (store, destroy)
+derives    Blob (copy, destroy)
 derives{P} Blob (print::print{P})
 
 

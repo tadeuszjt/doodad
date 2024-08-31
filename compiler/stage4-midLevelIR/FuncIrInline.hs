@@ -132,7 +132,7 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
                 oldMap <- gets idMap
                 modify $ \s -> s { idMap = Map.empty }
                 zipWithM_ addIdMap [1..] callArgs'
-                retArg <- withErrorPrefix "here: " $ processInline callIr2 0
+                retArg <- processInline callIr2 0
                 modify $ \s -> s { idMap = oldMap }
                 case typ of
                     Void -> return ()
@@ -186,7 +186,23 @@ processInline callIr stmtId = let Just stmt = Map.lookup stmtId (irStmts callIr)
         void $ liftFuncIr $ appendStmt $ EmbedC (zip (map fst idMap) ids') str
         return undefined
 
-    Return arg -> processArg arg
+    Return arg -> do
+        arg' <- processArg arg
+        arg' <- case arg of
+            ArgConst _ _ -> return arg
+            ArgID argId -> case Map.lookup argId (irTypes callIr) of
+                Just (typ, Value) -> do
+                    arg' <- processArg arg
+                    fmap ArgID $ liftFuncIr $ appendSSA typ Value $ (InitVar $ Just arg')
+
+                Just (_, Ref)   -> processArg arg
+
+
+        case arg' of
+            ArgID argId -> return arg'
+            ArgConst typ const -> do
+                fmap ArgID $ liftFuncIr $ appendSSA typ Value (InitVar $ Just arg')
+
     ReturnVoid -> return undefined
 
     SSA typ refType (Call callType args) -> do
@@ -230,3 +246,31 @@ functionIsInlineable funcIr = do
         (0, 1, Return _, x) | stmtCount < 10 -> return True
         (0, 0, _, x)        | stmtCount < 10 -> return True
         _                                   -> return False
+
+
+copy :: Arg -> DoM FuncIrInlineState Arg
+copy arg = do
+    (t, refType) <- liftFuncIr $ getType arg
+    case refType of
+        Const -> return ()
+        Value -> return ()
+        x -> error (show x)
+
+    -- get copy feature symbol
+    ast <- gets astResolved
+    let xs = Map.keys $ Map.filterWithKey
+            (\k v -> symbolsCouldMatch k $ Sym ["copy"])
+            (typeDefsAll ast)
+    copySymbol <- case xs of
+        [] -> fail "builtin::copy undefined"
+        [x] -> return x
+
+
+    resm <- fmap fst $ runDoMExcept ast $ makeHeaderInstance (foldType [TypeDef copySymbol, t])
+    (symbol, args, _) <- case resm of
+        Nothing -> fail ("no copy instance for: " ++ show t)
+        Just (s, as, r) -> return (s, as, r)
+
+    case args of
+        [S.Param _ _ _] -> do
+            fmap ArgID $ liftFuncIr $ appendSSA t Value $ Call (Apply (TypeDef copySymbol) t) [arg]

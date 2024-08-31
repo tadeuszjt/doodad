@@ -30,6 +30,23 @@ inst{A, B, C} field{1, B, Sum{A, B, C}} (sum&) -> &; return sum.builtinField{1, 
 inst{A, B, C} field{2, C, Sum{A, B, C}} (sum&) -> &; return sum.builtinField{2, C, Sum{A, B, C}}
 
 
+func{T} store(T, T)
+inst{T} store{T} (a&, b)
+    a.destroy
+    a.builtinStore(b)
+
+
+// args
+func{T} copy(T) T
+inst copy{I64} (a); return a
+inst copy{F64} (a); return a
+inst copy{F32} (a); return a
+inst copy{U8} (a); return a
+inst copy{Bool} (a); return a
+inst copy{Char} (a); return a
+
+
+
 // misc
 fn{T}       builtinStore(a &T, b T); ${ assert(false); }
 fn{I, G, T} builtinField(t &T) &G;   ${ assert(false); }

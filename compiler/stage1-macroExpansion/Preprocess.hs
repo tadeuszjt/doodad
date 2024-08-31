@@ -106,7 +106,7 @@ buildPattern defBlkId pattern expr = do
         PatIdent pos symbol -> do
             withCurId defBlkId $
                 appendStmt $ Let pos (PatIdent pos symbol) Nothing Nothing
-            appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["store",  "store"])
+            appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin",  "builtinStore"])
                 [ Reference pos (Ident pos symbol)
                 , expr
                 ]
@@ -120,10 +120,10 @@ buildPattern defBlkId pattern expr = do
                 return $ Call (textPos pattern) (TypeDef $ Sym ["compare", "equal"]) [AExpr patTyp literal, expr]
 
             PatIdent pos symbol -> do
-                withCurId defBlkId $ 
+                withCurId defBlkId $
                     appendStmt $ Let pos (PatIdent pos symbol) Nothing Nothing
-                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["store"])
-                    [ Reference pos (AExpr patTyp $ Ident pos symbol)
+                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin",  "builtinStore"])
+                    [ Reference pos (Ident pos symbol)
                     , expr
                     ]
                 return (AST.Bool pos True)
@@ -441,7 +441,7 @@ buildStmt statement = withPos statement $ case statement of
                 
             blkId2 <- newStmt (Block [])
             let acq2 = foldType [TypeDef fieldSymbol, Apply Table typ, Apply Slice fieldType]
-            appendStmt $ Acquires pos generics acq2 [Param pos (Sym ["x"]) Void] False (Stmt blkId2)
+            appendStmt $ Acquires pos generics acq2 [RefParam pos (Sym ["x"]) Void] False (Stmt blkId2)
             withCurId blkId2 $ do
                 appendStmt $ Return pos . Just $ field (Apply Slice fieldType) i (Ident pos $ Sym ["x"])
 

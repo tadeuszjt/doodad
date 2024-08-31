@@ -61,6 +61,12 @@ cPretty includePaths = do
 
     forM_ includePaths $ \includePath -> printLn $ "#include " ++ includePath
 
+    typeDefs <- gets $ typeDefs . builder
+    mapM_ cPrettyElem (reverse typeDefs)
+
+    externs <- gets $ externs . builder
+    mapM_ cPrettyElem (reverse externs)
+
     elems <- elements <$> gets builder
     let global = elems Map.! (ID 0)
     forM_ (globalBody global) $ \id -> do

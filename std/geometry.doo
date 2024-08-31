@@ -20,14 +20,14 @@ type Mat3 Array{3, Array{3, F64}}
 type Mat4 Array{4, Array{4, F64}}
 
 
-derives Vec2 (store, destroy, add, subtract, multiply, make2{F64, F64})
+derives Vec2 (copy, destroy, add, subtract, multiply, make2{F64, F64})
 derives{P} Vec2 (print{P}, printLn{P})
 derives{T} Vec2 (convert{Tuple{T, T}})
 
 
 derives Rect (make2{Vec2, Vec2})
-derives Mat3 (store, destroy, add, subtract, len, at{I64, Array{3, F64}})
-derives Mat4 (store, destroy, add, subtract, at{I64, Array{4, F64}}, len)
+derives Mat3 (copy, destroy, add, subtract, len, at{I64, Array{3, F64}})
+derives Mat4 (copy, destroy, add, subtract, at{I64, Array{4, F64}}, len)
 
 func{T} transpose(T) T
 

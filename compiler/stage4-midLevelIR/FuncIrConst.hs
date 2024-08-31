@@ -125,17 +125,29 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
         void $ liftFuncIr (appendStmtWithId id $ Return arg')
 
     SSA typ Value (InitVar ma) -> do
-        case ma of
-            Just (ArgConst _ _) -> addConst id (fromJust ma)
+        ma' <- case ma of
+            Just (ArgConst _ _) -> addConst id (fromJust ma) >> return ma
+            Just (arg)          -> do
+                arg' <- processArg arg
+                return (Just arg')
+
             Nothing -> case typ of 
-                I64  -> addConst id $ ArgConst I64 (ConstInt 0)
-                F32  -> addConst id $ ArgConst F32 (ConstFloat 0.0)
-                F64  -> addConst id $ ArgConst F64 (ConstFloat 0.0)
-                Bool -> addConst id $ ArgConst Bool (ConstBool False)
-                _ -> return ()
+                I64  -> do
+                    addConst id $ ArgConst I64 (ConstInt 0)
+                    return ma
+                F32  -> do
+                    addConst id $ ArgConst F32 (ConstFloat 0.0)
+                    return ma
+                F64  -> do
+                    addConst id $ ArgConst F64 (ConstFloat 0.0)
+                    return ma
+                Bool -> do
+                    addConst id $ ArgConst Bool (ConstBool False)
+                    return ma
+                _ -> return ma
                 x -> error (show x)
 
-        void $ liftFuncIr (appendStmtWithId id stmt)
+        void $ liftFuncIr $ appendStmtWithId id $ SSA typ Value (InitVar ma')
 
     SSA typ refType (Call callType args) -> do
         args' <- mapM processArg args

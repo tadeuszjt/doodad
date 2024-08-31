@@ -13,7 +13,7 @@ enum Square {
     naught
     cross
 }
-derives Square (store, destroy, equal)
+derives Square (copy, destroy, equal)
 
 
 enum Input {
@@ -21,10 +21,10 @@ enum Input {
     quit()
     error()
 }
-derives Input (store::store, builtin::destroy)
+derives Input (copy, builtin::destroy)
 
 type Board Array{3, Array{3, Square}}
-derives Board (destroy)
+derives Board (destroy, copy)
 derives Board (container::len, container::at{I64, Array{3, Square}})
 derives Board (forAt{Array{3, Square}}, forBegin, forEnd)
 
@@ -110,7 +110,7 @@ fn getPlayerInput(io &Io) Input
 
 
 fn cpuMove(io &Io, board &Board)
-    io.stdout.printLn("cpu moving ...")
+    //io.stdout.printLn("cpu moving ...")
 
     // find all empty squares
     data empty (I64, I64).Table
@@ -120,7 +120,7 @@ fn cpuMove(io &Io, board &Board)
                 empty.push( (row, col) )
 
     if empty.len == 0
-        io.stdout.printLn("cpu can't move")
+        //io.stdout.printLn("cpu can't move")
         return
 
     // find move that wins
@@ -148,7 +148,7 @@ fn cpuMove(io &Io, board &Board)
 
 fn main()
     data io Io
-    io.stdout.printLn("naughts and crosses")
+    //io.stdout.printLn("naughts and crosses")
 
     data board Board
     io.stdout.print(board)

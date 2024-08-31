@@ -1,7 +1,6 @@
 module container
 
 import builtin/builtin
-import builtin/store
 import builtin/arithmetic
 import builtin/assert
 import builtin/convert

@@ -88,11 +88,12 @@ generateFunc funcType = do
         Just funcAst <- fmap fst $ runDoMExcept ast (makeInstance funcType)
         (funcIrHeader, funcIr') <- fmap fst $ runDoMExcept (IR.initFuncIRState ast) (IR.makeFuncIR funcAst)
         funcIr'' <- fmap (IR.funcIr . snd) $ runDoMExcept (IR.initFuncIrDestroyState ast) (IR.addFuncDestroy funcIr')
+        funcIr''' <- fmap (IrInline.funcIr . snd) $ runDoMExcept (IrInline.initFuncIrInlineState ast) (IrInline.funcIrInline funcIr'')
 
-        (funcIr, ()) <- runDoMExcept () $ fmap fst $ runDoMUntilSameResult funcIr'' $ \funcIr -> do
-            funcIr' <- fmap (IrInline.funcIr . snd) $ runDoMExcept (IrInline.initFuncIrInlineState ast) (IrInline.funcIrInline funcIr)
-            funcIr'' <- fmap (IrConst.funcIr . snd) $ runDoMExcept (IrConst.initFuncIrConstState ast) (IrConst.funcIrConst funcIr')
-            funcIr''' <- fmap (IrUnused.funcIr . snd) $ runDoMExcept (IrUnused.initFuncIrUnusedState ast) (IrUnused.funcIrUnused funcIr'')
+        (funcIr, ()) <- runDoMExcept () $ fmap fst $ runDoMUntilSameResult funcIr''' $ \funcIr -> do
+            funcIr' <- fmap (IrUnused.funcIr . snd) $ runDoMExcept (IrUnused.initFuncIrUnusedState ast) (IrUnused.funcIrUnused funcIr)
+            --funcIr'' <- fmap (IrInline.funcIr . snd) $ runDoMExcept (IrInline.initFuncIrInlineState ast) (IrInline.funcIrInline funcIr')
+            funcIr''' <- fmap (IrConst.funcIr . snd) $ runDoMExcept (IrConst.initFuncIrConstState ast) (IrConst.funcIrConst funcIr')
             return funcIr'''
 
         liftIO $ putStrLn ""
@@ -100,6 +101,7 @@ generateFunc funcType = do
         liftIO $ IR.prettyIR "" funcIr
 
         generatedSymbol <- CGenerate.genSymbol symbol
+        --liftIO $ putStrLn $ "generating: " ++ prettySymbol generatedSymbol
         let header' = (funcIrHeader) { IR.irFuncSymbol = generatedSymbol }
 
         modify $ \s -> s { astResolved = (astResolved s)
@@ -121,7 +123,8 @@ generateFunc funcType = do
             IR.RettyIR IR.Ref   typ -> cRefTypeOf typ
             x -> error (show x)
 
-        funcId <- newFunction cRettyType (showSymGlobal $ generatedSymbol) ([] ++ args) []
+        appendExtern (showSymGlobal $ generatedSymbol) cRettyType (map C.cType args) []
+        funcId <- newFunction cRettyType (showSymGlobal $ generatedSymbol) args []
         withCurID funcId $ do
             (generateStmt funcIr 0)
 
@@ -228,8 +231,28 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
                     builtinTableAppend argType cexpr
 
                 x | symbolsCouldMatch x (Sym ["builtin", "builtinStore"]) -> do
+                    let (TypeDef _, [typ]) = unfoldType callType
                     [cexpr1, cexpr2] <- mapM generateArg args
-                    void $ appendElem $ C.Set (C.Deref cexpr1) cexpr2
+                    base <- baseTypeOf typ
+                    ct <- cTypeOf base
+                    case unfoldType base of
+                        (Tuple, ts) -> do
+                            forM_ (zip ts [0..]) $ \(t, i) -> do
+                                ci <- cTypeOf t
+                                let off = C.Offsetof ct ("m" ++ show i)
+                                let cap = C.Member cexpr1 "cap"
+                                let idx = C.Member cexpr1 "idx"
+                                let ptr = C.Cast (Cpointer Cvoid) (C.Member cexpr1 "ptr")
+                                let size = C.SizeofType ci
+                                let offset = C.Infix C.Plus (C.Infix C.Times cap off) (C.Infix C.Times idx size)
+                                let fieldP = C.Cast (Cpointer ci) (C.Infix C.Plus ptr offset)
+
+                                void $ appendElem $ C.Set (C.Deref fieldP) $ C.Member cexpr2 ("m" ++ show i)
+
+                        _ ->  void $ appendElem $ C.Set  (C.Deref cexpr1) cexpr2
+                        x -> error (show x) 
+
+                    --void $ appendElem $ C.Set (C.Deref cexpr1) cexpr2
 
                 x | symbolsCouldMatch x (Sym ["builtin", "builtinAdd"]) -> do
                     [cexpr1, cexpr2] <- mapM generateArg args

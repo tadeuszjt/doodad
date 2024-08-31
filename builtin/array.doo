@@ -4,10 +4,10 @@ import builtin/arithmetic
 import builtin/tuple
 import builtin/convert
 import builtin/container
-import builtin/store
 import builtin/builtin
 import builtin/for
 import builtin/compare
+import builtin/destroy
 
 
 inst{S, T} add{ Array{S, T} } (a, b)
@@ -29,20 +29,14 @@ inst{S, T} multiply{ Array{S, T} } (a, b)
     return c
 
 
-//inst{S, T} divide{ Array{S, T} } (a, b)
-//    let c
-//    for (0, c.len) -> i
-//        c[i] = a[i] / b[i]
-//    return c
-
-
-inst{T, S} store{ Array{S, T} } (a&, b)
-    for (0, a.len) -> idx
-        a.builtinArrayAt(idx) = b.builtinArrayAt(idx)
-
-
-inst{S, T} destroy{ Array{S, T} } (arr&)
+inst{X, S} destroy{ Array{S, X} } (arr&)
     for (0, arr.len) -> i
-        arr[i].destroy
+        (arr[i]):X
     
 
+inst{X, S} copy{ Array{S, X} } (a)
+    let b
+    for (0, a.len) -> i
+        b[i] = a[i]
+
+    return b

@@ -1,7 +1,6 @@
 module compare
 
 import builtin/builtin
-import builtin/store
 import builtin/assert
 import builtin/convert
 import builtin/boolean

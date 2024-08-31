@@ -155,6 +155,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
     AST.Char _ _ -> collect "char literal must have Char type" (ConsEq exprType Type.Char)
 
     Call _ callType exprs -> do
+        -- TODO broken, generics are carrying thorugh definitions!
         let (TypeDef funcSymbol, _) = unfoldType callType
         (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType
         unless (length exprs == length argTypes) (fail $ "invalid function type arguments: " ++ show callType)
@@ -200,7 +201,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
                 subs <- unify =<< getConstraintsFromTypes acq callType
                 (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf (applyType subs acq)
                 collect "call type" $ ConsEq callType (applyType subs acq)
-                collect "call return" (ConsEq exprType retType)
+                collect ("call return for: " ++ show callType) (ConsEq exprType retType)
                 zipWithM (\x y -> collect "call argument" (ConsEq x y)) argTypes (map typeof exprs)
                 return ()
             x -> error (show x)
@@ -221,7 +222,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
             unless (length argTypes == 4) (error "invalid")
             collectDefault exprType $ foldType [Tuple, argTypes !! 0, argTypes !! 1, argTypes !! 2, argTypes !! 3]
 
-        collect "call return" (ConsEq exprType retType)
+        collect ("call return for: " ++ show callType) (ConsEq exprType retType)
         zipWithM (\x y -> collect "call argument" (ConsEq x y)) argTypes (map typeof exprs)
         mapM_ collectExpr exprs
 

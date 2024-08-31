@@ -10,7 +10,6 @@ import std/rand
 import std/sparse
 import std/print
 import std/option
-import builtin/store
 import builtin/builtin
 import builtin/for
 import builtin/assert

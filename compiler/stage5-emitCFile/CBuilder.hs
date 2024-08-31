@@ -12,6 +12,8 @@ data BuilderState
     { elements :: Map.Map ID Element
     , currentID :: ID
     , idSupply :: Int
+    , typeDefs :: [Element]
+    , externs  :: [Element]
     }
     deriving (Eq)
 
@@ -27,6 +29,8 @@ initBuilderState = BuilderState
     { elements = Map.singleton globalID (Global [])
     , currentID = globalID
     , idSupply = 1
+    , typeDefs = []
+    , externs  = []
     }
 
 
@@ -107,19 +111,20 @@ appendAssign ctyp name expr = do
 
 
 
-appendExtern :: MonadBuilder m => String -> Type -> [Type] -> [Qualifier] -> m ID
-appendExtern name retty args qualifiers = withCurID globalID $ appendElem $ ExternFunc
-        { extName = name
-        , extRetty = retty
-        , extArgs = args
-        , extQualifiers = qualifiers
-        }
+appendExtern :: MonadBuilder m => String -> Type -> [Type] -> [Qualifier] -> m ()
+appendExtern name retty args qualifiers = do
+    let element = ExternFunc
+            { extName = name
+            , extRetty = retty
+            , extArgs = args
+            , extQualifiers = qualifiers
+            }
+    liftBuilderState $ modify $ \s -> s { externs = element : (externs s) }
 
 
-appendTypedef :: MonadBuilder m => Type -> String -> m ID
-appendTypedef typ name = withCurID globalID $ appendElem $
-    (Typedef { typedefName = name, typedefType = typ })
-
+appendTypedef :: MonadBuilder m => Type -> String -> m ()
+appendTypedef typ name = do
+    liftBuilderState $ modify $ \s -> s { typeDefs = (Typedef name typ) : (typeDefs s) }
 
 newFunction :: MonadBuilder m => Type -> String -> [Param] -> [Qualifier] -> m ID 
 newFunction retty name args qualifiers = newElement $ Func

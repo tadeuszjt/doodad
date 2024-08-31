@@ -120,20 +120,9 @@ makeStmt statement = withPos statement $ case statement of
                 resm <- liftFuncIr $ gets (Map.lookup argId . irStmts)
                 case resm of
                     Just (SSA _ _ (Call _ _)) -> do define symbol argId
-
-                    Just (SSA _ _ (MakeValueFromReference _)) -> do
-                        id <- liftFuncIr $ appendSSA typ Value (InitVar Nothing)
-                        idRef <- liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue $ ArgID id)
-                        store (ArgID idRef) (ArgID argId)
+                    _ -> do
+                        (ArgID id) <- copy (ArgID argId)
                         void $ define symbol id
-
-                    Nothing -> do -- probably an arg TODO
-                        id <- liftFuncIr $ appendSSA typ Value (InitVar Nothing)
-                        idRef <- liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue $ ArgID id)
-                        store (ArgID idRef) (ArgID argId)
-                        void $ define symbol id
-
-                    x -> error (show x)
 
 
     S.Let _ (S.PatAnnotated (S.PatIdent _ symbol) typ) Nothing Nothing -> do
@@ -154,25 +143,7 @@ makeStmt statement = withPos statement $ case statement of
         case retty of
             S.RefRetty typ -> void $ (liftFuncIr . appendStmt . Return . ArgID) =<< makeRef expr
             S.Retty (Apply Type.Slice _) -> void $ (liftFuncIr . appendStmt . Return) =<< makeVal expr
-            S.Retty typ -> do
-                -- if this is a stack value, can return
-                -- anything else needs to be created with store
-                val <- makeVal expr
-                case val of
-                    ArgConst _ _ -> void $ liftFuncIr $ appendStmt (Return val)
-                    ArgID argId -> do
-                        mstmt <- liftFuncIr $ gets $ Map.lookup argId . irStmts
-                        case mstmt of
-                            Just (SSA _ _ (InitVar _)) -> void $ liftFuncIr $ appendStmt (Return val)
-                            Just (SSA _ _ (Call _ _))  -> void $ liftFuncIr $ appendStmt (Return val)
-                            _                -> do
-                                id1 <- liftFuncIr $ appendSSA typ Value (InitVar Nothing)
-                                id2 <- liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue $ ArgID id1)
-                                store (ArgID id2) (ArgID argId)
-                                void $ liftFuncIr $ appendStmt (Return $ ArgID id1)
-
-
-                    x -> error (show x)
+            S.Retty typ -> void $ liftFuncIr . appendStmt . Return =<< makeVal expr
             x -> error (show x)
 
     S.Return _ Nothing     -> void $ liftFuncIr $ appendStmt ReturnVoid
@@ -247,6 +218,8 @@ makeVal (S.AExpr exprType expression) = withPos expression $ case expression of
 
 
     S.Call _ funcType exprs -> do
+        let (TypeDef funcSymbol, _) = unfoldType funcType
+
         ast <- gets astResolved
         resm <- fmap fst $ runDoMExcept ast (makeHeaderInstance funcType)
         (args, retty) <- case resm of
@@ -259,7 +232,10 @@ makeVal (S.AExpr exprType expression) = withPos expression $ case expression of
         args <- forM (zip exprs args) $ \(expr, arg) -> do
             case arg of
                 S.RefParam _ argSymbol argType -> ArgID <$> makeRef expr
-                S.Param    _ argSymbol argType -> makeVal expr
+                S.Param    _ _ (Apply Type.Slice _) -> makeVal expr
+                S.Param    _ argSymbol argType -> do
+                    if symbolsCouldMatch funcSymbol (Sym ["builtin", "copy"]) then makeVal expr
+                    else copy =<< makeVal expr
 
         case retty of
             S.Retty Void -> fmap ArgID $ liftFuncIr $ appendSSA Void Const (Call funcType args)
@@ -316,27 +292,29 @@ makeRef (S.AExpr exprType expression) = withPos expression $ case expression of
     x -> error (show x)
 
 
-store :: Arg -> Arg -> DoM FuncIRState ()
-store dst src = do
-    (t1, Ref) <- liftFuncIr $ getType dst
-    (t2, Value) <- liftFuncIr $ getType src
-    unless (t1 == t2) (error "type mismatch")
+copy :: Arg -> DoM FuncIRState Arg
+copy arg = do
+    (t, refType) <- liftFuncIr $ getType arg
+    case refType of
+        Const -> return ()
+        Value -> return ()
+        x -> error (show x)
 
-    -- get store feature symbol
+    -- get copy feature symbol
     ast <- gets astResolved
     let xs = Map.keys $ Map.filterWithKey
-            (\k v -> symbolsCouldMatch k $ Sym ["store", "store"])
+            (\k v -> symbolsCouldMatch k $ Sym ["copy"])
             (typeDefsAll ast)
-    storeSymbol <- case xs of
-        [] -> fail "store::store undefined"
+    copySymbol <- case xs of
+        [] -> fail "builtin::copy undefined"
         [x] -> return x
 
 
-    resm <- fmap fst $ runDoMExcept ast $ makeHeaderInstance (foldType [TypeDef storeSymbol, t1])
+    resm <- fmap fst $ runDoMExcept ast $ makeHeaderInstance (foldType [TypeDef copySymbol, t])
     (symbol, args, _) <- case resm of
-        Nothing -> fail ("no store instance")
+        Nothing -> fail ("no copy instance for: " ++ show t)
         Just (s, as, r) -> return (s, as, r)
 
     case args of
-        [S.RefParam _ _ _, S.Param _ _ _] -> do
-            void $ liftFuncIr $ appendSSA Void Const $ Call (Apply (TypeDef storeSymbol) t1) [dst, src]
+        [S.Param _ _ _] -> do
+            fmap ArgID $ liftFuncIr $ appendSSA t Value $ Call (Apply (TypeDef copySymbol) t) [arg]

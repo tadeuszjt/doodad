@@ -10,6 +10,7 @@ import Type
 import qualified AST as S
 import Monad
 import Symbol
+import Error
 
 
 type ID = Int
@@ -111,6 +112,7 @@ data FuncIR = FuncIR
     , irTypes     :: Map.Map ID (Type, RefType)
     , irIdSupply  :: ID
     , irCurrentId :: ID
+    , irTextPos   :: Map.Map ID TextPos
     }
     deriving (Eq)
 
@@ -118,6 +120,7 @@ data FuncIR = FuncIR
 initFuncIr = FuncIR
     { irStmts     = Map.singleton 0 (Block [])
     , irTypes     = Map.empty
+    , irTextPos   = Map.empty
     , irIdSupply  = 1
     , irCurrentId = 0
     }
@@ -137,6 +140,9 @@ addType id typ refType = do
     unless (isNothing resm) (fail $ "id already typed: " ++ show id)
     modify $ \s -> s { irTypes = Map.insert id (typ, refType) (irTypes s) }
 
+addTextPos :: ID -> TextPos -> DoM FuncIR ()
+addTextPos id pos = do
+    modify $ \s -> s { irTextPos = Map.insert id pos (irTextPos s) }
 
 addStmt :: ID -> Stmt -> DoM FuncIR ()
 addStmt id stmt = do

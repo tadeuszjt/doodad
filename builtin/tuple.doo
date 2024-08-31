@@ -1,8 +1,8 @@
 module tuple
 
-import builtin/store
 import builtin/builtin
 import builtin/convert
+
 
 func{ A, B, C | C->A, C->B }                   make2(A, B) C
 func{ A, B, C, D | D->A, D->B, D->C }          make3(A, B, C) D
@@ -23,6 +23,25 @@ inst{A, B, C, D} tuplePattern{B, 4, 1, Tuple{A, B, C, D}} (tup&) -> &; return tu
 inst{A, B, C, D} tuplePattern{C, 4, 2, Tuple{A, B, C, D}} (tup&) -> &; return tup.2
 inst{A, B, C, D} tuplePattern{D, 4, 3, Tuple{A, B, C, D}} (tup&) -> &; return tup.3
 
+inst copy{ Tuple{} } (a); return a
+
+inst{A} copy{ Tuple{A} } (a)
+    let b
+    b.0 = a.0
+    return b
+
+inst{A, B} copy{ Tuple{A, B} }             (a); return (a.0, a.1)
+inst{A, B, C} copy{ Tuple{A, B, C} }       (a); return (a.0, a.1, a.2)
+inst{A, B, C, D} copy{ Tuple{A, B, C, D} } (a); return (a.0, a.1, a.2, a.3)
+
+inst{A, B, C, D, E} copy{ Tuple{A, B, C, D, E} } (a)
+    let b
+    b.0 = a.0
+    b.1 = a.1
+    b.2 = a.2
+    b.3 = a.3
+    b.4 = a.4
+    return b
 
 inst{A, B} make2{ A, B, Tuple{A, B} } (a, b)
     let tup
@@ -89,33 +108,6 @@ inst{A, B} convert{Tuple{A, A}, Tuple{B, B}} (a)
 
 inst{A, B} convert{Tuple{A, A, A}, Tuple{B, B, B}} (a)
     return (a.0 .convert, a.1 .convert, a.2 .convert)
-
-
-inst store{ Tuple{} } (a&, b); return
-
-inst{A} store{ Tuple{A} } (a&, b); a.0 = b.0
-
-inst{A, B} store{ Tuple{A, B} } (a&, b)
-    a.0 = b.0
-    a.1 = b.1
-
-inst{A, B, C} store{ Tuple{A, B, C} } (a&, b)
-    a.0 = b.0
-    a.1 = b.1
-    a.2 = b.2
-
-inst{A, B, C, D} store{ Tuple{A, B, C, D} } (a&, b)
-    a.0 = b.0
-    a.1 = b.1
-    a.2 = b.2
-    a.3 = b.3
-
-inst{A, B, C, D, E} store{Tuple{A, B, C, D, E}} (a&, b)
-    a.0 = b.0
-    a.1 = b.1
-    a.2 = b.2
-    a.3 = b.3
-    a.4 = b.4
 
 
 inst{A} destroy{ Tuple{A} } (tup&)

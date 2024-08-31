@@ -1,7 +1,6 @@
 module arithmetic
 
 import builtin/builtin
-import builtin/store
 import builtin/convert
 import builtin/tuple
 

@@ -1,7 +1,6 @@
 module all
 
 export builtin/for
-export builtin/store
 export builtin/tuple
 export builtin/destroy
 export builtin/convert
@@ -13,3 +12,4 @@ export builtin/builtin
 export builtin/arithmetic
 export builtin/array
 export builtin/slice
+export builtin/sum

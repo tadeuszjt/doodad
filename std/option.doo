@@ -7,6 +7,6 @@ enum{T} Option {
     some(T)
 }
 
-derives{T} T.Option (store)
+derives{T} T.Option (copy)
 derives{T} T.Option (equal)
 derives{T} T.Option (destroy)

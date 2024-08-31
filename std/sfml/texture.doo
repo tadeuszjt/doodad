@@ -1,7 +1,6 @@
 module texture
 
 import builtin/builtin
-import builtin/store
 import builtin/assert
 import builtin/convert
 
@@ -20,19 +19,6 @@ inst destroy{Texture} (t&)
     let ptr = t.texturePtr
     ${ if ($ptr) sfTexture_destroy((sfTexture*)$ptr); }
     t.texturePtr = 0
-
-
-inst store{Texture} (a&, b)
-    let bPtr = b.texturePtr
-    let ptr = 0
-    ${
-        sfImage *image = sfTexture_copyToImage((sfTexture*)$bPtr);
-        assert(image);
-        $ptr = (int64_t)sfTexture_createFromImage(image, NULL);
-        assert($ptr);
-    }
-    a.destroy
-    a.texturePtr = ptr
 
 
 fn textureFromFile(fileName Char.Slice) Texture
