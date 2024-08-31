@@ -169,15 +169,12 @@ destroy id = do
         [] -> fail "builtin::destroy undefined"
         [x] -> return x
 
-
     resm <- fmap fst $ runDoMExcept ast $ makeHeaderInstance (foldType [TypeDef destroySymbol, typ])
-    args <- case resm of
+    [ParamIR Ref argType] <- case resm of
         Nothing -> fail ("no destroy instance for: " ++ show typ)
-        Just (_, as, S.Retty Void) -> return as
+        Just irHeader -> return (irArgs irHeader)
 
-    case args of
-        [S.RefParam _ argSymbol argType] -> do
-            id1 <- liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue $ ArgID id)
-            void $ liftFuncIr $ appendSSA Void Const $
-                Call (Apply (TypeDef destroySymbol) typ) [ArgID id1]
+    id1 <- liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue $ ArgID id)
+    void $ liftFuncIr $ appendSSA Void Const $
+        Call (Apply (TypeDef destroySymbol) typ) [ArgID id1]
 

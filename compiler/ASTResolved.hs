@@ -29,7 +29,7 @@ data ASTResolved
         , acquiresAll          :: Map.Map Symbol Stmt 
         , acquiresTop          :: Set.Set Symbol
 
-        , funcInstance         :: Map.Map Type IR.FuncIrHeader
+        , funcInstance         :: Map.Map Type (IR.FuncIrHeader, IR.FuncIR)
 
         , symSupply            :: Map.Map Symbol Int              
         }

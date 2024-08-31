@@ -115,28 +115,30 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
     SSA typ callRefType (Call callType callArgs) -> do -- TODO can also inline ref calls
         callArgs' <- mapM processArg callArgs
 
-        ast <- gets astResolved
-        Just callAst <- fmap fst $ runDoMExcept ast (makeInstance callType)
-        callIr0  <- fmap (snd . fst) $ runDoMExcept (IR.initFuncIRState ast) (IR.makeFuncIR callAst)
-        callIr1  <- fmap (FuncIrDestroy.funcIr . snd) $ runDoMExcept (FuncIrDestroy.initFuncIrDestroyState ast) (FuncIrDestroy.addFuncDestroy callIr0)
-        callIr2  <- fmap (IR.funcIr . snd) $ runDoMExcept (IR.initFuncIrUnusedState ast) (IR.funcIrUnused callIr1)
+        --ast <- gets astResolved
+--        Just callAst <- fmap fst $ runDoMExcept ast (makeInstance callType)
+--        callIr0  <- fmap (snd . fst) $ runDoMExcept (IR.initFuncIRState ast) (IR.makeFuncIR callAst)
+--        callIr1  <- fmap (FuncIrDestroy.funcIr . snd) $ runDoMExcept (FuncIrDestroy.initFuncIrDestroyState ast) (FuncIrDestroy.addFuncDestroy callIr0)
+--        callIr2  <- fmap (IR.funcIr . snd) $ runDoMExcept (IR.initFuncIrUnusedState ast) (IR.funcIrUnused callIr1)
 
-        --void $ liftFuncIr $ appendStmtWithId id $ SSA typ callRefType (Call callType callArgs')
-        isInline <- fmap fst $ runDoMExcept () (functionIsInlineable callIr2)
-        --liftIO $ putStrLn $ "isinline: " ++ show callType ++ ", " ++ show isInline
-        case isInline of
-            False -> void $ liftFuncIr $ appendStmtWithId id $ SSA typ callRefType (Call callType callArgs')
-            True  -> do
-                --liftIO $ putStrLn $ "inlining: " ++ show callType
-                -- give the inline processor an idMap from inline to local
-                oldMap <- gets idMap
-                modify $ \s -> s { idMap = Map.empty }
-                zipWithM_ addIdMap [1..] callArgs'
-                retArg <- processInline callIr2 0
-                modify $ \s -> s { idMap = oldMap }
-                case typ of
-                    Void -> return ()
-                    _    -> addIdMap id retArg
+        resm <- gets $ Map.lookup callType . funcInstance . astResolved
+        case resm of
+            Nothing -> void $ liftFuncIr $ appendStmtWithId id $ SSA typ callRefType (Call callType callArgs')
+            Just (_, callIr2) -> do
+                isInline <- fmap fst $ runDoMExcept () (functionIsInlineable callIr2)
+                case isInline of
+                    False -> void $ liftFuncIr $ appendStmtWithId id $ SSA typ callRefType (Call callType callArgs')
+                    True  -> do
+                        --liftIO $ putStrLn $ "inlining: " ++ show callType
+                        -- give the inline processor an idMap from inline to local
+                        oldMap <- gets idMap
+                        modify $ \s -> s { idMap = Map.empty }
+                        zipWithM_ addIdMap [1..] callArgs'
+                        retArg <- processInline callIr2 0
+                        modify $ \s -> s { idMap = oldMap }
+                        case typ of
+                            Void -> return ()
+                            _    -> addIdMap id retArg
 
 
     SSA typ refType (MakeReferenceFromValue arg) -> do
@@ -187,21 +189,12 @@ processInline callIr stmtId = let Just stmt = Map.lookup stmtId (irStmts callIr)
         return undefined
 
     Return arg -> do
-        arg' <- processArg arg
-        arg' <- case arg of
-            ArgConst _ _ -> return arg
-            ArgID argId -> case Map.lookup argId (irTypes callIr) of
+        case arg of
+            ArgID 1 -> case Map.lookup 1 (irTypes callIr) of
                 Just (typ, Value) -> do
                     arg' <- processArg arg
                     fmap ArgID $ liftFuncIr $ appendSSA typ Value $ (InitVar $ Just arg')
-
-                Just (_, Ref)   -> processArg arg
-
-
-        case arg' of
-            ArgID argId -> return arg'
-            ArgConst typ const -> do
-                fmap ArgID $ liftFuncIr $ appendSSA typ Value (InitVar $ Just arg')
+            _ -> processArg arg
 
     ReturnVoid -> return undefined
 
@@ -246,31 +239,3 @@ functionIsInlineable funcIr = do
         (0, 1, Return _, x) | stmtCount < 10 -> return True
         (0, 0, _, x)        | stmtCount < 10 -> return True
         _                                   -> return False
-
-
-copy :: Arg -> DoM FuncIrInlineState Arg
-copy arg = do
-    (t, refType) <- liftFuncIr $ getType arg
-    case refType of
-        Const -> return ()
-        Value -> return ()
-        x -> error (show x)
-
-    -- get copy feature symbol
-    ast <- gets astResolved
-    let xs = Map.keys $ Map.filterWithKey
-            (\k v -> symbolsCouldMatch k $ Sym ["copy"])
-            (typeDefsAll ast)
-    copySymbol <- case xs of
-        [] -> fail "builtin::copy undefined"
-        [x] -> return x
-
-
-    resm <- fmap fst $ runDoMExcept ast $ makeHeaderInstance (foldType [TypeDef copySymbol, t])
-    (symbol, args, _) <- case resm of
-        Nothing -> fail ("no copy instance for: " ++ show t)
-        Just (s, as, r) -> return (s, as, r)
-
-    case args of
-        [S.Param _ _ _] -> do
-            fmap ArgID $ liftFuncIr $ appendSSA t Value $ Call (Apply (TypeDef copySymbol) t) [arg]

@@ -12,6 +12,7 @@ import Apply
 import Constraint
 import Error
 import Symbol
+import IR
 
 
 unifyOne :: MonadFail m => Constraint -> m [(Type, Type)]
@@ -51,14 +52,14 @@ getConstraintsFromTypes t1 t2 = case (t1, t2) of
     _ -> fail $ show (t1, t2)
 
 
-makeHeaderInstance :: Type -> DoM ASTResolved (Maybe (Symbol, [Param], Retty))
+makeHeaderInstance :: Type -> DoM ASTResolved (Maybe FuncIrHeader)
 makeHeaderInstance callType = do
     -- In haskell, instances are globally visible, so we do not have to worry about different instances.
     acquiresAll <- gets acquiresAll
     results <- fmap catMaybes $ forM (Map.toList acquiresAll) $ \(symbol, stmt) -> case stmt of
         Derives _ generics argType [featureType] -> do
             let genericSubs = zip (map TypeDef generics) (map Type [1..])
-            let upperType = applyType genericSubs $ Apply featureType argType
+            let upperType = applyType genericSubs (Apply featureType argType)
 
             subsEither <- tryError (unify =<< getConstraintsFromTypes upperType callType)
             case subsEither of
@@ -84,12 +85,16 @@ makeHeaderInstance callType = do
                     (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType
                     unless (length argTypes == length args) (error "something else went wrong")
 
-                    -- args need to be swapped from void
-                    let args'   = zipWith (\t p -> p { paramType = t}) argTypes args 
-                    let retty'  = (if isRef then RefRetty else Retty) retType
-                    return $ Just (symbol, args', retty')
+                    args' <- forM (zip args argTypes) $ \(arg, t) -> case arg of
+                        RefParam _ _ _ -> return (ParamIR Ref t)
+                        Param _ _ _    -> return (ParamIR Value t)
+                    return $ Just $ FuncIrHeader
+                        { irFuncSymbol = symbol
+                        , irArgs       = args'
+                        , irRetty      = RettyIR (if isRef then Ref else Value) retType
+                        }
 
-
+        _ -> return Nothing
 
     case results of
         []     -> return Nothing

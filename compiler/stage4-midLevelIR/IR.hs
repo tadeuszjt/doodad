@@ -81,11 +81,11 @@ data Stmt
 
 
 data ParamIR
-    = ParamIR Arg RefType Type
+    = ParamIR RefType Type
     deriving (Eq)
 
 instance Show ParamIR where
-    show (ParamIR arg refType typ) = show arg ++ " " ++ show refType ++ " " ++ show typ
+    show (ParamIR refType typ) = show refType ++ " " ++ show typ
 
 
 data RettyIR

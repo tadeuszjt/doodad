@@ -34,14 +34,14 @@ generate = withErrorPrefix "generate: " $ do
     ast <- gets astResolved
 
     -- generate imported function externs
-    forM_ (Map.toList $ funcInstance ast) $ \(funcType, header) -> do
+    forM_ (Map.toList $ funcInstance ast) $ \(funcType, (header, _)) -> do
         crt <- case IR.irRetty header of
             IR.RettyIR IR.Value t -> cTypeOf t
             IR.RettyIR IR.Ref t -> cRefTypeOf t
 
         cats <- forM (IR.irArgs header) $ \param -> case param of
-            IR.ParamIR _ IR.Value t -> cTypeOf t
-            IR.ParamIR _ IR.Ref t -> cRefTypeOf t
+            IR.ParamIR IR.Value t -> cTypeOf t
+            IR.ParamIR IR.Ref t -> cRefTypeOf t
         appendExtern (showSymGlobal $ IR.irFuncSymbol header) crt cats [C.Extern]
 
 
@@ -65,7 +65,7 @@ generate = withErrorPrefix "generate: " $ do
                         assign "mainArg" $ Value argType $ C.Initialiser [C.Int 0]
 
                     args <- forM (zip vals (IR.irArgs header)) $ \(val, param) -> case param of
-                        IR.ParamIR _ IR.Value _ -> return val
+                        IR.ParamIR IR.Value _ -> return val
                         x -> error (show x)
 
                     void $ appendElem $ C.ExprStmt $ C.Call
@@ -81,8 +81,7 @@ generateFunc :: Type.Type -> Generate IR.FuncIrHeader
 generateFunc funcType = do
     let (TypeDef symbol, typeArgs) = unfoldType funcType
     isInstance <- gets (Map.member funcType . funcInstance . astResolved)
-    if isInstance then
-        fromJust <$> gets (Map.lookup funcType . funcInstance . astResolved)
+    if isInstance then gets $ fst . fromJust . Map.lookup funcType . funcInstance . astResolved
     else do
         ast <- gets astResolved
         Just funcAst <- fmap fst $ runDoMExcept ast (makeInstance funcType)
@@ -90,13 +89,13 @@ generateFunc funcType = do
         funcIr'' <- fmap (IR.funcIr . snd) $ runDoMExcept (IR.initFuncIrDestroyState ast) (IR.addFuncDestroy funcIr')
         funcIr''' <- fmap (IrInline.funcIr . snd) $ runDoMExcept (IrInline.initFuncIrInlineState ast) (IrInline.funcIrInline funcIr'')
 
-        (funcIr, ()) <- runDoMExcept () $ fmap fst $ runDoMUntilSameResult funcIr''' $ \funcIr -> do
+        ((funcIr, n), _) <- runDoMExcept () $ runDoMUntilSameResult funcIr''' $ \funcIr -> do
             funcIr' <- fmap (IrUnused.funcIr . snd) $ runDoMExcept (IrUnused.initFuncIrUnusedState ast) (IrUnused.funcIrUnused funcIr)
-            --funcIr'' <- fmap (IrInline.funcIr . snd) $ runDoMExcept (IrInline.initFuncIrInlineState ast) (IrInline.funcIrInline funcIr')
-            funcIr''' <- fmap (IrConst.funcIr . snd) $ runDoMExcept (IrConst.initFuncIrConstState ast) (IrConst.funcIrConst funcIr')
+            funcIr'' <- fmap (IrInline.funcIr . snd) $ runDoMExcept (IrInline.initFuncIrInlineState ast) (IrInline.funcIrInline funcIr')
+            funcIr''' <- fmap (IrConst.funcIr . snd) $ runDoMExcept (IrConst.initFuncIrConstState ast) (IrConst.funcIrConst funcIr'')
             return funcIr'''
 
-        liftIO $ putStrLn ""
+        liftIO $ putStrLn (show n)
         liftIO $ putStrLn $ show funcIrHeader
         liftIO $ IR.prettyIR "" funcIr
 
@@ -105,16 +104,16 @@ generateFunc funcType = do
         let header' = (funcIrHeader) { IR.irFuncSymbol = generatedSymbol }
 
         modify $ \s -> s { astResolved = (astResolved s)
-            { funcInstance = Map.insert funcType header' (funcInstance $ astResolved s) } }
+            { funcInstance = Map.insert funcType (header', funcIr) (funcInstance $ astResolved s) } }
 
-        args <- forM (IR.irArgs funcIrHeader) $ \arg -> case arg of
-            IR.ParamIR (IR.ArgID id) IR.Value typ -> do
+        args <- forM (zip (IR.irArgs funcIrHeader) [1..]) $ \(arg, i) -> case arg of
+            IR.ParamIR IR.Value typ -> do
                 cType <- cTypeOf typ
-                return $ C.Param (idName id) cType
+                return $ C.Param (idName i) cType
 
-            IR.ParamIR (IR.ArgID id) IR.Ref typ -> do
+            IR.ParamIR IR.Ref typ -> do
                 cType <- cRefTypeOf typ
-                return $ C.Param (idName id) cType
+                return $ C.Param (idName i) cType
 
             x -> error (show x)
 
