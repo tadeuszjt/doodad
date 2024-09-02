@@ -76,7 +76,7 @@ data Stmt
     | ReturnVoid
     | EmbedC [(String, ID)] String
     | If Arg ID ID
-    | SSA Type RefType Operation
+    | SSA Operation
     deriving (Show, Eq)
 
 
@@ -179,7 +179,7 @@ appendStmt stmt = do
 
 appendSSA :: Type -> RefType -> Operation -> DoM FuncIR ID
 appendSSA typ refType op = do
-    id <- appendStmt $ SSA typ refType op
+    id <- appendStmt (SSA op)
     addType id typ refType
     return id
 
@@ -237,7 +237,8 @@ prettyIrStmt pre funcIr id = do
             putStr $ pre ++ "else:"
             prettyIrStmt pre funcIr falseId
 
-        SSA typ refType operation -> do
+        SSA operation -> do
+            let Just (typ, refType) = Map.lookup id (irTypes funcIr)
             putStrLn $ "%" ++ show id ++ " " ++ show refType ++ " " ++ show typ ++ " = " ++ show operation
             
         x -> error (show x)

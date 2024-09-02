@@ -124,7 +124,8 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
         arg' <- processArg arg
         void $ liftFuncIr (appendStmtWithId id $ Return arg')
 
-    SSA typ Value (InitVar ma) -> do
+    SSA (InitVar ma) -> do
+        let Just (typ, Value) = Map.lookup id (irTypes funcIr)
         ma' <- case ma of
             Just (ArgConst _ _) -> addConst id (fromJust ma) >> return ma
             Just (arg)          -> do
@@ -147,18 +148,18 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
                 _ -> return ma
                 x -> error (show x)
 
-        void $ liftFuncIr $ appendStmtWithId id $ SSA typ Value (InitVar ma')
+        void $ liftFuncIr $ appendStmtWithId id $ SSA (InitVar ma')
 
-    SSA typ refType (Call callType args) -> do
+    SSA (Call callType args) -> do
         args' <- mapM processArg args
-        void $ liftFuncIr $ appendStmtWithId id (SSA typ refType $ Call callType args')
+        void $ liftFuncIr $ appendStmtWithId id (SSA $ Call callType args')
 
-    SSA _ Ref (MakeReferenceFromValue (ArgID i)) -> do
+    SSA (MakeReferenceFromValue (ArgID i)) -> do
         removeConst i
         void $ liftFuncIr $ appendStmtWithId id stmt
 
-    SSA _ Value (MakeValueFromReference _) -> void $ liftFuncIr $ appendStmtWithId id stmt
-    SSA _ _ (MakeString str)               -> void $ liftFuncIr $ appendStmtWithId id stmt
+    SSA (MakeValueFromReference _) -> void $ liftFuncIr $ appendStmtWithId id stmt
+    SSA (MakeString str)               -> void $ liftFuncIr $ appendStmtWithId id stmt
 
     x -> error (show x)
 

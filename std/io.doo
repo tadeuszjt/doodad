@@ -3,6 +3,7 @@ module io
 import builtin/all
 import std/print
 import std/char
+import std/option
 
 
 type StdOut Tuple{}
@@ -28,12 +29,13 @@ fn getChar(x &StdIn) Char
     return c
 
 
-fn getLine(stdin &StdIn, line &Char.Table) Bool
+fn getLine(stdin &StdIn) Char.Table.Option
+    let line
     while true
         switch stdin.getChar
-            '\n'          ; return true
-            x | x == eof(); return false
-            x             ; line.push(x)
+            '\n'          ; return some(line)
+            c | c == eof(); return none()
+            c             ; line.push(c)
   
 
 

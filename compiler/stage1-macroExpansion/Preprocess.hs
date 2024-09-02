@@ -362,11 +362,6 @@ buildStmt statement = withPos statement $ case statement of
 
         idx <- freshSym "idx"
         appendStmt $ Assign pos idx $ AExpr I64 (AST.Int pos 0)
-        appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "builtinStore"])
-            [ Reference pos (Ident pos idx)
-            , Call pos (TypeDef $ Sym ["for", "forBegin"]) [ Reference pos (Ident pos exprCopy) ]
-            ]
-
         let whileCnd = Call pos (TypeDef $ Sym ["builtin", "builtinLessThan"])
                 [ (Ident pos idx)
                 , Call pos (TypeDef $ Sym ["for", "forEnd"]) [Reference pos $ Ident pos exprCopy]

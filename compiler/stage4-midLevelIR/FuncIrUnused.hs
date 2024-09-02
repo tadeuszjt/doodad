@@ -70,7 +70,7 @@ funcIrUnused func = do
             mapM addUsed (map snd strMap)
             addUsed id
 
-        SSA typ Value (InitVar marg) -> case marg of
+        SSA (InitVar marg) -> case marg of
             Nothing -> return ()
             Just (ArgConst _ _) -> return ()
             Just (ArgID argId) -> addUsed argId
@@ -79,18 +79,18 @@ funcIrUnused func = do
         Return (ArgConst _ _) -> return ()
         ReturnVoid            -> return ()
 
-        SSA typ Ref (MakeReferenceFromValue (ArgID i)) -> addUsed i
-        SSA typ Value (MakeValueFromReference (ArgID i)) -> addUsed i
+        SSA (MakeReferenceFromValue (ArgID i)) -> addUsed i
+        SSA (MakeValueFromReference (ArgID i)) -> addUsed i
 
-        SSA _ _ (MakeString str) -> return ()
+        SSA (MakeString str) -> return ()
 
-        SSA _ _ (Call _ args) -> do 
+        SSA (Call _ args) -> do 
             forM_ args $ \arg -> case arg of
                 ArgConst _ _ -> return ()
                 ArgID argId  -> addUsed argId
             addUsed id
 
-        SSA _ _ x -> error (show x)
+        SSA x -> error (show x)
 
     void $ processStmt func 0
 
@@ -152,7 +152,7 @@ processStmt funcIr id = do
             modify $ \s -> s { hasReturned = True }
             void $ liftFuncIr (appendStmtWithId id stmt)
 
-        SSA _ _ _ -> do
+        SSA _ -> do
             used <- isUsed id
             when used $ void $ liftFuncIr (appendStmtWithId id stmt)
 

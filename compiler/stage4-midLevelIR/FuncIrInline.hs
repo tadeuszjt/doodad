@@ -112,7 +112,7 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
     Return arg -> void $ liftFuncIr . appendStmtWithId id . Return =<< processArg arg
     ReturnVoid -> void $ liftFuncIr (appendStmtWithId id stmt)
 
-    SSA typ callRefType (Call callType callArgs) -> do -- TODO can also inline ref calls
+    SSA (Call callType callArgs) -> do -- TODO can also inline ref calls
         callArgs' <- mapM processArg callArgs
 
         --ast <- gets astResolved
@@ -123,11 +123,11 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
 
         resm <- gets $ Map.lookup callType . funcInstance . astResolved
         case resm of
-            Nothing -> void $ liftFuncIr $ appendStmtWithId id $ SSA typ callRefType (Call callType callArgs')
+            Nothing -> void $ liftFuncIr $ appendStmtWithId id $ SSA (Call callType callArgs')
             Just (_, callIr2) -> do
                 isInline <- fmap fst $ runDoMExcept () (functionIsInlineable callIr2)
                 case isInline of
-                    False -> void $ liftFuncIr $ appendStmtWithId id $ SSA typ callRefType (Call callType callArgs')
+                    False -> void $ liftFuncIr $ appendStmtWithId id $ SSA (Call callType callArgs')
                     True  -> do
                         --liftIO $ putStrLn $ "inlining: " ++ show callType
                         -- give the inline processor an idMap from inline to local
@@ -136,25 +136,23 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
                         zipWithM_ addIdMap [1..] callArgs'
                         retArg <- processInline callIr2 0
                         modify $ \s -> s { idMap = oldMap }
-                        case typ of
-                            Void -> return ()
-                            _    -> addIdMap id retArg
+                        addIdMap id retArg
 
 
-    SSA typ refType (MakeReferenceFromValue arg) -> do
+    SSA (MakeReferenceFromValue arg) -> do
         arg'@(ArgID _) <- processArg arg
-        void $ liftFuncIr $ appendStmtWithId id $ SSA typ refType (MakeReferenceFromValue arg')
+        void $ liftFuncIr $ appendStmtWithId id $ SSA (MakeReferenceFromValue arg')
 
-    SSA typ refType (MakeValueFromReference arg) -> do
+    SSA (MakeValueFromReference arg) -> do
         arg'@(ArgID _) <- processArg arg
-        void $ liftFuncIr $ appendStmtWithId id $ SSA typ refType (MakeValueFromReference arg')
+        void $ liftFuncIr $ appendStmtWithId id $ SSA (MakeValueFromReference arg')
 
-    SSA typ refType (InitVar marg) -> do
+    SSA (InitVar marg) -> do
         marg' <- traverse processArg marg
-        void $ liftFuncIr $ appendStmtWithId id $ SSA typ refType (InitVar marg')
+        void $ liftFuncIr $ appendStmtWithId id $ SSA (InitVar marg')
 
-    SSA typ refType (MakeString str) -> do
-        void $ liftFuncIr $ appendStmtWithId id $ SSA typ refType (MakeString str)
+    SSA (MakeString str) -> do
+        void $ liftFuncIr $ appendStmtWithId id $ SSA (MakeString str)
 
     x -> error (show x)
 
@@ -198,22 +196,26 @@ processInline callIr stmtId = let Just stmt = Map.lookup stmtId (irStmts callIr)
 
     ReturnVoid -> return undefined
 
-    SSA typ refType (Call callType args) -> do
+    SSA (Call callType args) -> do
+        let Just (typ, refType) = Map.lookup stmtId (irTypes callIr)
         args' <- mapM processArg args
         addIdMap stmtId . ArgID =<< liftFuncIr (appendSSA typ refType $ (Call callType args'))
         return undefined
 
-    SSA typ refType (InitVar marg) -> do
+    SSA (InitVar marg) -> do
+        let Just (typ, refType) = Map.lookup stmtId (irTypes callIr)
         marg' <- traverse processArg marg
         addIdMap stmtId . ArgID =<< liftFuncIr (appendSSA typ refType $ (InitVar marg'))
         return undefined
 
-    SSA typ refType (MakeReferenceFromValue arg) -> do
+    SSA (MakeReferenceFromValue arg) -> do
+        let Just (typ, refType) = Map.lookup stmtId (irTypes callIr)
         arg' <- processArg arg
         addIdMap stmtId . ArgID =<< liftFuncIr (appendSSA typ refType $ (MakeReferenceFromValue arg'))
         return undefined
         
-    SSA typ refType (MakeValueFromReference arg) -> do
+    SSA (MakeValueFromReference arg) -> do
+        let Just (typ, refType) = Map.lookup stmtId (irTypes callIr)
         arg' <- processArg arg
         addIdMap stmtId . ArgID =<< liftFuncIr (appendSSA typ refType $ (MakeValueFromReference arg'))
         return undefined

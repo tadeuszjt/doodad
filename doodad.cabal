@@ -100,4 +100,5 @@ executable doodad
         FuncIrDestroy,
         FuncIrUnused,
         FuncIrInline,
-        FuncIrConst
+        FuncIrConst,
+        FuncIrChecker

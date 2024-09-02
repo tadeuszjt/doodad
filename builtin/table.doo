@@ -1,0 +1,19 @@
+module table
+
+import builtin/builtin
+import builtin/container
+import builtin/for
+import builtin/tuple
+import builtin/convert
+
+
+inst{T} copy{Table{T}} (a)
+    let b
+    for (0, a.len) -> i
+        b.push(a[i])
+
+    return b
+
+
+
+

@@ -119,7 +119,7 @@ makeStmt statement = withPos statement $ case statement of
             ArgID argId -> do
                 resm <- liftFuncIr $ gets (Map.lookup argId . irStmts)
                 case resm of
-                    Just (SSA _ _ (Call _ _)) -> do define symbol argId
+                    Just (SSA (Call _ _)) -> do define symbol argId
                     _ -> do
                         (ArgID id) <- copy (ArgID argId)
                         void $ define symbol id

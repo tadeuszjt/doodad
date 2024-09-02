@@ -147,11 +147,11 @@ processStmt funcIr id = let stmt = irStmts funcIr Map.! id in case stmt of
         forM_ allSet $ \idToDestroy -> destroy idToDestroy
         void $ liftFuncIr (appendStmtWithId id stmt)
 
-    SSA _ _ (InitVar _) -> do
+    SSA (InitVar _) -> do
         addDestroy id
         void $ liftFuncIr (appendStmtWithId id stmt)
 
-    SSA _ _ _ -> void $ liftFuncIr (appendStmtWithId id stmt)
+    SSA _ -> void $ liftFuncIr (appendStmtWithId id stmt)
 
     x -> error (show x)
 
