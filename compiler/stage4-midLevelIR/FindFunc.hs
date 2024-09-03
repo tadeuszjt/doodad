@@ -55,8 +55,9 @@ getConstraintsFromTypes t1 t2 = case (t1, t2) of
 makeHeaderInstance :: Type -> DoM ASTResolved (Maybe FuncIrHeader)
 makeHeaderInstance callType = do
     -- In haskell, instances are globally visible, so we do not have to worry about different instances.
-    acquiresAll <- gets acquiresAll
-    results <- fmap catMaybes $ forM (Map.toList acquiresAll) $ \(symbol, stmt) -> case stmt of
+    let (TypeDef callSymbol, _) = unfoldType callType
+    Just acquires <- gets $ Map.lookup callSymbol . acquiresAll
+    results <- fmap catMaybes $ forM (Map.toList acquires) $ \(symbol, stmt) -> case stmt of
         Derives _ generics argType [featureType] -> do
             let genericSubs = zip (map TypeDef generics) (map Type [1..])
             let upperType = applyType genericSubs (Apply featureType argType)
@@ -105,8 +106,9 @@ makeHeaderInstance callType = do
 makeInstance :: Type -> DoM ASTResolved (Maybe Func)
 makeInstance callType = do
     -- In haskell, instances are globally visible, so we do not have to worry about different instances.
-    acquiresAll <- gets acquiresAll
-    results <- fmap catMaybes $ forM (Map.toList acquiresAll) $ \(symbol, stmt) -> case stmt of
+    let (TypeDef callSymbol, _) = unfoldType callType
+    Just acquires <- gets $ Map.lookup callSymbol . acquiresAll
+    results <- fmap catMaybes $ forM (Map.toList acquires) $ \(symbol, stmt) -> case stmt of
         Derives _ generics argType [featureType] -> do
             let genericSubs = zip (map TypeDef generics) (map Type [1..])
             let upperType = applyType genericSubs $ Apply featureType argType
@@ -143,7 +145,10 @@ makeInstance callType = do
                     return $ Just $ AST.Func pos symbol args' retty' stmt'
 
     case results of
-        []     -> return Nothing
-        [func] -> return (Just func)
+        []     -> do
+            fail $ "no acquire for: " ++ show callType
+            return Nothing
+        [func] -> do
+            return (Just func)
         funcs  -> fail $ "multiple acquires for: " ++ show callType
 

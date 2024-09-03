@@ -48,10 +48,14 @@ infer ast printAnnotated verbose = fmap snd $ runDoMExcept ast inferFuncs
         inferFuncs = do
             modName <- gets moduleName
             acquires <- gets acquiresAll
-            forM_ (Map.toList acquires) $ \(symbol, stmt) ->
-                when (symbolModule symbol == modName) $ do
-                    (stmt', _) <- runDoMUntilSameResult stmt $ \stmt -> do
-                        (stmtInferred, _) <- runDoMUntilSameResult stmt inferStmtTypes
-                        fmap fst $ runDoMUntilSameResult stmtInferred inferStmtDefaults
+            forM_ (Map.toList acquires) $ \(featureSymbol, acqMap) -> do
+                acqMap' <- fmap Map.fromList $ forM (Map.toList acqMap) $ \(symbol, stmt) ->
+                    case symbolModule symbol == modName of
+                        False -> return (symbol, stmt)
+                        True  -> do
+                            (stmt', _) <- runDoMUntilSameResult stmt $ \stmt -> do
+                                (stmtInferred, _) <- runDoMUntilSameResult stmt inferStmtTypes
+                                fmap fst $ runDoMUntilSameResult stmtInferred inferStmtDefaults
+                            return (symbol, stmt')
 
-                    modify $ \s -> s { acquiresAll = Map.insert symbol stmt' (acquiresAll s) }
+                modify $ \s -> s { acquiresAll = Map.insert featureSymbol acqMap' (acquiresAll s) }

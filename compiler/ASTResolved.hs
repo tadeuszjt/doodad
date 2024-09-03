@@ -26,7 +26,7 @@ data ASTResolved
         , featuresTop          :: Set.Set Symbol
         , featuresAll          :: Map.Map Symbol Stmt
 
-        , acquiresAll          :: Map.Map Symbol Stmt 
+        , acquiresAll          :: Map.Map Symbol (Map.Map Symbol Stmt)
 
         , funcInstance         :: Map.Map Type (IR.FuncIrHeader, IR.FuncIR)
 
@@ -67,10 +67,10 @@ prettyASTResolved ast = do
         prettyStmt "\t" $ Typedef undefined generics symbol typ
 
 
-    putStrLn ""
-    putStrLn "acquiresAll:"
-    forM_ (Map.toList $ acquiresAll ast) $ \(symbol, acquires) -> do
-        prettyStmt "" acquires
+    --putStrLn ""
+    --putStrLn "acquiresAll:"
+    --forM_ (Map.toList $ acquiresAll ast) $ \(symbol, acquires) -> do
+    --    prettyStmt "" acquires
 
 
 --    putStrLn ""

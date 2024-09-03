@@ -31,6 +31,7 @@ import Compile as C
 import qualified ResolveAst
 import qualified CombineAsts
 import Preprocess
+import Symbol
 
 -- Modules are groups of .doo files with a module name header
 -- lang/lexer.doo: lexer module
@@ -195,8 +196,7 @@ buildModule isMain args modPath = do
 
         astCombined' <- CombineAsts.combineAsts (astResolved', supply) astImports
         --liftIO $ prettyAST astResolved'
-
-
+        
         -- infer ast types
         when (verbose args) $ liftIO $ putStrLn "inferring types..."
 

@@ -25,7 +25,7 @@ initAstResolved modName imports = ASTResolved
     , featuresTop    = Set.empty
     , featuresAll    = Map.unions (map featuresAll imports)
 
-    , acquiresAll    = Map.unions (map acquiresAll imports) 
+    , acquiresAll    = Map.unionsWith Map.union (map acquiresAll imports) 
 
     , funcInstance   = Map.unions (map funcInstance imports)
 
@@ -87,22 +87,36 @@ typeDefsMapper element = case element of
 combineMapper :: Elem -> DoM ASTResolved Elem
 combineMapper element = case element of
     ElemStmt stmt@(Acquires _ _ acqType _ _ _) -> do
+        let (TypeDef featureSymbol, _) = unfoldType acqType
         let (TypeDef (SymResolved xs), _) = unfoldType acqType
 
         symbol <- genSymbol $ SymResolved $ xs ++ [typeCode acqType]
-        modify $ \s -> s { acquiresAll = Map.insert symbol stmt (acquiresAll s) }
+
+        resm <- gets $ Map.lookup featureSymbol . acquiresAll
+        existing <- case resm of
+            Nothing -> return Map.empty
+            Just x  -> return x
+
+        modify $ \s -> s { acquiresAll = Map.insert featureSymbol (Map.insert symbol stmt existing) (acquiresAll s) }
         return element
 
     ElemStmt stmt@(Feature _ _ _ symbol _ _) -> do
         modify $ \s -> s { featuresTop = Set.insert symbol (featuresTop s) }
         return element
 
-    ElemStmt stmt@(Derives pos generics typ ts) -> do
-        forM_ ts $ \t -> do
-            let (TypeDef (SymResolved xs), _) = unfoldType typ
-            symbol' <- genSymbol $ SymResolved $ xs ++ [typeCode typ]
-            let stmt' = Derives pos generics typ [t]
-            modify $ \s -> s { acquiresAll = Map.insert symbol' stmt' (acquiresAll s) }
+    ElemStmt stmt@(Derives pos generics typ features) -> do
+        forM_ features $ \feature -> do
+            let (TypeDef featureSymbol, _) = unfoldType feature
+
+            let (TypeDef (SymResolved xs), _) = unfoldType feature
+            symbol' <- genSymbol $ SymResolved $ xs ++ [typeCode feature]
+            let stmt' = Derives pos generics typ [feature]
+
+            resm <- gets $ Map.lookup featureSymbol . acquiresAll
+            existing <- case resm of
+                Nothing -> return $ Map.empty
+                Just x ->  return $ x
+            modify $ \s -> s { acquiresAll = Map.insert featureSymbol (Map.insert symbol' stmt' existing) (acquiresAll s) }
         return element
 
     -- filter out statements

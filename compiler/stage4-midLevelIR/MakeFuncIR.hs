@@ -247,6 +247,7 @@ makeVal (S.AExpr exprType expression) = withPos expression $ case expression of
             x -> error (show x)
 
     x -> error (show x)
+makeVal expr = withPos expr $ fail $ "unresolved: " ++ show expr
 
 
 -- returns a Ref ID

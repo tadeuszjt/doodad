@@ -160,23 +160,21 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
         (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType
         unless (length exprs == length argTypes) (fail $ "invalid function type arguments: " ++ show callType)
 
-        --liftIO $ putStrLn $ ("callType: " ++ show callType ++ ", retType: " ++ show retType)
-
-        ast <- gets astResolved
-
+        Just acquires <- gets $ Map.lookup funcSymbol . acquiresAll . astResolved
+        features <- gets $ featuresAll . astResolved
 
         -- These indices describe the type variables which are independent according to the 
         -- functional dependencies. If the independent variables fully describe the call type,
         -- it can be said that no other overlapping definition could conflict with it so we can
         -- type check.
-        let Feature _ featureGenerics funDeps _ _ _ = (featuresAll ast) Map.! funcSymbol
+        let Feature _ featureGenerics funDeps _ _ _ = features Map.! funcSymbol
         unless (length callTypeArgs == length featureGenerics) (error "xs needs to be > 0")
         indices <- fmap catMaybes $ forM (zip featureGenerics [0..]) $ \(g, i) -> do
             case findIndex (g ==) (map snd funDeps) of
                 Just _  -> return Nothing
                 Nothing -> return (Just i) 
 
-        fullAcqs <- fmap catMaybes $ forM (Map.elems $ acquiresAll ast) $ \stmt -> do
+        fullAcqs <- fmap catMaybes $ forM (Map.elems $ acquires) $ \stmt -> do
             appliedAcqType <- case stmt of
                 Acquires _ generics acqType _ _ _ -> do
                     let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
