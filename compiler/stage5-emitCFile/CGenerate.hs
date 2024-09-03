@@ -104,25 +104,24 @@ if_ cnd f = do
     withCurID id f
 
 
-makeRef :: Value -> Generate Value
+makeRef :: Value -> Generate C.Expression
 makeRef val = do
     base <- baseTypeOf val
     case val of
         Value _ _ -> case unfoldType base of
-            (Tuple, ts) -> assign "ref" $ Ref (typeof val) $ C.Initialiser
+            (Tuple, ts) -> fmap refExpr $ assign "ref" $ Ref (typeof val) $ C.Initialiser
                 [ C.Address (valExpr val)  -- ptr
                 , C.Int 0                  -- idx
                 , C.Int 1                  -- cap
                 ]
 
-            (_, _) -> assign "ref" $ Ref (typeof val) $ C.Address (valExpr val)
+            (_, _) -> fmap refExpr $ assign "ref" $ Ref (typeof val) $ C.Address (valExpr val)
 
-        Ref _ _ -> return val
+        Ref _ _ -> return (refExpr val)
 
 
-deref :: Value -> Generate Value
-deref (Value t e) = return (Value t e)
-deref (Ref typ expr) = do
+deref :: Type.Type -> C.Expression -> Generate C.Expression
+deref typ expr = do
     base <- baseTypeOf typ
     case unfoldType base of
         (Tuple, ts) -> do -- {ptr, idx, cap}
@@ -142,9 +141,9 @@ deref (Ref typ expr) = do
 
                 appendElem $ C.Set (C.Member (valExpr tup) $ "m" ++ show i) (C.Deref fieldP)
 
-            return tup
+            return (valExpr tup)
 
-        _ -> return $ Value typ (C.Deref expr)
+        _ -> return (C.Deref expr)
     
 
 cParamOf :: S.Param -> Generate C.Param

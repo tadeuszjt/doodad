@@ -29,9 +29,9 @@ inst{S, T} multiply{ Array{S, T} } (a, b)
     return c
 
 
-inst{X, S} destroy{ Array{S, X} } (arr&)
+inst{S, T} destroy{ Array{S, T} } (arr&)
     for (0, arr.len) -> i
-        (arr[i]):X
+        arr[i].destroy
     
 
 inst{X, S} copy{ Array{S, X} } (a)

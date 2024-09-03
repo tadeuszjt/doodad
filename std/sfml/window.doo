@@ -168,8 +168,8 @@ fn pollEvent(w &Window) Event.Option
 
 
 fn drawQuads(w &Window, quads Slice{Quad}, texture &Texture, transform Mat3f)
-    for (0, quads.len) -> i
-        let q = quads[i]
+    //for (0, quads.len) -> i
+    //    let q = quads[i]
 
     let texturePtr = texture.texturePtr
     let ptr = w.windowPtr

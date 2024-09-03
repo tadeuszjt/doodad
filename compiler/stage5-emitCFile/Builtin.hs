@@ -67,7 +67,7 @@ builtinTableAppend typ expr = do
 builtinArrayAt :: Type -> C.Expression -> C.Expression -> Generate Value
 builtinArrayAt typ cexpr cidx = do
     (Array, [Size n, t]) <- unfoldType <$> baseTypeOf typ
-    makeRef $ Value t $ C.Subscript (C.PMember cexpr "arr") cidx
+    fmap (Ref t) $ makeRef $ Value t $ C.Subscript (C.PMember cexpr "arr") cidx
 
 
 -- TODO slice may represent non-flat memory when representing table row

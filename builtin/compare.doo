@@ -23,6 +23,10 @@ inst equal{ Tuple{} } (a, b); return true
 fn{T} lessThanEqual(a T, b T) Bool; return !greaterThan(a, b)
 fn{T} greaterThanEqual(a T, b T) Bool; return !lessThan(a, b)
 
+fn{T} clamp(a T, min T, max T) T
+    if a < min; return min
+    if a > max; return max
+    return a
 
 
 inst{A, B} equal{ Sum{A, B} } (a, b)

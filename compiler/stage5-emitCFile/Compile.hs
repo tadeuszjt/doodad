@@ -105,7 +105,7 @@ generateFunc funcType = do
         liftIO $ putStrLn $ show funcIrHeader
         liftIO $ IR.prettyIR "" funcIr
 
-        generatedSymbol <- CGenerate.genSymbol symbol
+        generatedSymbol <- CGenerate.genSymbol (SymResolved [typeCode funcType])
         --liftIO $ putStrLn $ "generating: " ++ prettySymbol generatedSymbol
         let header' = (funcIrHeader) { IR.irFuncSymbol = generatedSymbol }
 
@@ -452,7 +452,7 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
                                         slice <- assign "slice" $ Value (Apply Slice $ ts !! i) $
                                             C.Initialiser [ row, C.PMember cexpr "len", C.Int 0 ]
 
-                                        Ref _ refExpr <- makeRef slice
+                                        refExpr <- makeRef slice
                                         cRefType <- cRefTypeOf (Apply Slice $ ts !! i)
                                         void $ appendAssign cRefType (idName id) refExpr
 
@@ -507,8 +507,7 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
             IR.MakeValueFromReference (IR.ArgID argId) -> case (IR.irTypes funcIr) Map.! argId of
                 (typ, IR.Ref) -> do
                     cType <- cTypeOf typ
-                    cexpr <- generateArg (IR.ArgID argId)
-                    Value _ cRef <- deref (Ref typ cexpr)
+                    cRef <- deref typ =<< generateArg (IR.ArgID argId)
                     void $ appendElem $ C.Assign cType (idName id) cRef
 
                 x -> error (show x)

@@ -156,20 +156,21 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
 
     Call _ callType exprs -> do
         -- TODO broken, generics are carrying thorugh definitions!
-        let (TypeDef funcSymbol, _) = unfoldType callType
+        let (TypeDef funcSymbol, callTypeArgs) = unfoldType callType
         (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType
         unless (length exprs == length argTypes) (fail $ "invalid function type arguments: " ++ show callType)
 
+        --liftIO $ putStrLn $ ("callType: " ++ show callType ++ ", retType: " ++ show retType)
+
         ast <- gets astResolved
-        let Feature _ featureGenerics funDeps _ _ _ = (featuresAll ast) Map.! funcSymbol
-        let (TypeDef funcSymbol, callTypeArgs) = unfoldType callType
-        unless (length callTypeArgs == length featureGenerics) (error "xs needs to be > 0")
 
 
         -- These indices describe the type variables which are independent according to the 
         -- functional dependencies. If the independent variables fully describe the call type,
         -- it can be said that no other overlapping definition could conflict with it so we can
         -- type check.
+        let Feature _ featureGenerics funDeps _ _ _ = (featuresAll ast) Map.! funcSymbol
+        unless (length callTypeArgs == length featureGenerics) (error "xs needs to be > 0")
         indices <- fmap catMaybes $ forM (zip featureGenerics [0..]) $ \(g, i) -> do
             case findIndex (g ==) (map snd funDeps) of
                 Just _  -> return Nothing
@@ -201,7 +202,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
                 subs <- unify =<< getConstraintsFromTypes acq callType
                 (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf (applyType subs acq)
                 collect "call type" $ ConsEq callType (applyType subs acq)
-                collect ("call return for: " ++ show callType) (ConsEq exprType retType)
+                collect ("call return: " ++ show callType) (ConsEq exprType retType)
                 zipWithM (\x y -> collect "call argument" (ConsEq x y)) argTypes (map typeof exprs)
                 return ()
             x -> error (show x)

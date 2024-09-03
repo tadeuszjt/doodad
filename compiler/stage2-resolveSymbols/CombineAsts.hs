@@ -26,7 +26,6 @@ initAstResolved modName imports = ASTResolved
     , featuresAll    = Map.unions (map featuresAll imports)
 
     , acquiresAll    = Map.unions (map acquiresAll imports) 
-    , acquiresTop    = Set.empty
 
     , funcInstance   = Map.unions (map funcInstance imports)
 
@@ -88,11 +87,10 @@ typeDefsMapper element = case element of
 combineMapper :: Elem -> DoM ASTResolved Elem
 combineMapper element = case element of
     ElemStmt stmt@(Acquires _ _ acqType _ _ _) -> do
-        let (TypeDef symbol, _) = unfoldType acqType
+        let (TypeDef (SymResolved xs), _) = unfoldType acqType
 
-        symbol <- genSymbol $ symbol
+        symbol <- genSymbol $ SymResolved $ xs ++ [typeCode acqType]
         modify $ \s -> s { acquiresAll = Map.insert symbol stmt (acquiresAll s) }
-        modify $ \s -> s { acquiresTop = Set.insert symbol (acquiresTop s) }
         return element
 
     ElemStmt stmt@(Feature _ _ _ symbol _ _) -> do
@@ -101,11 +99,10 @@ combineMapper element = case element of
 
     ElemStmt stmt@(Derives pos generics typ ts) -> do
         forM_ ts $ \t -> do
-            let (TypeDef symbol, _) = unfoldType typ
-            symbol' <- genSymbol symbol
+            let (TypeDef (SymResolved xs), _) = unfoldType typ
+            symbol' <- genSymbol $ SymResolved $ xs ++ [typeCode typ]
             let stmt' = Derives pos generics typ [t]
             modify $ \s -> s { acquiresAll = Map.insert symbol' stmt' (acquiresAll s) }
-            modify $ \s -> s { acquiresTop = Set.insert symbol' (acquiresTop s) }
         return element
 
     -- filter out statements

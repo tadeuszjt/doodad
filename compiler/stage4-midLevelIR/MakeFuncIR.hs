@@ -221,7 +221,10 @@ makeVal (S.AExpr exprType expression) = withPos expression $ case expression of
         let (TypeDef funcSymbol, _) = unfoldType funcType
 
         ast <- gets astResolved
-        Just irHeader <- fmap fst $ runDoMExcept ast (makeHeaderInstance funcType)
+        resm <- fmap fst $ runDoMExcept ast (makeHeaderInstance funcType)
+        irHeader <- case resm of
+            Just x -> return x
+            Nothing -> fail ("no instance for: " ++ show funcType)
         unless (length exprs == length (irArgs irHeader)) (error "arg length mismatch")
 
         args <- forM (zip exprs (irArgs irHeader)) $ \(expr, arg) -> do

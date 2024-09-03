@@ -76,6 +76,10 @@ inst{T} print{ T, Bool } (t&, b)
         t.print("false")
 
 
+inst{T, G} printLn{T, G.Table} (t&, g&)
+    t.print(g)
+    t.print('\n')
+
 inst{T, G} print{ T, G.Table } (t&, g&)
     t.print('[')
 

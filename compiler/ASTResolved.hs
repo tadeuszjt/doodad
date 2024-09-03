@@ -27,7 +27,6 @@ data ASTResolved
         , featuresAll          :: Map.Map Symbol Stmt
 
         , acquiresAll          :: Map.Map Symbol Stmt 
-        , acquiresTop          :: Set.Set Symbol
 
         , funcInstance         :: Map.Map Type (IR.FuncIrHeader, IR.FuncIR)
 
@@ -69,9 +68,6 @@ prettyASTResolved ast = do
 
 
     putStrLn ""
-    putStrLn "acquiresTop:"
-    forM_ (Set.toList $ acquiresTop ast) $ \symbol -> do
-        liftIO $ putStrLn $ "\t" ++ prettySymbol symbol
     putStrLn "acquiresAll:"
     forM_ (Map.toList $ acquiresAll ast) $ \(symbol, acquires) -> do
         prettyStmt "" acquires

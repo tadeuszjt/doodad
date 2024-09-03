@@ -11,6 +11,7 @@ inst convert{F32, F64} (a); return a.builtinConvert
 
 inst convert{F64, F64} (a); return a
 inst convert{F64, F32} (a); return a.builtinConvert
+inst convert{F64, I64} (a); return a.builtinConvert
 
 inst convert{I64, I64} (a);  return a
 inst convert{I64, Char} (a); return a.builtinConvert

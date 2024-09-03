@@ -62,6 +62,12 @@ instance Show Type where
         x -> error ""
 
 
+-- generates an alphanum code for use in function names
+typeCode :: Type -> String
+typeCode typ = case unfoldType typ of
+    (TypeDef s, xs) -> sym s ++ concat (map typeCode xs)
+    (x, xs)         -> show x ++ concat (map typeCode xs)
+
 isInt :: Type -> Bool
 isInt typ = case typ of
     U8 -> True

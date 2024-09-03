@@ -11,11 +11,65 @@ import std/unordered
 import std/time
 import std/maths
 import std/geometry
+import std/stack
 
 import builtin/all
 
 
 include <SFML/Graphics.h>
+
+
+
+tuple Grid {
+    rect  Rect
+    array Array{20, Array{20, Stack{16, Vec2}}}
+}
+derives Grid (destroy)
+
+
+fn makeGrid(rect Rect) Grid
+    let g
+    g.rect = rect
+    return g
+
+
+fn getGridVecs(g &Grid, range Rect) Table{Vec2}
+    let numRows = g.array.len
+    let numCols = g.array[0].len
+
+    let rowMin = ((range.min.x - g.rect.min.x) / (g.rect.max.x - g.rect.min.x) * numRows.convert).convert:I64
+    let colMin = ((range.min.y - g.rect.min.y) / (g.rect.max.y - g.rect.min.y) * numCols.convert).convert:I64
+
+    let rowMax = ((range.max.x - g.rect.min.x) / (g.rect.max.x - g.rect.min.x) * numRows.convert).convert:I64
+    let colMax = ((range.max.y - g.rect.min.y) / (g.rect.max.y - g.rect.min.y) * numCols.convert).convert:I64
+
+    let rMin = clamp(rowMin, 0, numRows - 1)
+    let cMin = clamp(colMin, 0, numCols - 1)
+
+    let rMax = clamp(rowMax, 0, numRows - 1)
+    let cMax = clamp(colMax, 0, numCols - 1)
+
+    data result Table{Vec2}
+
+    for (rMin, rMax + 1) -> r
+        for (cMin, cMax + 1) -> c
+            for (0, g.array[r][c].len) -> i
+                result.container::push(g.array[r][c][i])
+
+    return result
+
+fn addToGrid(g &Grid, v Vec2)
+    let numRows = g.array.len
+    let numCols = g.array[0].len
+
+    let row = ((v.x - g.rect.min.x) / (g.rect.max.x - g.rect.min.x) * numRows.convert).convert:I64
+    let col = ((v.y - g.rect.min.y) / (g.rect.max.y - g.rect.min.y) * numCols.convert).convert:I64
+
+    let r = clamp(row, 0, numRows - 1)
+    let c = clamp(col, 0, numCols - 1)
+
+    g.array[r][c].stack::push(v)
+
 
 tuple Blob {
     position   Vec2
@@ -67,7 +121,7 @@ fn makeQuad(position sf::Vec2f, colour sf::Colour) sf::Quad
 
 fn containsBlob(table &Blob.Table, point Vec2) Bool
     for (0, table.len) -> i
-        if (point - table.position[i]).length < 10.0
+        if (point - table.position[i]).geometry::length < 10.0
             return true
 
     return false
@@ -78,7 +132,7 @@ fn main(io Io, rand Rand, w sf::Window)
     w.sf::create(1000, 800, "blobs")
     let blobTexture = sf::textureFromFile("blob.png")
 
-    let arena = Rect( (0.0, 0.0), (500.0, 500.0) )
+    let arena = Rect( (0.0, 0.0), (1000.0, 1000.0) )
     data blobs Blob.Table
 
     for (0, 100)
@@ -86,7 +140,7 @@ fn main(io Io, rand Rand, w sf::Window)
         blob.blobColour = rand.uniform(sf::black(), sf::white())
         blob.position   = rand.uniform(arena.min, arena.max)
         blob.velocity   = rand.uniform( (-1.0, -1.0), (1.0, 1.0) )
-        blobs.push(blob)
+        blobs.container::push(blob)
 
 
     let mousePos = Vec2(0.0, 0.0)
@@ -102,6 +156,12 @@ fn main(io Io, rand Rand, w sf::Window)
                 sf::closed()       ; w.sf::close()
                 sf::mouseMove(x, y); mousePos = (x, y).convert
 
+
+        let grid = makeGrid(arena)
+        for (0, blobs.len) -> i
+            grid.addToGrid(blobs.position[i])
+
+
         for (0, blobs.len) -> i
             if rand.uniform(0, 100) == 0
                 let childPos = blobs.position[i] + Vec2(
@@ -109,21 +169,22 @@ fn main(io Io, rand Rand, w sf::Window)
                     0
                 ).rotate(rand.uniform(0, 2 * maths::pi()))
 
-                let collides = false
-                for (0, blobs.position.len) -> j | !collides
-                    let neighborPos = blobs.position[j]
-                    if (childPos - neighborPos).length < 20 
-                        collides = true
+                if arena.contains(childPos)
+                    let rect = Rect( childPos - (20, 20), childPos + (20, 20) )
+                    let positions = grid.getGridVecs(rect)
 
-                if !collides
-                    let child
-                    child.position   = childPos
-                    child.blobColour = rand.uniform(sf::black(), sf::white())
-                    blobs.push(child)
-                
+                    let collides = false
+                    for positions -> p | !collides
+                        if (childPos - p).geometry::length < 20 
+                            collides = true
+
+                    if !collides
+                        let child
+                        child.position   = childPos
+                        child.blobColour = rand.uniform(sf::black(), sf::white())
+                        blobs.container::push(child)
 
         for (0, blobs.len) -> i
-            //blobs[i].position = blobs[i].position + blobs[i].velocity
             blobs[i].sprite = makeQuad(blobs[i].position.convert, blobs[i].blobColour)
 
         

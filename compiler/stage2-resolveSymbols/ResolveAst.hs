@@ -115,8 +115,8 @@ genGeneric symbol@(SymResolved str) = do
     let n = maybe 0 (id) resm
     modify $ \s -> s { supply = Map.insert symbol (n + 1) (supply s) }
     case n of
-        0 -> return $ SymResolved $ str
-        n -> return $ SymResolved $ str ++ [show n]
+        0 -> return $ SymResolved $ [modName] ++ str
+        n -> return $ SymResolved $ [modName] ++ str ++ [show n]
 
 genSymbol :: Symbol -> DoM ResolveState Symbol
 genSymbol symbol@(SymResolved str) = do

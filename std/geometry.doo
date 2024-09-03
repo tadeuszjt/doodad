@@ -25,7 +25,7 @@ derives{P} Vec2 (print{P}, printLn{P})
 derives{T} Vec2 (convert{Tuple{T, T}})
 
 
-derives Rect (make2{Vec2, Vec2})
+derives Rect (copy, destroy, make2{Vec2, Vec2})
 derives Mat3 (copy, destroy, add, subtract, len, at{I64, Array{3, F64}})
 derives Mat4 (copy, destroy, add, subtract, at{I64, Array{4, F64}}, len)
 

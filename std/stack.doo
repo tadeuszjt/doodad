@@ -1,0 +1,28 @@
+module stack
+
+
+import builtin/all
+
+
+tuple{S, T} Stack {
+    length I64
+    array Array{S, T}
+}
+
+
+inst{S, T} len{Stack{S, T}} (s&); return s.length
+inst{S, T} at{I64, T, Stack{S, T}} (s&, idx); return s.array[idx]
+
+
+fn{S, T} push(s &Stack{S, T}, elem T)
+    assert(s.length < s.array.len)
+    s.array[s.length] = elem
+    s.length = s.length + 1
+
+fn{S, T} pop(s &Stack{S, T}) T
+    assert(s.length > 0)
+    let elem = s.array[s.length - 1]
+    s.length = s.length - 1
+    return elem
+
+

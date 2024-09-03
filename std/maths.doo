@@ -5,9 +5,9 @@ import builtin/all
 func{T} sqrt(T) T
 func{T} sin(T) T
 func{T} cos(T) T
-
-
 func{T} pi() T
+
+
 inst pi{F64} (); return 3.141592653589793
 inst pi{F32} (); return 3.1415927
 
