@@ -313,25 +313,25 @@ resolveStmt instState (Stmt id) = do
             withCurId id $ mapM_ (resolveStmt instState) stmts
             popSymbolTable
             
-        Return pos mexpr -> void $ appendStmt . Return pos =<< traverse resolveExpr mexpr
-        ExprStmt expr -> void $ appendStmt . ExprStmt =<< resolveExpr expr
+        Return pos mexpr -> void $ appendStmt . Return pos =<< traverse (resolveExpr instState) mexpr
+        ExprStmt expr -> void $ appendStmt . ExprStmt =<< resolveExpr instState expr
         EmbedC pos [] str -> do
             strMap <- processCEmbed str
             void $ appendStmt $ EmbedC pos strMap str
 
         Let pos pattern mexpr Nothing -> do
             pattern' <- resolvePattern pattern
-            mexpr'   <- traverse resolveExpr mexpr
+            mexpr'   <- traverse (resolveExpr instState) mexpr
             void $ appendStmt $ Let pos pattern' mexpr' Nothing
 
         Assign pos (Sym str) expr -> do
             symbol <- genSymbol (SymResolved str)
             define symbol KeyVar symbol False
-            void $ appendStmt . Assign pos symbol =<< resolveExpr expr
+            void $ appendStmt . Assign pos symbol =<< resolveExpr instState expr
 
         If pos expr stmt melse -> do
             pushSymbolTable
-            expr' <- resolveExpr expr
+            expr' <- resolveExpr instState expr
 
             trueId <- resolveBlock instState stmt
             popSymbolTable
@@ -343,7 +343,7 @@ resolveStmt instState (Stmt id) = do
 
         While pos expr blk -> do
             pushSymbolTable
-            expr' <- resolveExpr expr
+            expr' <- resolveExpr instState expr
             id <- resolveBlock instState blk
             popSymbolTable
             void $ appendStmt $ While pos expr' (Stmt id)
@@ -366,30 +366,31 @@ resolvePattern pattern = withPos pattern $ case pattern of
     x -> error (show x)
 
 
-resolveExpr :: Expr -> DoM ResolveState Expr
-resolveExpr expression = withPos expression $ case expression of
-    AExpr typ expr -> do
-        expr' <- resolveExpr expr
-        typ' <- resolveType typ
-        return (AExpr typ' expr')
-    AST.Int pos n -> return (AST.Int pos n)
-    AST.Bool pos b -> return (AST.Bool pos b)
-    AST.Char pos c -> return (AST.Char pos c)
-    AST.Float pos f -> return (AST.Float pos f)
-    Ident pos symbol -> Ident pos <$> look symbol KeyVar
-    Reference pos expr -> Reference pos <$> resolveExpr expr
-    Match pos expr pat -> do
-        expr' <- resolveExpr expr
-        pat' <- resolvePattern pat
-        return (Match pos expr' pat')
-    AST.String pos s -> return (AST.String pos s)
-    AST.Array pos exprs -> AST.Array pos <$> mapM resolveExpr exprs
+resolveExpr :: InstBuilderState -> Expr -> DoM ResolveState Expr
+resolveExpr state expression = do
+    fmap Expr $ newExpr =<< case expression of
+        AExpr typ expr -> do
+            expr' <- (resolveExpr state) expr
+            typ' <- resolveType typ
+            return (AExpr typ' expr')
+        AST.Int pos n -> return (AST.Int pos n)
+        AST.Bool pos b -> return (AST.Bool pos b)
+        AST.Char pos c -> return (AST.Char pos c)
+        AST.Float pos f -> return (AST.Float pos f)
+        Ident pos symbol -> Ident pos <$> look symbol KeyVar
+        Reference pos expr -> Reference pos <$> (resolveExpr state) expr
+        Match pos expr pat -> do
+            expr' <- (resolveExpr state) expr
+            pat' <- resolvePattern pat
+            return (Match pos expr' pat')
+        AST.String pos s -> return (AST.String pos s)
+        AST.Array pos exprs -> AST.Array pos <$> mapM (resolveExpr state) exprs
 
-    Call pos typ exprs -> do
-        typ' <- resolveType typ
-        Call pos typ' <$> mapM resolveExpr exprs
+        Call pos typ exprs -> do
+            typ' <- resolveType typ
+            Call pos typ' <$> mapM (resolveExpr state) exprs
 
-    x -> error (show x)
+        x -> error (show x)
             
 
 processCEmbed :: String -> DoM ResolveState [(String, Symbol)]

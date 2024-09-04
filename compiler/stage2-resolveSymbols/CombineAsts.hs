@@ -6,13 +6,13 @@ import qualified Data.Set as Set
 import Control.Monad.State
 
 import ASTResolved
-import ASTMapper
 import AST
 import Monad
 import Symbol
 import Error
 import Type
 import AstBuilder
+import InstBuilder
 
  
 initAstResolved modName imports = ASTResolved
@@ -83,32 +83,28 @@ combineAsts astBuildState supply imports = fmap snd $
 
                 symbol <- genSymbol $ SymResolved $ xs ++ [typeCode acqType]
 
-                (blk, ()) <- runDoMExcept () $ unbuildInst instState 0
-                blk' <- mapStmtM funnyMapper blk
-                let stmt = Instance p g acqType a r blk'
+                expressions' <- fmap Map.fromList $ forM (Map.toList $ expressions instState) $
+                    \(id, expression) -> case expression of
+                        (Call pos typ exprs) -> do
+                            let (TypeDef symbol, _) = unfoldType typ
+
+                            resm <- Map.lookup symbol <$> getTypeDefs
+                            unless (isJust resm) (fail $ "no def for: " ++ prettySymbol symbol)
+                            let Just (generics, _) = resm
+
+                            let typ' = case (typ, generics) of
+                                    (TypeDef _, []) -> typ
+                                    (TypeDef _, x)  -> foldl Apply typ $ replicate (length x) (Type 0)
+                                    (_, x)          -> typ
+
+                            return $ (id, Call pos typ' exprs)
+                        _ -> return (id, expression)
+
+                (blk, ()) <- runDoMExcept () $ unbuildInst (instState { expressions = expressions' }) 0
+                let stmt = Instance p g acqType a r blk
 
                 resm <- gets $ Map.lookup featureSymbol . instancesAll
                 let existing = maybe Map.empty id resm
                 modify $ \s -> s { instancesAll = Map.insert featureSymbol (Map.insert symbol stmt existing) (instancesAll s) }
 
             _ -> return ()
-
-
-
-funnyMapper :: Elem -> DoM ASTResolved Elem
-funnyMapper element = case element of
-    ElemExpr (Call pos typ exprs) -> do
-        let (TypeDef symbol, _) = unfoldType typ
-
-        resm <- Map.lookup symbol <$> getTypeDefs
-        unless (isJust resm) (fail $ "no def for: " ++ prettySymbol symbol)
-        let Just (generics, _) = resm
-
-        let typ' = case (typ, generics) of
-                (TypeDef _, []) -> typ
-                (TypeDef _, x)  -> foldl Apply typ $ replicate (length x) (Type 0)
-                (_, x)          -> typ
-
-        return $ ElemExpr (Call pos typ' exprs)
-
-    _ -> return element

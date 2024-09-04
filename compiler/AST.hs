@@ -79,6 +79,7 @@ data Expr
     | Match        TextPos Expr Pattern
     | Reference    TextPos Expr
     | Array        TextPos [Expr]
+    | Expr         Int
     deriving (Eq)
 
 instance Typeof Expr where
@@ -203,6 +204,7 @@ instance Show Pattern where
 instance Show Expr where
     show expression = case expression of
         AExpr t expr                       -> show expr ++ ":" ++ show t 
+        Expr i                             -> show i
         Int pos n                          -> show n
         Float pos f                        -> show f
         AST.Bool pos b                     -> if b then "true" else "false"

@@ -47,28 +47,3 @@ unbuildStmt state statement = case statement of
     TopStmt s -> return s
     TopInst pos generics typ args retty instState -> do
         Instance pos generics typ args retty <$> unbuildInst instState 0
-
-
-unbuildInst :: InstBuilderState -> ID -> DoM () Stmt
-unbuildInst instState id = do
-    let Just stmt = Map.lookup id (statements instState)
-    case stmt of
-        Block stmts -> fmap Block $ forM stmts $ \(Stmt id) -> unbuildInst instState id
-        Return pos mexpr -> return stmt
-        ExprStmt expr    -> return stmt
-        EmbedC _ _ _     -> return stmt
-        Let _ _ _ _      -> return stmt
-        Assign _ _ _     -> return stmt
-
-        If pos expr (Stmt trueId) mfalse -> do
-            true' <- unbuildInst instState trueId
-            false' <- case mfalse of
-                Nothing -> return Nothing
-                Just (Stmt id) -> fmap Just $ unbuildInst instState id
-
-            return $ If pos expr true' false'
-
-        While pos expr (Stmt id) -> While pos expr <$> unbuildInst instState id
-
-
-        x -> error (show x)
