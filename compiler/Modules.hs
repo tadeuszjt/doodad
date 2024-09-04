@@ -194,12 +194,11 @@ buildModule isMain args modPath = do
             return (stmt, fromJust resm)
 
         when (verbose args) $ liftIO $ putStrLn "resolving symbols..."
-        (astResolved'', supply) <- ResolveAst.resolveAst ast astImports
+        (astResolved', supply) <- ResolveAst.resolveAst ast astImports
 
         --when (isMain && printAstResolved args) $ liftIO (prettyAST astResolved')
-        (astResolved', ()) <- runDoMExcept () (unbuildAst astResolved'')
 
-        astCombined' <- CombineAsts.combineAsts (astResolved', supply) astImports
+        astCombined' <- CombineAsts.combineAsts astResolved' supply astImports
         --liftIO $ prettyAST astResolved'
         
         -- infer ast types

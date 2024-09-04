@@ -148,7 +148,7 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
     where
         resolveAst' :: AstBuilderState -> DoM ResolveState (AstBuilderState, Map.Map Symbol Int)
         resolveAst' ast = do
-            modify $ \s -> s { modName = AstBuilder.moduleName ast }
+            modify $ \s -> s { modName = AstBuilder.abModuleName ast }
 
             forM_ imports $ \(Import isExport isQualified path mName, imprt) -> do
                 forM_ (typeDefsTop imprt) $ \symbol -> do

@@ -18,8 +18,8 @@ data TopStmt
 
 data AstBuilderState = AstBuilderState
     { topStmts :: [TopStmt]
-    , moduleName :: String
-    , builderImports :: [Import]
+    , abModuleName :: String
+    , abImports    :: [Import]
     }
 
 class (Monad m, MonadFail m) => MonadAstBuilder m where
@@ -32,27 +32,14 @@ instance MonadAstBuilder (DoM AstBuilderState) where
 
 initAstBuilderState name imports = AstBuilderState
     { topStmts = []
-    , moduleName = name
-    , builderImports = imports
+    , abModuleName = name
+    , abImports    = imports
     }
 
 
 addTopStmt :: MonadAstBuilder m => TopStmt -> m ()
 addTopStmt stmt =
     liftAstBuilderState $ modify $ \s -> s { topStmts = (topStmts s) ++ [stmt] }
-
-
-
-unbuildAst :: AstBuilderState -> DoM () AST
-unbuildAst builderState = do
-
-    stmts <- forM (topStmts builderState) (unbuildStmt builderState)
-
-    return $ AST
-        { astStmts = stmts
-        , astModuleName = moduleName builderState
-        , astImports    = builderImports builderState
-        }
 
 
 unbuildStmt :: AstBuilderState -> TopStmt -> DoM () Stmt

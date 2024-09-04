@@ -12,6 +12,7 @@ import Monad
 import Symbol
 import Error
 import Type
+import AstBuilder
 
  
 initAstResolved modName imports = ASTResolved
@@ -33,102 +34,69 @@ initAstResolved modName imports = ASTResolved
     }
 
 
-combineAsts :: (AST, Map.Map Symbol Int) -> [(Import, ASTResolved)] -> DoM s ASTResolved
-combineAsts (ast, supply) imports = fmap snd $
-    runDoMExcept (initAstResolved (astModuleName ast) (map snd imports)) combineAsts'
-    where
-        combineAsts' :: DoM ASTResolved ()
-        combineAsts' = do
-            forM_ imports $ \(Import isExport _ _ _, imprt) -> when isExport $ do
-                modify $ \s -> s { typeDefsTop = Set.union (typeDefsTop s) (typeDefsTop imprt) }
+combineAsts :: AstBuilderState -> Map.Map Symbol Int -> [(Import, ASTResolved)] -> DoM s ASTResolved
+combineAsts astBuildState supply imports = fmap snd $
+    runDoMExcept (initAstResolved (abModuleName astBuildState) (map snd imports)) $ do
+        forM_ imports $ \(Import isExport _ _ _, imprt) -> when isExport $
+            modify $ \s -> s { typeDefsTop = Set.union (typeDefsTop s) (typeDefsTop imprt) }
 
-            modify $ \s -> s
-                { includes = Set.fromList [ s | (CInclude s) <- astImports ast ]
-                , links    = Set.fromList [ s | (CLink s)    <- astImports ast ]
-                , symSupply = supply
-                }
-
-            -- define top symbols
-            forM_ (astStmts ast) $ \stmt -> withPos stmt $ case stmt of
-                Typedef pos generics symbol@(SymResolved _) typ ->
-                    modify $ \s -> s { typeDefsTop = Set.insert symbol (typeDefsTop s) }
-                Feature _ _ _ symbol _ _ ->
-                    modify $ \s -> s { typeDefsTop = Set.insert symbol (typeDefsTop s) }
-
---                MacroTuple pos generics symbol fields -> do
---                    modify $ \s -> s { typeDefsTop = Set.insert symbol (typeDefsTop s) }
---                    forM_ fields $ \(fieldSymbol, _) -> do
---                        modify $ \s -> s { typeDefsTop = Set.insert fieldSymbol (typeDefsTop s) }
-
-                _ -> return ()
-                
-            mapM_ (mapStmtM typeDefsMapper) (astStmts ast)
-            mapM_ (mapStmtM combineMapper) (astStmts ast)
+        modify $ \s -> s
+            { includes = Set.fromList [ s | (CInclude s) <- abImports astBuildState ]
+            , links    = Set.fromList [ s | (CLink s)    <- abImports astBuildState ]
+            , symSupply = supply
+            }
 
 
--- define all typedefs
-typeDefsMapper :: Elem -> DoM ASTResolved Elem
-typeDefsMapper element = case element of
-    ElemStmt (Typedef pos generics symbol typ) -> do
-        modify $ \s -> s { typeDefsAll = Map.insert symbol (generics, typ) (typeDefsAll s) }
-        return element
+        -- define top-level symbols
+        forM_ (topStmts astBuildState) $ \topStmt -> case topStmt of
+            TopStmt (Typedef _ generics symbol@(SymResolved _) typ) -> do
+                modify $ \s -> s { typeDefsTop = Set.insert symbol (typeDefsTop s) }
+                modify $ \s -> s { typeDefsAll = Map.insert symbol (generics, typ) (typeDefsAll s) }
 
-    ElemStmt stmt@(Feature pos generics funDeps symbol args retty) -> do
-        modify $ \s -> s { featuresAll = Map.insert symbol stmt (featuresAll s) }
-        modify $ \s -> s { typeDefsAll = Map.insert
-            symbol
-            (generics, foldl Apply Type.Func (retty : args))
-            (typeDefsAll s) }
-        return element
+            TopStmt stmt@(Feature _ generics _ symbol@(SymResolved _) args retty) -> do
+                modify $ \s -> s { featuresTop = Set.insert symbol (featuresTop s) }
+                modify $ \s -> s { typeDefsTop = Set.insert symbol (typeDefsTop s) }
+                modify $ \s -> s { featuresAll = Map.insert symbol stmt (featuresAll s) }
+                modify $ \s -> s { typeDefsAll = Map.insert
+                    symbol
+                    (generics, foldl Apply Type.Func (retty : args))
+                    (typeDefsAll s) }
 
-    _ -> return element
+            TopStmt (Derives pos generics typ features) -> do
+                forM_ features $ \feature -> do
+                    let (TypeDef featureSymbol, _) = unfoldType feature
+                    let (TypeDef (SymResolved xs), _) = unfoldType feature
+
+                    symbol' <- genSymbol $ SymResolved $ xs ++ [typeCode feature]
+                    let stmt' = Derives pos generics typ [feature]
+
+                    existing <- gets $ maybe Map.empty id . Map.lookup featureSymbol . instancesAll
+                    modify $ \s -> s { instancesAll = Map.insert featureSymbol (Map.insert symbol' stmt' existing) (instancesAll s) }
+
+            _ -> return ()
 
 
-combineMapper :: Elem -> DoM ASTResolved Elem
-combineMapper element = case element of
-    ElemStmt stmt@(Feature _ _ _ symbol _ _) -> do
-        modify $ \s -> s { featuresTop = Set.insert symbol (featuresTop s) }
-        return element
+        forM_ (topStmts astBuildState) $ \topStmt -> case topStmt of
+            TopInst p g acqType a r instState -> do
+                let (TypeDef featureSymbol, _) = unfoldType acqType
+                let (TypeDef (SymResolved xs), _) = unfoldType acqType
 
-    ElemStmt stmt@(Instance _ _ acqType _ _ _) -> do
-        let (TypeDef featureSymbol, _) = unfoldType acqType
-        let (TypeDef (SymResolved xs), _) = unfoldType acqType
+                symbol <- genSymbol $ SymResolved $ xs ++ [typeCode acqType]
 
-        symbol <- genSymbol $ SymResolved $ xs ++ [typeCode acqType]
+                (blk, ()) <- runDoMExcept () $ unbuildInst instState 0
+                blk' <- mapStmtM funnyMapper blk
+                let stmt = Instance p g acqType a r blk'
 
-        resm <- gets $ Map.lookup featureSymbol . instancesAll
-        existing <- case resm of
-            Nothing -> return Map.empty
-            Just x  -> return x
+                resm <- gets $ Map.lookup featureSymbol . instancesAll
+                let existing = maybe Map.empty id resm
+                modify $ \s -> s { instancesAll = Map.insert featureSymbol (Map.insert symbol stmt existing) (instancesAll s) }
 
-        modify $ \s -> s { instancesAll = Map.insert featureSymbol (Map.insert symbol stmt existing) (instancesAll s) }
-        return element
+            _ -> return ()
 
-    ElemStmt stmt@(Derives pos generics typ features) -> do
-        forM_ features $ \feature -> do
-            let (TypeDef featureSymbol, _) = unfoldType feature
 
-            let (TypeDef (SymResolved xs), _) = unfoldType feature
-            symbol' <- genSymbol $ SymResolved $ xs ++ [typeCode feature]
-            let stmt' = Derives pos generics typ [feature]
 
-            resm <- gets $ Map.lookup featureSymbol . instancesAll
-            existing <- case resm of
-                Nothing -> return $ Map.empty
-                Just x ->  return $ x
-            modify $ \s -> s { instancesAll = Map.insert featureSymbol (Map.insert symbol' stmt' existing) (instancesAll s) }
-        return element
-
-    -- filter out statements
-    ElemStmt (Block stmts) -> fmap (ElemStmt . Block . catMaybes) $
-        forM stmts $ \stmt -> case stmt of
-            Typedef _ _ _ _ -> return Nothing
-            Feature _ _ _ _ _ _ -> return Nothing
-            Instance _ _ _ _ _ _ -> return Nothing
-            Derives _ _ _ _     -> return Nothing
-            --MacroTuple _ _ _ _  -> return Nothing
-            _               -> return (Just stmt)
-
+funnyMapper :: Elem -> DoM ASTResolved Elem
+funnyMapper element = case element of
     ElemExpr (Call pos typ exprs) -> do
         let (TypeDef symbol, _) = unfoldType typ
 
@@ -142,7 +110,5 @@ combineMapper element = case element of
                 (_, x)          -> typ
 
         return $ ElemExpr (Call pos typ' exprs)
-        
 
     _ -> return element
-
