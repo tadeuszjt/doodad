@@ -33,7 +33,7 @@ inst{P} print{ P, Square } (p&, square)
         naught(); p.print('O')
         cross(); p.print('X')
 
-inst{P} print{ P, Board } (p&, board)
+inst{P} printLn{ P, Board } (p&, board)
     for board -> row
         p.print(row)
         p.print('\n')
@@ -83,8 +83,7 @@ fn winner(board Board) Square
 fn getPlayerInput(io &Io) Input
     io.stdout.printLn("Please enter move: <row> <col>")
     
-    data line Char.Table
-
+    let line : Char.Table
     switch io.stdin.getLine
         none() ; return quit()
         some(l); line = l
@@ -112,7 +111,7 @@ fn cpuMove(io &Io, board &Board)
     io.stdout.printLn("cpu moving ...")
 
     // find all empty squares
-    data empty (I64, I64).Table
+    let empty : (I64, I64).Table
     for (0, board.len) -> row
         for (0, board[row].len) -> col
             if board[row][col] == empty()
@@ -139,18 +138,17 @@ fn cpuMove(io &Io, board &Board)
             board[row][col] = empty()
 
     // choose random move
-    data rand rond::Rand
+    let rand : rond::Rand
     let i = rand.uniform(0, empty.len)
     let (row, col) = empty[i]
     board[row][col] = cross()
 
 
-fn main()
-    data io Io
+fn main(io Io)
     io.stdout.printLn("naughts and crosses")
 
-    data board Board
-    io.stdout.print(board)
+    let board : Board
+    io.stdout.printLn(board)
 
     while winner(board).isEmpty
         let moved = false
@@ -177,4 +175,4 @@ fn main()
                 _; io.stdout.print("something")
 
         io.cpuMove(&board)
-        io.stdout.print(board)
+        io.stdout.printLn(board)

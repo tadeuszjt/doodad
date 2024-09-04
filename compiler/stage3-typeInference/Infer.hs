@@ -47,8 +47,8 @@ infer ast printAnnotated verbose = fmap snd $ runDoMExcept ast inferFuncs
         inferFuncs :: DoM ASTResolved ()
         inferFuncs = do
             modName <- gets moduleName
-            acquires <- gets acquiresAll
-            forM_ (Map.toList acquires) $ \(featureSymbol, acqMap) -> do
+            instances <- gets instancesAll
+            forM_ (Map.toList instances) $ \(featureSymbol, acqMap) -> do
                 acqMap' <- fmap Map.fromList $ forM (Map.toList acqMap) $ \(symbol, stmt) ->
                     case symbolModule symbol == modName of
                         False -> return (symbol, stmt)
@@ -58,4 +58,4 @@ infer ast printAnnotated verbose = fmap snd $ runDoMExcept ast inferFuncs
                                 fmap fst $ runDoMUntilSameResult stmtInferred inferStmtDefaults
                             return (symbol, stmt')
 
-                modify $ \s -> s { acquiresAll = Map.insert featureSymbol acqMap' (acquiresAll s) }
+                modify $ \s -> s { instancesAll = Map.insert featureSymbol acqMap' (instancesAll s) }

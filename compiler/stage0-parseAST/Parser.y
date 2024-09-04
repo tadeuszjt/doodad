@@ -74,7 +74,6 @@ import Symbol
     true       { Token _ Token.Reserved "true" }
     false      { Token _ Token.Reserved "false" }
     for        { Token _ Token.Reserved "for" }
-    data       { Token _ Token.Reserved "data" }
     func       { Token _ Token.Reserved "func" }
     inst       { Token _ Token.Reserved "inst" }
     derives    { Token _ Token.Reserved "derives" }
@@ -173,7 +172,7 @@ funcDef : func funcGenerics ident '(' types ')' typeMaybe
 
 
 instDef : inst generics symbol '{' types '}' '(' args ')' instRetty scope
-            { Acquires (tokPos $1) $2 (foldl Apply (TypeDef $ snd $3) $5) $8 $10 $11 }
+            { Instance (tokPos $1) $2 (foldl Apply (TypeDef $ snd $3) $5) $8 $10 $11 }
 
 
 instRetty : {-empty-}  { False }
@@ -204,7 +203,6 @@ line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing
      | expr                               { ExprStmt $1 }
      | expr '=' expr                      { ExprStmt (Call (tokPos $2) (TypeDef $ Sym ["store"]) [Reference (tokPos $2) $1, $3]) }
      | type generics Symbol type_         { Typedef (fst $3) $2 (snd $3) $4 }
-     | data symbol type_                  { Data (tokPos $1) (snd $2) $3 Nothing }
      | return mexpr                       { Return (tokPos $1) $2 }
      | embed_c                            { AST.EmbedC (tokPos $1) [] (tokStr $1) }
      | enumMacro                          { $1 }

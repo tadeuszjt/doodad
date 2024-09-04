@@ -205,7 +205,6 @@ bool isKeyword(char *s) {
         "let",
         "else",
         "enum",
-        "data",
         "true",
         "type",
         "func",

@@ -52,7 +52,7 @@ inst{T} print{ T, I64 } (t&, n)
         t.print('0')
         return
 
-    data digits Char.Table
+    let digits : Char.Table
 
     while n != 0
         digits.push( '0' + convert(n % 10) )

@@ -45,9 +45,9 @@ mapStmtM f stmt = withPos stmt $ do
         Typedef _ _ _ _ -> return stmt -- ignored
         Feature _ _ _ _ _ _ -> return stmt -- ignored
 
-        Acquires pos generics typ args isRef stmt -> do
+        Instance pos generics typ args isRef stmt -> do
             stmt' <- mapStmtM f stmt
-            return (Acquires pos generics typ args isRef stmt')
+            return (Instance pos generics typ args isRef stmt')
 
         FuncDef generics (AST.Func pos symbol args retty stmt) -> do
             stmt' <- mapStmtM f stmt
@@ -96,11 +96,6 @@ mapStmtM f stmt = withPos stmt $ do
                 stmt' <- mapStmtM f stmt
                 return (pat', stmt')
             return $ Switch pos expr' cases'
-
-        Data pos symbol typ mexpr -> do
-            typ' <- mapTypeM f typ
-            mexpr' <- traverse (mapExprM f) mexpr
-            return $ Data pos symbol typ' mexpr'
 
         Assign pos symbol expr -> Assign pos symbol <$> mapExprM f expr
 

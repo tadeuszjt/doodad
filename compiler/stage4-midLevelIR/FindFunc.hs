@@ -56,8 +56,8 @@ makeHeaderInstance :: Type -> DoM ASTResolved (Maybe FuncIrHeader)
 makeHeaderInstance callType = do
     -- In haskell, instances are globally visible, so we do not have to worry about different instances.
     let (TypeDef callSymbol, _) = unfoldType callType
-    Just acquires <- gets $ Map.lookup callSymbol . acquiresAll
-    results <- fmap catMaybes $ forM (Map.toList acquires) $ \(symbol, stmt) -> case stmt of
+    Just instances <- gets $ Map.lookup callSymbol . instancesAll
+    results <- fmap catMaybes $ forM (Map.toList instances) $ \(symbol, stmt) -> case stmt of
         Derives _ generics argType [featureType] -> do
             let genericSubs = zip (map TypeDef generics) (map Type [1..])
             let upperType = applyType genericSubs (Apply featureType argType)
@@ -73,7 +73,7 @@ makeHeaderInstance callType = do
                     unless (typeFullyResolved lower) (error "propagating type vars")
                     makeHeaderInstance lower
 
-        Acquires pos generics implType args isRef scope -> do
+        Instance pos generics implType args isRef scope -> do
             --liftIO $ putStrLn $ "checking aquire: " ++ prettySymbol symbol
             let genericSubs = zip (map TypeDef generics) (map Type [1..])
             let typ = applyType genericSubs implType
@@ -100,15 +100,15 @@ makeHeaderInstance callType = do
     case results of
         []     -> return Nothing
         [func] -> return (Just func)
-        funcs  -> fail $ "multiple acquires for: " ++ show callType
+        funcs  -> fail $ "multiple instances for: " ++ show callType
 
 
 makeInstance :: Type -> DoM ASTResolved (Maybe Func)
 makeInstance callType = do
     -- In haskell, instances are globally visible, so we do not have to worry about different instances.
     let (TypeDef callSymbol, _) = unfoldType callType
-    Just acquires <- gets $ Map.lookup callSymbol . acquiresAll
-    results <- fmap catMaybes $ forM (Map.toList acquires) $ \(symbol, stmt) -> case stmt of
+    Just instances <- gets $ Map.lookup callSymbol . instancesAll
+    results <- fmap catMaybes $ forM (Map.toList instances) $ \(symbol, stmt) -> case stmt of
         Derives _ generics argType [featureType] -> do
             let genericSubs = zip (map TypeDef generics) (map Type [1..])
             let upperType = applyType genericSubs $ Apply featureType argType
@@ -125,7 +125,7 @@ makeInstance callType = do
                     unless (typeFullyResolved lower) (error "propagating type vars")
                     makeInstance lower
 
-        Acquires pos generics implType args isRef scope -> do
+        Instance pos generics implType args isRef scope -> do
             --liftIO $ putStrLn $ "checking aquire: " ++ prettySymbol symbol
             let genericSubs = zip (map TypeDef generics) (map Type [1..])
             let typ = applyType genericSubs implType
@@ -150,5 +150,5 @@ makeInstance callType = do
             return Nothing
         [func] -> do
             return (Just func)
-        funcs  -> fail $ "multiple acquires for: " ++ show callType
+        funcs  -> fail $ "multiple instances for: " ++ show callType
 

@@ -252,7 +252,7 @@ resolveStmt statement = withPos statement $ case statement of
         popSymbolTable
         return (Derives pos generics' t1' ts')
 
-    Acquires pos generics typ args isRef stmt -> do
+    Instance pos generics typ args isRef stmt -> do
         pushSymbolTable
         generics' <- defineGenerics generics
         typ' <- resolveType typ
@@ -260,7 +260,7 @@ resolveStmt statement = withPos statement $ case statement of
         stmt' <- resolveStmt stmt
 
         popSymbolTable
-        return (Acquires pos generics' typ' args' isRef stmt')
+        return (Instance pos generics' typ' args' isRef stmt')
 
     Block stmts -> do
         pushSymbolTable
@@ -293,12 +293,6 @@ resolveStmt statement = withPos statement $ case statement of
         popSymbolTable
         return (While pos expr' stmt')
     
-    Data pos (Sym str) typ mexpr -> do
-        symbol <- genSymbol (SymResolved str)
-        define symbol KeyVar symbol False
-        typ' <- resolveType typ
-        mexpr' <- traverse resolveExpr mexpr
-        return (Data pos symbol typ' mexpr')
     EmbedC pos [] str -> do 
         map <- processCEmbed str
         return (EmbedC pos map str)

@@ -26,7 +26,7 @@ data ASTResolved
         , featuresTop          :: Set.Set Symbol
         , featuresAll          :: Map.Map Symbol Stmt
 
-        , acquiresAll          :: Map.Map Symbol (Map.Map Symbol Stmt)
+        , instancesAll          :: Map.Map Symbol (Map.Map Symbol Stmt)
 
         , funcInstance         :: Map.Map Type (IR.FuncIrHeader, IR.FuncIR)
 
@@ -68,9 +68,9 @@ prettyASTResolved ast = do
 
 
     --putStrLn ""
-    --putStrLn "acquiresAll:"
-    --forM_ (Map.toList $ acquiresAll ast) $ \(symbol, acquires) -> do
-    --    prettyStmt "" acquires
+    --putStrLn "instancesAll:"
+    --forM_ (Map.toList $ instancesAll ast) $ \(symbol, instances) -> do
+    --    prettyStmt "" instances
 
 
 --    putStrLn ""

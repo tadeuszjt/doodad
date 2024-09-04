@@ -128,9 +128,6 @@ makeStmt statement = withPos statement $ case statement of
     S.Let _ (S.PatAnnotated (S.PatIdent _ symbol) typ) Nothing Nothing -> do
         define symbol =<< liftFuncIr (appendSSA typ Value (InitVar Nothing))
 
-    S.Data _ symbol typ Nothing -> do
-        define symbol =<< liftFuncIr (appendSSA typ Value (InitVar Nothing))
-
     S.Assign _ symbol expr -> do
         arg <- makeVal expr
         case arg of

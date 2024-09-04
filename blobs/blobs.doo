@@ -49,7 +49,7 @@ fn getGridVecs(g &Grid, range Rect) Table{Vec2}
     let rMax = clamp(rowMax, 0, numRows - 1)
     let cMax = clamp(colMax, 0, numCols - 1)
 
-    data result Table{Vec2}
+    let result : Table{Vec2}
 
     for (rMin, rMax + 1) -> r
         for (cMin, cMax + 1) -> c
@@ -133,7 +133,7 @@ fn main(io Io, rand Rand, w sf::Window)
     let blobTexture = sf::textureFromFile("blob.png")
 
     let arena = Rect( (0.0, 0.0), (1000.0, 1000.0) )
-    data blobs Blob.Table
+    let blobs : Blob.Table
 
     for (0, 100)
         let blob

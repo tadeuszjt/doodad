@@ -81,7 +81,7 @@ define symbol obj = do
 
 collectStmt :: Stmt -> DoM CollectState ()
 collectStmt statement = collectPos statement $ case statement of
-    Acquires pos generics typ args isRef stmt -> do
+    Instance pos generics typ args isRef stmt -> do
         (Type.Func, retty : argTypes) <- unfoldType <$> baseTypeOf typ
         unless (length argTypes == length args) (fail "arg length mismatch")
 
@@ -125,11 +125,6 @@ collectStmt statement = collectPos statement $ case statement of
         collectExpr expr
         collectStmt blk
 
-    Data _ symbol typ mexpr -> do
-        define symbol typ
-        void $ traverse (collect "data type must match expression type" . ConsEq typ . typeof) mexpr
-        void $ traverse collectExpr mexpr
-
     Assign pos symbol expr -> do
         define symbol (typeof expr)
         collectExpr expr
@@ -160,7 +155,7 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
         (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType
         unless (length exprs == length argTypes) (fail $ "invalid function type arguments: " ++ show callType)
 
-        Just acquires <- gets $ Map.lookup funcSymbol . acquiresAll . astResolved
+        Just instances <- gets $ Map.lookup funcSymbol . instancesAll . astResolved
         features <- gets $ featuresAll . astResolved
 
         -- These indices describe the type variables which are independent according to the 
@@ -174,9 +169,9 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
                 Just _  -> return Nothing
                 Nothing -> return (Just i) 
 
-        fullAcqs <- fmap catMaybes $ forM (Map.elems $ acquires) $ \stmt -> do
+        fullAcqs <- fmap catMaybes $ forM (Map.elems $ instances) $ \stmt -> do
             appliedAcqType <- case stmt of
-                Acquires _ generics acqType _ _ _ -> do
+                Instance _ generics acqType _ _ _ -> do
                     let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
                     return (applyType genericsToVars acqType)
 

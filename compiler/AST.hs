@@ -115,11 +115,10 @@ data Stmt
     | While       TextPos Expr Stmt
     | FuncDef     Generics Func
     | Feature     TextPos Generics FunDeps Symbol [Type] Type
-    | Acquires    TextPos Generics Type [Param] Bool Stmt
+    | Instance    TextPos Generics Type [Param] Bool Stmt
     | Typedef     TextPos Generics Symbol Type
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Expr (Maybe Pattern) Stmt
-    | Data        TextPos Symbol Type (Maybe Expr)
     | EmbedC      TextPos [(String, Symbol)] String
     | Assign      TextPos Symbol Expr
     | Enum        TextPos Generics Symbol [ (Symbol, [Type] ) ]
@@ -168,13 +167,12 @@ instance TextPosition Stmt where
         Typedef     p _ _ _ -> p
         Switch      p _ _ -> p
         For         p _ _ _ -> p
-        Data        p _ _ _ -> p
         EmbedC      p _ _ -> p
         Feature     p _ _ _ _ _ -> p
         Enum        p _ _ _ -> p
         MacroTuple  p _ _ _ -> p
         Assign      p _ _ -> p
-        Acquires     p _ _ _ _ _ -> p
+        Instance     p _ _ _ _ _ -> p
         Derives     p _ _ _ -> p
         x -> error ("invalid statement")
 
@@ -304,10 +302,10 @@ prettyStmt pre stmt = case stmt of
     Typedef pos generics symbol anno -> do
         putStrLn $ pre ++ "type" ++ genericsStr generics ++ " " ++ prettySymbol symbol ++ " " ++ show anno
 
-    Acquires pos generics typ args isRef stmt -> do
+    Instance pos generics typ args isRef stmt -> do
         putStrLn ""
         putStrLn $ pre
-            ++ "acquires"
+            ++ "instance"
             ++ genericsStr generics
             ++ " "
             ++ show typ
@@ -328,9 +326,6 @@ prettyStmt pre stmt = case stmt of
         let exprStr = "" ++ show expr
         putStrLn $ pre ++ "for " ++ exprStr ++ cndStr
         prettyStmt pre blk
-
-    Data pos symbol typ mexpr -> do
-        putStrLn $ pre ++ "data " ++ prettySymbol symbol ++ " " ++ show typ ++ maybe "" ((" " ++) . show) mexpr
 
     Derives pos generics t1 ts -> do
         putStrLn $ pre ++ "derives" ++ genericsStr generics ++ " " ++ show t1 ++ " " ++ tupStrs (map show ts)

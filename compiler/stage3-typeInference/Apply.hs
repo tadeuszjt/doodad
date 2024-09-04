@@ -31,11 +31,10 @@ applyStmt subs stmt = case stmt of
     If pos cnd blk mblk  -> If pos (applyEx cnd) (applySt blk) (fmap applySt mblk)
     ExprStmt expr -> ExprStmt (applyEx expr)
     EmbedC pos m s -> EmbedC pos m s
-    Data pos symbol typ mexpr -> Data pos symbol (applyTy typ) (fmap applyEx mexpr)
     Let pos pattern mexpr Nothing -> Let pos (applyPat pattern) (fmap applyEx mexpr) Nothing
     While pos expr blk -> While pos (applyEx expr) (applySt blk)
     Assign pos symbol expr -> Assign pos symbol (applyEx expr)
-    Acquires pos generics typ args isRef stmt -> Acquires pos generics typ args isRef (applySt stmt)
+    Instance pos generics typ args isRef stmt -> Instance pos generics typ args isRef (applySt stmt)
     Derives pos generics symbol symbols -> Derives pos generics symbol symbols
     x -> error "invalid statement"
     where

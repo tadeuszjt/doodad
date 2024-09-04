@@ -132,7 +132,7 @@ buildBinaryFromModule args modPath = do
 
 
     exitCode <- liftIO $ rawSystem "gcc" $
-        ["-pg"] ++ ["-I", hDoodad] ++ cFiles ++ map ("-l" ++) linkPaths ++ ["-o", binFile]
+        ["-I", hDoodad] ++ cFiles ++ map ("-l" ++) linkPaths ++ ["-o", binFile]
     case exitCode of
         ExitSuccess -> return ()
         ExitFailure s -> fail $ "gcc failed: " ++ (show s)

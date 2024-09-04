@@ -25,7 +25,7 @@ initAstResolved modName imports = ASTResolved
     , featuresTop    = Set.empty
     , featuresAll    = Map.unions (map featuresAll imports)
 
-    , acquiresAll    = Map.unionsWith Map.union (map acquiresAll imports) 
+    , instancesAll    = Map.unionsWith Map.union (map instancesAll imports) 
 
     , funcInstance   = Map.unions (map funcInstance imports)
 
@@ -86,18 +86,18 @@ typeDefsMapper element = case element of
 
 combineMapper :: Elem -> DoM ASTResolved Elem
 combineMapper element = case element of
-    ElemStmt stmt@(Acquires _ _ acqType _ _ _) -> do
+    ElemStmt stmt@(Instance _ _ acqType _ _ _) -> do
         let (TypeDef featureSymbol, _) = unfoldType acqType
         let (TypeDef (SymResolved xs), _) = unfoldType acqType
 
         symbol <- genSymbol $ SymResolved $ xs ++ [typeCode acqType]
 
-        resm <- gets $ Map.lookup featureSymbol . acquiresAll
+        resm <- gets $ Map.lookup featureSymbol . instancesAll
         existing <- case resm of
             Nothing -> return Map.empty
             Just x  -> return x
 
-        modify $ \s -> s { acquiresAll = Map.insert featureSymbol (Map.insert symbol stmt existing) (acquiresAll s) }
+        modify $ \s -> s { instancesAll = Map.insert featureSymbol (Map.insert symbol stmt existing) (instancesAll s) }
         return element
 
     ElemStmt stmt@(Feature _ _ _ symbol _ _) -> do
@@ -112,11 +112,11 @@ combineMapper element = case element of
             symbol' <- genSymbol $ SymResolved $ xs ++ [typeCode feature]
             let stmt' = Derives pos generics typ [feature]
 
-            resm <- gets $ Map.lookup featureSymbol . acquiresAll
+            resm <- gets $ Map.lookup featureSymbol . instancesAll
             existing <- case resm of
                 Nothing -> return $ Map.empty
                 Just x ->  return $ x
-            modify $ \s -> s { acquiresAll = Map.insert featureSymbol (Map.insert symbol' stmt' existing) (acquiresAll s) }
+            modify $ \s -> s { instancesAll = Map.insert featureSymbol (Map.insert symbol' stmt' existing) (instancesAll s) }
         return element
 
     -- filter out statements
@@ -124,7 +124,7 @@ combineMapper element = case element of
         forM stmts $ \stmt -> case stmt of
             Typedef _ _ _ _ -> return Nothing
             Feature _ _ _ _ _ _ -> return Nothing
-            Acquires _ _ _ _ _ _ -> return Nothing
+            Instance _ _ _ _ _ _ -> return Nothing
             Derives _ _ _ _     -> return Nothing
             --MacroTuple _ _ _ _  -> return Nothing
             _               -> return (Just stmt)
