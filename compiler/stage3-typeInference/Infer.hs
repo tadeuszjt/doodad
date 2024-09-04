@@ -41,6 +41,11 @@ inferStmtDefaults func = do
     fmap fst $ runDoMExcept () (deAnnotateStmt appliedStmt)
 
 
+inferStmt :: Stmt -> DoM ASTResolved Stmt
+inferStmt stmt = fmap fst $ runDoMUntilSameResult stmt $ \stmt -> do
+    inferStmtDefaults . fst =<< runDoMUntilSameResult stmt inferStmtTypes
+
+
 infer :: ASTResolved -> Bool -> Bool -> DoM s ASTResolved
 infer ast printAnnotated verbose = fmap snd $ runDoMExcept ast inferFuncs
     where
@@ -53,9 +58,7 @@ infer ast printAnnotated verbose = fmap snd $ runDoMExcept ast inferFuncs
                     case symbolModule symbol == modName of
                         False -> return (symbol, stmt)
                         True  -> do
-                            (stmt', _) <- runDoMUntilSameResult stmt $ \stmt -> do
-                                (stmtInferred, _) <- runDoMUntilSameResult stmt inferStmtTypes
-                                fmap fst $ runDoMUntilSameResult stmtInferred inferStmtDefaults
+                            stmt' <- inferStmt stmt
                             return (symbol, stmt')
 
                 modify $ \s -> s { instancesAll = Map.insert featureSymbol acqMap' (instancesAll s) }

@@ -61,9 +61,9 @@ withCurrentID id f = do
     liftFuncIr $ modify $ \s -> s { irCurrentId = oldId }
 
 
-makeFuncIR :: S.Func -> DoM FuncIRState (FuncIrHeader, FuncIR)
-makeFuncIR func = do
-    irParams <- forM (S.funcArgs func) $ \param -> case param of
+makeFuncIR :: S.Stmt -> DoM FuncIRState (FuncIrHeader, FuncIR)
+makeFuncIR (S.FuncInst _ [] symbol args retty stmt) = do
+    irParams <- forM args $ \param -> case param of
         -- TODO what about slice?
         S.Param _ symbol typ -> do
             id <- liftFuncIr generateId
@@ -79,13 +79,13 @@ makeFuncIR func = do
 
         x -> error (show x)
 
-    irRetty <- case (S.funcRetty func) of
+    irRetty <- case retty of
         S.RefRetty t -> return (RettyIR Ref t)
         S.Retty t    -> return (RettyIR Value t)
 
-    modify $ \s -> s { astRetty = Just (S.funcRetty func) }
+    modify $ \s -> s { astRetty = Just retty }
 
-    case S.funcStmt func of
+    case stmt of
         S.Block stmts -> mapM_ makeStmt stmts
         stmt          -> makeStmt stmt
 
@@ -93,7 +93,7 @@ makeFuncIR func = do
     let funcIrHeader = FuncIrHeader
             { irRetty     = irRetty
             , irArgs      = irParams
-            , irFuncSymbol = S.funcSymbol func
+            , irFuncSymbol = symbol
             }
     return (funcIrHeader, irFunc state)
 

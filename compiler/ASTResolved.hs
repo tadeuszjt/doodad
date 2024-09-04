@@ -26,7 +26,7 @@ data ASTResolved
         , featuresTop          :: Set.Set Symbol
         , featuresAll          :: Map.Map Symbol Stmt
 
-        , instancesAll          :: Map.Map Symbol (Map.Map Symbol Stmt)
+        , instancesAll         :: Map.Map Symbol (Map.Map Symbol Stmt)
 
         , funcInstance         :: Map.Map Type (IR.FuncIrHeader, IR.FuncIR)
 
@@ -77,10 +77,10 @@ prettyASTResolved ast = do
 --    putStrLn "funcInstance:"
 --    forM_ (Map.toList $ funcInstance ast) $ \(call, func) -> do
 --        putStrLn $ show call ++ ":"
---        prettyStmt "\t" $ FuncDef [] func
+--        prettyStmt "\t" $ FuncInst [] func
 --
 --    putStrLn ""
 --    putStrLn "funcInstanceImported:"
 --    forM_ (Map.toList $ funcInstanceImported ast) $ \(call, func) -> do
 --        putStr $ "\t" ++ show call ++ ": "
---        prettyStmt "" $ FuncDef [] func
+--        prettyStmt "" $ FuncInst [] func

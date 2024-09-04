@@ -103,7 +103,7 @@ makeHeaderInstance callType = do
         funcs  -> fail $ "multiple instances for: " ++ show callType
 
 
-makeInstance :: Type -> DoM ASTResolved (Maybe Func)
+makeInstance :: Type -> DoM ASTResolved (Maybe AST.Stmt)
 makeInstance callType = do
     -- In haskell, instances are globally visible, so we do not have to worry about different instances.
     let (TypeDef callSymbol, _) = unfoldType callType
@@ -142,7 +142,7 @@ makeInstance callType = do
                     let args'   = zipWith (\t p -> p { paramType = t}) argTypes args 
                     let retty'  = (if isRef then RefRetty else Retty) retType
                     let stmt'   = applyStmt subs (applyStmt genericSubs scope)
-                    return $ Just $ AST.Func pos symbol args' retty' stmt'
+                    return $ Just $ AST.FuncInst pos [] symbol args' retty' stmt'
 
     case results of
         []     -> do

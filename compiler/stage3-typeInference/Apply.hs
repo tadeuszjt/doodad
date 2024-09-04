@@ -5,15 +5,6 @@ import Constraint
 import AST
 
 
-applyFunc :: [(Type, Type)] -> Func -> Func
-applyFunc subs func = func
-    { funcStmt = applyStmt subs (funcStmt func)
-    , funcArgs = map (applyParam subs) (funcArgs func)
-    , funcRetty = applyRetty subs (funcRetty func)
-    , funcSymbol = funcSymbol func
-    }
-
-
 applyRetty :: [(Type, Type)] -> Retty -> Retty
 applyRetty subs (Retty t)    = Retty (applyType subs t)
 applyRetty subs (RefRetty t) = RefRetty (applyType subs t)

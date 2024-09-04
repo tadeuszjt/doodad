@@ -86,6 +86,10 @@ typeDefsMapper element = case element of
 
 combineMapper :: Elem -> DoM ASTResolved Elem
 combineMapper element = case element of
+    ElemStmt stmt@(Feature _ _ _ symbol _ _) -> do
+        modify $ \s -> s { featuresTop = Set.insert symbol (featuresTop s) }
+        return element
+
     ElemStmt stmt@(Instance _ _ acqType _ _ _) -> do
         let (TypeDef featureSymbol, _) = unfoldType acqType
         let (TypeDef (SymResolved xs), _) = unfoldType acqType
@@ -98,10 +102,6 @@ combineMapper element = case element of
             Just x  -> return x
 
         modify $ \s -> s { instancesAll = Map.insert featureSymbol (Map.insert symbol stmt existing) (instancesAll s) }
-        return element
-
-    ElemStmt stmt@(Feature _ _ _ symbol _ _) -> do
-        modify $ \s -> s { featuresTop = Set.insert symbol (featuresTop s) }
         return element
 
     ElemStmt stmt@(Derives pos generics typ features) -> do

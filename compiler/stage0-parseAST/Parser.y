@@ -190,7 +190,7 @@ args1 : arg            { [$1] }
 
 
 fnDef : fn generics ident '(' paramsA ')' retty scope 
-            { FuncDef $2 (AST.Func (tokPos $1) (Sym [tokStr $3]) $5 $7 $8) }
+            { FuncInst (tokPos $1) $2 (Sym [tokStr $3]) $5 $7 $8 }
 
 
 retty : {-empty-}     { Retty Type.Void }

@@ -4,6 +4,7 @@ import builtin/builtin
 import builtin/arithmetic
 import builtin/assert
 import builtin/convert
+import builtin/compare
 
 
 func{T}                 len(T) I64
@@ -27,6 +28,7 @@ inst{T} grow{ T.Table } (t&)
     builtinTableAppend(&t)
 
 inst{T} pop{ Table{T}, T } (t&)
+    assert(t.len > 0)
     let e = t.at(t.len - 1)
     t.at(t.len - 1).destroy
     ${ $t->len--; }

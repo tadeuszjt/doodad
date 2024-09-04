@@ -8,7 +8,7 @@ import ASTMapper
 
 -- 'Annotate takes an AST and annotates all expressions with a type variable using 'AExpr'.
 -- This is the first step of the Hindley-Milner type inference algorithm.
-annotateFunc :: Func -> DoM Int Func
+annotateFunc :: Stmt -> DoM Int Stmt
 annotateFunc = 
     mapFuncM annotateMapper
 
@@ -44,7 +44,7 @@ genType = do
 
 
 -- DeAnnotate takes an AST and removes all unresolved type annotations.
-deAnnotateFunc :: Func -> DoM () Func
+deAnnotateFunc :: Stmt -> DoM () Stmt
 deAnnotateFunc =
     mapFuncM deAnnotateMapper
 

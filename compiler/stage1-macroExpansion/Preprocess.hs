@@ -21,8 +21,7 @@ preprocess ast = fmap fst $ runDoMExcept () preprocess'
         preprocess' :: DoM s AST
         preprocess' = do
             stmts' <- mapM (mapStmtM preprocessMapper) (astStmts ast)
-
-            ((), buildState) <- runDoMExcept initBuildState (mapM_ buildStmt stmts')
+            ((), buildState) <- runDoMExcept initBuildState $ mapM_ buildTopStatement stmts'
             stmts'' <- fmap fst $ runDoMExcept (astBuilderState buildState) unpackAst
 
             return $ ast { astStmts = stmts'' }
@@ -76,7 +75,8 @@ unpackStmt statement = withPos statement $ case statement of
     Derives _ _ _ _ -> return statement
     MacroTuple _ _ _ _ -> return statement
 
-    Instance pos generics typ args isRef stmt -> Instance pos generics typ args isRef <$> unpackStmt stmt
+    Instance pos generics typ args isRef stmt ->
+        Instance pos generics typ args isRef <$> unpackStmt stmt
 
     Block stmts -> Block <$> mapM unpackStmt stmts
     Let pos pat mexpr mblk -> Let pos pat mexpr <$> traverse unpackStmt mblk
@@ -92,8 +92,135 @@ unpackStmt statement = withPos statement $ case statement of
             stmt' <- unpackStmt stmt
             return (pat, stmt')
 
-    FuncDef generics (AST.Func pos symbol args retty stmt) ->
-        FuncDef generics . AST.Func pos symbol args retty <$> unpackStmt stmt
+    FuncInst pos generics symbol args retty stmt ->
+        FuncInst pos generics symbol args retty <$> unpackStmt stmt
+    x -> error (show x)
+
+
+buildTopStatement :: Stmt -> DoM BuildState ()
+buildTopStatement statement = case statement of
+    Feature _ _ _ _ _ _ -> void $ appendStmt statement
+    Derives _ _ _ _   -> void $ appendStmt statement
+    Typedef _ _ _ _   -> void $ appendStmt statement
+
+    MacroTuple pos generics symbol fields -> do
+        void $ appendStmt $ Typedef pos generics symbol (foldl Apply Tuple $ map snd fields)
+        forM_ (zip fields [0..]) $ \((fieldSymbol, fieldType), i) -> do
+            -- write field feature
+            let a = Sym ["A"]
+            let b = Sym ["B"]
+            appendStmt $ Feature pos [a, b] [(a, b)] fieldSymbol [TypeDef a] (TypeDef b)
+
+            -- write instance
+            let typ = foldType (TypeDef symbol : map TypeDef generics)
+            let acq = foldType [TypeDef fieldSymbol, typ, fieldType]
+            blkId <- newStmt (Block [])
+            appendStmt $ Instance pos generics acq [RefParam pos (Sym ["x"]) Void] True (Stmt blkId)
+            withCurId blkId $ do
+                appendStmt $ Return pos . Just $ field fieldType i (Ident pos $ Sym ["x"])
+                
+            blkId2 <- newStmt (Block [])
+            let acq2 = foldType [TypeDef fieldSymbol, Apply Table typ, Apply Slice fieldType]
+            appendStmt $ Instance pos generics acq2 [RefParam pos (Sym ["x"]) Void] False (Stmt blkId2)
+            withCurId blkId2 $ do
+                appendStmt $ Return pos . Just $ field (Apply Slice fieldType) i (Ident pos $ Sym ["x"])
+
+
+    Instance pos generics typ args isRef (Block stmts) -> do
+        blockId <- newStmt (Block [])
+        withCurId blockId (mapM_ buildStmt stmts)
+        void $ appendStmt $ Instance pos generics typ args isRef (Stmt blockId)
+
+    FuncInst pos generics symbol args retty (Block stmts) -> do
+        appendStmt $ Feature pos generics [] symbol (map typeof args) (typeof retty)
+
+        acqIsRef <- case retty of
+            RefRetty _ -> return True
+            Retty _    -> return False
+
+        blockId <- newStmt (Block [])
+        appendStmt $ Instance pos generics (foldl Apply (TypeDef symbol) $ map TypeDef generics) args acqIsRef (Stmt blockId)
+
+        --appendStmt $ FuncInst generics (AST.Func header (Stmt blockId))
+        withCurId blockId (mapM_ buildStmt stmts)
+
+
+    Enum pos generics symbol cases -> do
+        caseTypes <- forM cases $ \(symbol, ts) -> case ts of
+            [t] -> return t
+            ts -> return $ foldl Apply Tuple ts
+
+        let sumType = foldl Apply (TypeDef symbol) (map TypeDef generics)
+        void $ appendStmt $ Typedef pos generics symbol (foldl Apply Sum caseTypes)
+
+        -- write isCase0, isCase1 functions
+        forM_ (zip cases [0..]) $ \( (Sym [str], ts) , i) -> do
+            let name = Sym ["is" ++ (toUpper $ head str) : (tail str) ]
+            blkId <- newStmt (Block [])
+            withCurId blkId $
+                appendStmt $ Return pos $ Just $ Call pos (TypeDef $ Sym ["builtin", "builtinEqual"])
+                    [ Call pos (TypeDef $ Sym ["builtin", "builtinSumEnum"]) [Reference pos $ Ident pos $ Sym ["en"]]
+                    , AST.Int pos i
+                    ]
+
+            -- feature{N, T, G} field0(A) B
+            let (t) = (Sym ["T"])
+            appendStmt $ Feature pos [t] [] name [TypeDef t] Type.Bool
+            -- instance{A, B}  field0{0, MyType{A, B}, MyType.0} (a&) -> &
+            let acq = foldl Apply (TypeDef name) [sumType]
+            appendStmt $ Instance pos generics acq [RefParam pos (Sym ["en"]) Void] False (Stmt blkId)
+
+        -- write case0, case1 constructors
+        forM_ (zip cases [0..]) $ \( (Sym [str], ts) , i) -> do
+            let name = Sym [str]
+
+            blkId <- newStmt (Block [])
+            withCurId blkId $ do
+                appendStmt $ Let pos (PatIdent pos $ Sym ["en"]) Nothing Nothing
+                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "builtinSumReset"])
+                    [ Reference pos (Ident pos $ Sym ["en"])
+                    , AST.Int pos i
+                    ]
+
+                case ts of
+                    [t] -> void $ appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["store"])
+                        [ Reference pos (field t i (Ident pos $ Sym ["en"]))
+                        , Ident pos (Sym ["a0"])
+                        ]
+                    ts -> forM_ (zip ts [0..]) $ \(t, j) -> do
+                        appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["store"])
+                            [ Reference pos (field (ts !! j) (fromIntegral j) (field (foldType (Tuple : ts)) i (Ident pos $ Sym ["en"])))
+                            , Ident pos (Sym ["a" ++ show j])
+                            ]
+
+                appendStmt $ Return pos $ Just (Ident pos $ Sym ["en"])
+
+            args <- forM (zip ts [0..]) $ \(t, j) -> do
+                return $ Param pos (Sym ["a" ++ show j]) t
+
+            appendStmt $ Feature pos generics [] name ts sumType
+            let acq = foldl Apply (TypeDef name) (map TypeDef generics)
+            appendStmt $ Instance pos generics acq args False (Stmt blkId)
+
+
+        -- write fromCase0, fromCase1 accessors
+        forM_ (zip cases [0..]) $ \( (Sym [str], ts) , i) -> do
+            let name = Sym ["from" ++ (toUpper $ head str) : (tail str) ]
+            let fieldType = case ts of
+                    [t] -> t
+                    ts  -> foldl Apply Tuple ts
+
+            -- feature{N, T, G} field0(A) B
+            let (n, t, g) = (Sym ["N"], Sym ["T"], Sym ["G"])
+            appendStmt $ Feature pos [n, g, t] [(n, g), (t, n)] name [TypeDef t] (TypeDef g)
+
+            -- instance{A, B}  field0{0, MyType{A, B}, MyType.0} (a&) -> &
+            let acq = foldl Apply (TypeDef name) [Size (fromIntegral i), fieldType, sumType]
+            blkId <- newStmt (Block [])
+            appendStmt $ Instance pos generics acq [RefParam pos (Sym ["x"]) Void] True (Stmt blkId)
+            withCurId blkId $ do
+                appendStmt $ Return pos . Just $ field fieldType i (Ident pos $ Sym ["x"])
+
     x -> error (show x)
 
 
@@ -267,30 +394,8 @@ field fieldType i expr = AExpr fieldType $ Call (textPos expr) typ [expr]
 buildStmt :: Stmt -> DoM BuildState ()
 buildStmt statement = withPos statement $ case statement of
     ExprStmt expr     -> void $ appendStmt (ExprStmt expr)
-    Typedef _ _ _ _   -> void $ appendStmt statement
     EmbedC _ _ _      -> void $ appendStmt statement
     Return pos mexpr  -> void $ appendStmt statement
-    Feature _ _ _ _ _ _ -> void $ appendStmt statement
-    Derives _ _ _ _   -> void $ appendStmt statement
-    --MacroTuple _ _ _ _ -> void $ appendStmt statement
-
-    Instance pos generics typ args isRef (Block stmts) -> do
-        blockId <- newStmt (Block [])
-        withCurId blockId (mapM_ buildStmt stmts)
-        void $ appendStmt $ Instance pos generics typ args isRef (Stmt blockId)
-
-    FuncDef generics (AST.Func pos symbol args retty (Block stmts)) -> do
-        appendStmt $ Feature pos generics [] symbol (map typeof args) (typeof retty)
-
-        acqIsRef <- case retty of
-            RefRetty _ -> return True
-            Retty _    -> return False
-
-        blockId <- newStmt (Block [])
-        appendStmt $ Instance pos generics (foldl Apply (TypeDef symbol) $ map TypeDef generics) args acqIsRef (Stmt blockId)
-
-        --appendStmt $ FuncDef generics (AST.Func header (Stmt blockId))
-        withCurId blockId (mapM_ buildStmt stmts)
 
     Let pos (PatIdent _ _) mexpr Nothing -> case mexpr of
         Nothing -> void $ appendStmt statement
@@ -359,7 +464,7 @@ buildStmt statement = withPos statement $ case statement of
         appendStmt (Assign pos exprCopy expr)
 
         idx <- freshSym "idx"
-        appendStmt $ Assign pos idx $ AExpr I64 (AST.Int pos 0)
+        appendStmt $ Let pos (PatIdent pos idx) Nothing Nothing
         let whileCnd = Call pos (TypeDef $ Sym ["builtin", "builtinLessThan"])
                 [ (Ident pos idx)
                 , Call pos (TypeDef $ Sym ["for", "forEnd"]) [Reference pos $ Ident pos exprCopy]
@@ -414,106 +519,6 @@ buildStmt statement = withPos statement $ case statement of
             appendStmt $ If pos cnd (Stmt trueBlkId) (Just $ Stmt falseBlkId)
 
         void $ appendStmt $ While pos (Ident pos loop) (Stmt id)
-
-
-    MacroTuple pos generics symbol fields -> do
-        void $ appendStmt $ Typedef pos generics symbol (foldl Apply Tuple $ map snd fields)
-        forM_ (zip fields [0..]) $ \((fieldSymbol, fieldType), i) -> do
-            -- write field feature
-            let a = Sym ["A"]
-            let b = Sym ["B"]
-            appendStmt $ Feature pos [a, b] [(a, b)] fieldSymbol [TypeDef a] (TypeDef b)
-
-            -- write instance
-            let typ = foldType (TypeDef symbol : map TypeDef generics)
-            let acq = foldType [TypeDef fieldSymbol, typ, fieldType]
-            blkId <- newStmt (Block [])
-            appendStmt $ Instance pos generics acq [RefParam pos (Sym ["x"]) Void] True (Stmt blkId)
-            withCurId blkId $ do
-                appendStmt $ Return pos . Just $ field fieldType i (Ident pos $ Sym ["x"])
-                
-            blkId2 <- newStmt (Block [])
-            let acq2 = foldType [TypeDef fieldSymbol, Apply Table typ, Apply Slice fieldType]
-            appendStmt $ Instance pos generics acq2 [RefParam pos (Sym ["x"]) Void] False (Stmt blkId2)
-            withCurId blkId2 $ do
-                appendStmt $ Return pos . Just $ field (Apply Slice fieldType) i (Ident pos $ Sym ["x"])
-
-
-    Enum pos generics symbol cases -> do
-        caseTypes <- forM cases $ \(symbol, ts) -> case ts of
-            [t] -> return t
-            ts -> return $ foldl Apply Tuple ts
-
-        let sumType = foldl Apply (TypeDef symbol) (map TypeDef generics)
-        void $ appendStmt $ Typedef pos generics symbol (foldl Apply Sum caseTypes)
-
-        -- write isCase0, isCase1 functions
-        forM_ (zip cases [0..]) $ \( (Sym [str], ts) , i) -> do
-            let name = Sym ["is" ++ (toUpper $ head str) : (tail str) ]
-            blkId <- newStmt (Block [])
-            withCurId blkId $
-                appendStmt $ Return pos $ Just $ Call pos (TypeDef $ Sym ["builtin", "builtinEqual"])
-                    [ Call pos (TypeDef $ Sym ["builtin", "builtinSumEnum"]) [Reference pos $ Ident pos $ Sym ["en"]]
-                    , AST.Int pos i
-                    ]
-
-            -- feature{N, T, G} field0(A) B
-            let (t) = (Sym ["T"])
-            appendStmt $ Feature pos [t] [] name [TypeDef t] Type.Bool
-            -- instance{A, B}  field0{0, MyType{A, B}, MyType.0} (a&) -> &
-            let acq = foldl Apply (TypeDef name) [sumType]
-            appendStmt $ Instance pos generics acq [RefParam pos (Sym ["en"]) Void] False (Stmt blkId)
-
-        -- write case0, case1 constructors
-        forM_ (zip cases [0..]) $ \( (Sym [str], ts) , i) -> do
-            let name = Sym [str]
-
-            blkId <- newStmt (Block [])
-            withCurId blkId $ do
-                appendStmt $ Let pos (PatIdent pos $ Sym ["en"]) Nothing Nothing
-                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "builtinSumReset"])
-                    [ Reference pos (Ident pos $ Sym ["en"])
-                    , AST.Int pos i
-                    ]
-
-                case ts of
-                    [t] -> void $ appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["store"])
-                        [ Reference pos (field t i (Ident pos $ Sym ["en"]))
-                        , Ident pos (Sym ["a0"])
-                        ]
-                    ts -> forM_ (zip ts [0..]) $ \(t, j) -> do
-                        appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["store"])
-                            [ Reference pos (field (ts !! j) (fromIntegral j) (field (foldType (Tuple : ts)) i (Ident pos $ Sym ["en"])))
-                            , Ident pos (Sym ["a" ++ show j])
-                            ]
-
-                appendStmt $ Return pos $ Just (Ident pos $ Sym ["en"])
-
-            args <- forM (zip ts [0..]) $ \(t, j) -> do
-                return $ Param pos (Sym ["a" ++ show j]) t
-
-            appendStmt $ Feature pos generics [] name ts sumType
-            let acq = foldl Apply (TypeDef name) (map TypeDef generics)
-            appendStmt $ Instance pos generics acq args False (Stmt blkId)
-
-
-        -- write fromCase0, fromCase1 accessors
-        forM_ (zip cases [0..]) $ \( (Sym [str], ts) , i) -> do
-            let name = Sym ["from" ++ (toUpper $ head str) : (tail str) ]
-            let fieldType = case ts of
-                    [t] -> t
-                    ts  -> foldl Apply Tuple ts
-
-            -- feature{N, T, G} field0(A) B
-            let (n, t, g) = (Sym ["N"], Sym ["T"], Sym ["G"])
-            appendStmt $ Feature pos [n, g, t] [(n, g), (t, n)] name [TypeDef t] (TypeDef g)
-
-            -- instance{A, B}  field0{0, MyType{A, B}, MyType.0} (a&) -> &
-            let acq = foldl Apply (TypeDef name) [Size (fromIntegral i), fieldType, sumType]
-            blkId <- newStmt (Block [])
-            appendStmt $ Instance pos generics acq [RefParam pos (Sym ["x"]) Void] True (Stmt blkId)
-            withCurId blkId $ do
-                appendStmt $ Return pos . Just $ field fieldType i (Ident pos $ Sym ["x"])
 
     x -> error (show x)
 

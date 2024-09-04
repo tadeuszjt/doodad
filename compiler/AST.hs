@@ -90,21 +90,6 @@ instance Typeof Pattern where
     typeof a = error $ "can only take typeof PatAnnotated" 
 
 
-
-data Func = Func
-    { funcPos :: TextPos
-    , funcSymbol :: Symbol
-    , funcArgs :: [Param]
-    , funcRetty :: Retty
-    , funcStmt :: Stmt
-    }
-    deriving (Eq, Show)
-
-
-instance TextPosition Func where
-    textPos = funcPos
-
-
 data Stmt
     = Stmt        Int
     | Let         TextPos Pattern (Maybe Expr) (Maybe Stmt)
@@ -113,7 +98,7 @@ data Stmt
     | Block       [Stmt]
     | If          TextPos Expr Stmt (Maybe Stmt)
     | While       TextPos Expr Stmt
-    | FuncDef     Generics Func
+    | FuncInst     TextPos Generics Symbol [Param] Retty Stmt
     | Feature     TextPos Generics FunDeps Symbol [Type] Type
     | Instance    TextPos Generics Type [Param] Bool Stmt
     | Typedef     TextPos Generics Symbol Type
@@ -163,7 +148,7 @@ instance TextPosition Stmt where
         Block       s -> textPos (head s)
         If          p _ _ _ -> p
         While       p _ _ -> p
-        FuncDef     _ f -> textPos f
+        FuncInst     p _ _ _ _ _ -> p
         Typedef     p _ _ _ -> p
         Switch      p _ _ -> p
         For         p _ _ _ -> p
@@ -249,7 +234,7 @@ prettyStmt pre stmt = case stmt of
     EmbedC pos m str -> putStrLn $ pre ++ "$" ++ str
     Assign pos symbol expr -> putStrLn $ pre ++ "assign " ++ prettySymbol symbol ++ " " ++ show expr
 
-    FuncDef generics (AST.Func _ funcSymbol funcArgs funcRetty blk) -> do
+    FuncInst _ generics funcSymbol funcArgs funcRetty blk -> do
         putStrLn ""
         putStrLn $
             pre

@@ -5,7 +5,6 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Control.Monad
 import Control.Monad.State
---import Control.Monad.IO.Class
 import Data.Maybe
 
 import IR
@@ -50,10 +49,19 @@ withCurrentId id f = do
     return a
 
 
-funcIrChecker :: FuncIR -> DoM FuncIrCheckerState FuncIR
+funcIrChecker :: FuncIR -> DoM FuncIrCheckerState ()
 funcIrChecker func = do
-    processStmt func 0
-    gets funcIr
+    -- 1.) reference args cannot overlap memory
+    -- 2.) Can only return references to ref args
+    -- 3.) cannot use potentially invalid references
+    void $ processStmt func 0
+
+
+getRefSubject :: FuncIR -> Arg -> DoM FuncIrCheckerState (Maybe ID)
+getRefSubject funcIr (ArgConst _ _) = return Nothing
+getRefSubject funcIr (ArgID argId) = case Map.lookup argId (irTypes funcIr) of
+    Just (_, Value) -> return Nothing
+    Just (_, Ref)   -> getArgSubject funcIr (ArgID argId)
 
 
 getArgSubject :: FuncIR -> Arg -> DoM FuncIrCheckerState (Maybe ID)
@@ -71,6 +79,7 @@ getArgSubject funcIr (ArgID id) = case Map.lookup id (irTypes funcIr) of
                     Just (_, Value) -> return Nothing
 
             case results of
+                []  -> return Nothing -- TODO fail ("what: " ++ show id)
                 [x] -> return x
 
 
@@ -81,7 +90,16 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
     Loop ids ->  withCurrentId id $ mapM_ (processStmt funcIr) ids
     Break        -> return ()
     ReturnVoid  -> return ()
-    Return arg -> return ()
+    Return arg -> do -- check is arg ref
+        resm <- getRefSubject funcIr arg
+        case resm of
+            Nothing -> return ()
+            Just argId -> case Map.lookup argId (irStmts funcIr) of
+                Nothing -> do
+                    case Map.lookup argId (irTypes funcIr) of
+                        Just (_, Ref) -> return ()
+                        Just (_, Value) -> fail ("returning reference must be to reference argument")
+                Just x -> fail ("cannot return reference to stack variable")
 
     If arg trueBlkId falseBlkId -> do
         let Just (Block trueIds) = Map.lookup trueBlkId (irStmts funcIr)

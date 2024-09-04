@@ -33,42 +33,39 @@ fn makeGrid(rect Rect) Grid
     return g
 
 
-fn getGridVecs(g &Grid, range Rect) Table{Vec2}
+fn gridLocation(g &Grid, p Vec2) (I64, I64)
     let numRows = g.array.len
     let numCols = g.array[0].len
+    return (
+        clamp(
+            ((p.x - g.rect.min.x) / (g.rect.max.x - g.rect.min.x) * numRows.convert).convert
+            0
+            numRows - 1
+        )
+        clamp(
+            ((p.y - g.rect.min.y) / (g.rect.max.y - g.rect.min.y) * numCols.convert).convert
+            0
+            numCols - 1
+        )
+    )
+    
 
-    let rowMin = ((range.min.x - g.rect.min.x) / (g.rect.max.x - g.rect.min.x) * numRows.convert).convert:I64
-    let colMin = ((range.min.y - g.rect.min.y) / (g.rect.max.y - g.rect.min.y) * numCols.convert).convert:I64
-
-    let rowMax = ((range.max.x - g.rect.min.x) / (g.rect.max.x - g.rect.min.x) * numRows.convert).convert:I64
-    let colMax = ((range.max.y - g.rect.min.y) / (g.rect.max.y - g.rect.min.y) * numCols.convert).convert:I64
-
-    let rMin = clamp(rowMin, 0, numRows - 1)
-    let cMin = clamp(colMin, 0, numCols - 1)
-
-    let rMax = clamp(rowMax, 0, numRows - 1)
-    let cMax = clamp(colMax, 0, numCols - 1)
+fn getGridVecs(g &Grid, range Rect) Table{Vec2}
+    let (rowMin, colMin) = g.gridLocation(range.min)
+    let (rowMax, colMax) = g.gridLocation(range.max)
 
     let result : Table{Vec2}
-
-    for (rMin, rMax + 1) -> r
-        for (cMin, cMax + 1) -> c
+    for (rowMin, rowMax + 1) -> r
+        for (colMin, colMax + 1) -> c
             for (0, g.array[r][c].len) -> i
                 result.container::push(g.array[r][c][i])
 
     return result
 
+
 fn addToGrid(g &Grid, v Vec2)
-    let numRows = g.array.len
-    let numCols = g.array[0].len
-
-    let row = ((v.x - g.rect.min.x) / (g.rect.max.x - g.rect.min.x) * numRows.convert).convert:I64
-    let col = ((v.y - g.rect.min.y) / (g.rect.max.y - g.rect.min.y) * numCols.convert).convert:I64
-
-    let r = clamp(row, 0, numRows - 1)
-    let c = clamp(col, 0, numCols - 1)
-
-    g.array[r][c].stack::push(v)
+    let (row, col) = g.gridLocation(v)
+    g.array[row][col].stack::push(v)
 
 
 tuple Blob {
