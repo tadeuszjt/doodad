@@ -150,7 +150,6 @@ collectExpr (AExpr exprType expression) = collectPos expression $ case expressio
     AST.Char _ _ -> collect "char literal must have Char type" (ConsEq exprType Type.Char)
 
     Call _ callType exprs -> do
-        -- TODO broken, generics are carrying thorugh definitions!
         let (TypeDef funcSymbol, callTypeArgs) = unfoldType callType
         (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType
         unless (length exprs == length argTypes) (fail $ "invalid function type arguments: " ++ show callType)

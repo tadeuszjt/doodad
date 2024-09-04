@@ -93,7 +93,7 @@ executable doodad
         ResolveAst,
         CombineAsts,
         Preprocess,
-        AstBuilder,
+        InstBuilder,
         FindFunc,
         MakeFuncIR,
         IR,
@@ -101,4 +101,5 @@ executable doodad
         FuncIrUnused,
         FuncIrInline,
         FuncIrConst,
-        FuncIrChecker
+        FuncIrChecker,
+        AstBuilder

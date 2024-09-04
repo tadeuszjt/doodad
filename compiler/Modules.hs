@@ -32,6 +32,7 @@ import qualified ResolveAst
 import qualified CombineAsts
 import Preprocess
 import Symbol
+import AstBuilder
 
 -- Modules are groups of .doo files with a module name header
 -- lang/lexer.doo: lexer module
@@ -168,12 +169,15 @@ buildModule isMain args modPath = do
             [x] -> return x
             _  -> fail ("multiple matching module files found in path: " ++ absoluteModPath)
 
-        ast <- preprocess =<< parse args file
-        when (isMain && printAst args) $ liftIO (S.prettyAST ast)
+        ast_ <- parse args file
+        ast <- preprocess ast_
+
+
+        --when (isMain && printAst args) $ liftIO (S.prettyAST ast)
 
         -- read imports and compile imported modules first
         imports <- fmap (Set.toList . Set.fromList) $
-            forM [ (stmt, path) | stmt@(S.Import _ _ path _) <- S.astImports ast] $ \(stmt, path)-> do
+            forM [ (stmt, path) | stmt@(S.Import _ _ path _) <- S.astImports ast_] $ \(stmt, path)-> do
                 path' <- getCanonicalModPath path
                 return (stmt, path')
 
@@ -190,9 +194,10 @@ buildModule isMain args modPath = do
             return (stmt, fromJust resm)
 
         when (verbose args) $ liftIO $ putStrLn "resolving symbols..."
-        (astResolved', supply) <- ResolveAst.resolveAst ast astImports
+        (astResolved'', supply) <- ResolveAst.resolveAst ast astImports
 
-        when (isMain && printAstResolved args) $ liftIO (prettyAST astResolved')
+        --when (isMain && printAstResolved args) $ liftIO (prettyAST astResolved')
+        (astResolved', ()) <- runDoMExcept () (unbuildAst astResolved'')
 
         astCombined' <- CombineAsts.combineAsts (astResolved', supply) astImports
         --liftIO $ prettyAST astResolved'

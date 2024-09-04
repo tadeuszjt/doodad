@@ -7,16 +7,19 @@ import Control.Monad.Identity
 
 import AST
 import Monad
+import InstBuilder
+import Error
+import Type
 
 
-type ID = Int
-
-globalId = 0
+data TopStmt
+    = TopStmt Stmt
+    | TopInst TextPos Generics Type [Param] Bool InstBuilderState
 
 data AstBuilderState = AstBuilderState
-    { statements :: Map.Map ID Stmt
-    , idSupply   :: ID
-    , curId      :: ID
+    { topStmts :: [TopStmt]
+    , moduleName :: String
+    , builderImports :: [Import]
     }
 
 class (Monad m, MonadFail m) => MonadAstBuilder m where
@@ -27,58 +30,58 @@ instance MonadAstBuilder (DoM AstBuilderState) where
     liftAstBuilderState (StateT s) = DoM $ StateT (pure . runIdentity . s)
 
 
-initAstBuilderState = AstBuilderState
-    { statements = Map.singleton globalId (Block [])
-    , idSupply   = globalId + 1
-    , curId      = globalId
+initAstBuilderState name imports = AstBuilderState
+    { topStmts = []
+    , moduleName = name
+    , builderImports = imports
     }
 
 
-generateId :: MonadAstBuilder m => m ID
-generateId = liftAstBuilderState $ do
-    idSupply <- gets idSupply
-    modify $ \s -> s { idSupply = idSupply + 1 }
-    return idSupply
+addTopStmt :: MonadAstBuilder m => TopStmt -> m ()
+addTopStmt stmt =
+    liftAstBuilderState $ modify $ \s -> s { topStmts = (topStmts s) ++ [stmt] }
 
 
-getCurId :: MonadAstBuilder m => m ID
-getCurId = do
-    liftAstBuilderState (gets curId)
+
+unbuildAst :: AstBuilderState -> DoM () AST
+unbuildAst builderState = do
+
+    stmts <- forM (topStmts builderState) (unbuildStmt builderState)
+
+    return $ AST
+        { astStmts = stmts
+        , astModuleName = moduleName builderState
+        , astImports    = builderImports builderState
+        }
 
 
-appendId :: MonadAstBuilder m => ID -> m ()
-appendId id = do
-    curId <- liftAstBuilderState (gets curId)
-    True <- liftAstBuilderState $ gets (Map.member curId . statements)
-    stmt <- liftAstBuilderState $ gets $ (Map.! curId) . statements
-    stmt' <- case stmt of
-        Block ids -> return $ Block (ids ++ [Stmt id])
+unbuildStmt :: AstBuilderState -> TopStmt -> DoM () Stmt
+unbuildStmt state statement = case statement of
+    TopStmt s -> return s
+    TopInst pos generics typ args retty instState -> do
+        Instance pos generics typ args retty <$> unbuildInst instState 0
+
+
+unbuildInst :: InstBuilderState -> ID -> DoM () Stmt
+unbuildInst instState id = do
+    let Just stmt = Map.lookup id (statements instState)
+    case stmt of
+        Block stmts -> fmap Block $ forM stmts $ \(Stmt id) -> unbuildInst instState id
+        Return pos mexpr -> return stmt
+        ExprStmt expr    -> return stmt
+        EmbedC _ _ _     -> return stmt
+        Let _ _ _ _      -> return stmt
+        Assign _ _ _     -> return stmt
+
+        If pos expr (Stmt trueId) mfalse -> do
+            true' <- unbuildInst instState trueId
+            false' <- case mfalse of
+                Nothing -> return Nothing
+                Just (Stmt id) -> fmap Just $ unbuildInst instState id
+
+            return $ If pos expr true' false'
+
+        While pos expr (Stmt id) -> While pos expr <$> unbuildInst instState id
+
+
         x -> error (show x)
-
-    liftAstBuilderState $ modify $ \s -> s { statements = Map.insert curId stmt' (statements s) }
-
-
-newStmt :: MonadAstBuilder m => Stmt -> m ID
-newStmt stmt = do
-    id <- generateId
-    liftAstBuilderState $ modify $ \s -> s { statements = Map.insert id stmt (statements s) }
-    return id
-
-
-appendStmt :: MonadAstBuilder m => Stmt -> m ID
-appendStmt stmt = do
-    id <- generateId
-    appendId id
-    liftAstBuilderState $ modify $ \s -> s { statements = Map.insert id stmt (statements s) }
-    return id
-
-
-withCurId :: MonadAstBuilder m => ID -> (m a) -> m a
-withCurId id f = do
-    prevId <- liftAstBuilderState (gets curId)
-    liftAstBuilderState $ modify $ \s -> s { curId = id }
-    a <- f
-    liftAstBuilderState $ modify $ \s -> s { curId = prevId }
-    return a
-
-

@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 module ResolveAst where
 
 import Prelude hiding (mod)
@@ -5,6 +6,7 @@ import Prelude hiding (mod)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Monad.State
+import Control.Monad.Identity
 import Data.Maybe
 import Data.Char
 
@@ -14,6 +16,8 @@ import Monad
 import Error
 import Symbol
 import ASTResolved hiding (genSymbol)
+import AstBuilder
+import InstBuilder
 
 
 data SymKey
@@ -29,13 +33,23 @@ data ResolveState
         { modName   :: String
         , supply    :: Map.Map Symbol Int
         , symTab    :: MySymTab
+        , instBuilder :: InstBuilderState
         }
 
 initResolveState = ResolveState
     { modName = ""
     , symTab = [Map.empty]
     , supply = Map.empty
+    , instBuilder = initInstBuilderState
     }
+
+
+instance MonadInstBuilder (DoM ResolveState) where
+    liftInstBuilderState (StateT s) = do
+        state <- gets instBuilder
+        let (a, state') = runIdentity $ runStateT (StateT s) state
+        modify $ \s -> s { instBuilder = state' }
+        return a
 
 
 pushSymbolTable :: DoM ResolveState ()
@@ -129,12 +143,12 @@ genSymbol symbol@(SymResolved str) = do
         n -> return $ SymResolved $ [modName] ++ str ++ [show n]
 
 
-resolveAst :: AST -> [(Import, ASTResolved)] -> DoM s (AST, Map.Map Symbol Int)
+resolveAst :: AstBuilderState -> [(Import, ASTResolved)] -> DoM s (AstBuilderState, Map.Map Symbol Int)
 resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' ast)
     where
-        resolveAst' :: AST -> DoM ResolveState (AST, Map.Map Symbol Int)
+        resolveAst' :: AstBuilderState -> DoM ResolveState (AstBuilderState, Map.Map Symbol Int)
         resolveAst' ast = do
-            modify $ \s -> s { modName = astModuleName ast }
+            modify $ \s -> s { modName = AstBuilder.moduleName ast }
 
             forM_ imports $ \(Import isExport isQualified path mName, imprt) -> do
                 forM_ (typeDefsTop imprt) $ \symbol -> do
@@ -150,25 +164,27 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
             pushSymbolTable
 
             -- pre-define top-level symbols
-            topStmts' <- forM (astStmts ast) $ \stmt -> withPos stmt $ case stmt of
-                Typedef pos generics (Sym str) typ -> do
+            topStmts' <- forM (topStmts ast) $ \stmt -> case stmt of
+                TopStmt (Typedef pos generics (Sym str) typ) -> do
                     symbol' <- genSymbol (SymResolved str)
                     define symbol' KeyType symbol' False
-                    return (Typedef pos generics symbol' typ)
+                    return $ TopStmt (Typedef pos generics symbol' typ)
 
-                Feature pos generics funDeps symbol args retty -> do
+                TopStmt (Feature pos generics funDeps symbol args retty) -> do
                     symbol' <- genSymbol (SymResolved $ symStr symbol)
                     define symbol' KeyType symbol' False
-                    return (Feature pos generics funDeps symbol' args retty)
+                    return $ TopStmt (Feature pos generics funDeps symbol' args retty)
 
                 _ -> return stmt
 
 
-            stmts' <- mapM resolveStmt topStmts'
+            topStmts'' <- mapM resolveTopStmt topStmts'
+
+
             supply <- gets supply
 
             popSymbolTable
-            return (ast { astStmts = stmts' }, supply)
+            return (ast { topStmts = topStmts'' }, supply)
 
 
 defineGenerics :: [Symbol] -> DoM ResolveState [Symbol]
@@ -214,10 +230,35 @@ resolveType typ = case typ of
     _ -> return typ
 
 
-resolveStmt :: Stmt -> DoM ResolveState Stmt
-resolveStmt statement = withPos statement $ case statement of
-    Return pos mexpr -> Return pos <$> traverse resolveExpr mexpr
-    Typedef pos generics symbol typ -> do
+resolveTopStmt :: TopStmt -> DoM ResolveState TopStmt
+resolveTopStmt statement = case statement of
+    TopStmt (Feature pos generics funDeps symbol args retty) -> do
+        unless (symbolIsResolved symbol) (fail "feature symbol wasn't resolved")
+        pushSymbolTable
+        generics' <- defineGenerics generics
+        funDeps' <- forM funDeps $ \(a, b) -> do
+            let [a'] = filter (symbolsCouldMatch a) generics'
+            let [b'] = filter (symbolsCouldMatch b) generics'
+            return (a', b')
+        args' <- mapM resolveType args
+        retty' <- resolveType retty
+        popSymbolTable
+        return $ TopStmt (Feature pos generics' funDeps' symbol args' retty')
+
+
+    TopInst pos generics typ args isRef instState -> do
+        pushSymbolTable
+        generics' <- defineGenerics generics
+        typ' <- resolveType typ
+        args' <- mapM resolveParam args
+
+        instState' <- resolveInstState instState
+
+        popSymbolTable
+        return $ TopInst pos generics' typ' args' isRef instState'
+
+
+    TopStmt (Typedef pos generics symbol typ) -> do
         symbol' <- case symbol of
             SymResolved _ -> return symbol
             Sym str       -> do
@@ -229,81 +270,85 @@ resolveStmt statement = withPos statement $ case statement of
         generics' <- defineGenerics generics
         typ' <- resolveType typ
         popSymbolTable
-        return (Typedef pos generics' symbol' typ')
+        return $ TopStmt (Typedef pos generics' symbol' typ')
 
-    Feature pos generics funDeps symbol args retty -> do
-        unless (symbolIsResolved symbol) (fail "feature symbol wasn't resolved")
-        pushSymbolTable
-        generics' <- defineGenerics generics
-        funDeps' <- forM funDeps $ \(a, b) -> do
-            let [a'] = filter (symbolsCouldMatch a) generics'
-            let [b'] = filter (symbolsCouldMatch b) generics'
-            return (a', b')
-        args' <- mapM resolveType args
-        retty' <- resolveType retty
-        popSymbolTable
-        return (Feature pos generics' funDeps' symbol args' retty')
-
-    Derives pos generics t1 ts -> do
+    TopStmt (Derives pos generics t1 ts) -> do
         pushSymbolTable
         generics' <- defineGenerics generics
         t1' <- resolveType t1
         ts' <- mapM resolveType ts
         popSymbolTable
-        return (Derives pos generics' t1' ts')
+        return $ TopStmt (Derives pos generics' t1' ts')
 
-    Instance pos generics typ args isRef stmt -> do
-        pushSymbolTable
-        generics' <- defineGenerics generics
-        typ' <- resolveType typ
-        args' <- mapM resolveParam args
-        stmt' <- resolveStmt stmt
+    TopStmt x -> error (show x)
 
-        popSymbolTable
-        return (Instance pos generics' typ' args' isRef stmt')
 
-    Block stmts -> do
-        pushSymbolTable
-        stmts' <- mapM resolveStmt stmts
-        popSymbolTable
-        return (Block stmts')
+resolveInstState :: InstBuilderState -> DoM ResolveState InstBuilderState
+resolveInstState instState = do
+    modify $ \s -> s { instBuilder = initInstBuilderState }
+    let Just (Block stmts) = Map.lookup 0 (statements instState)
+    withCurId 0 $ mapM (resolveStmt instState) stmts
+    gets instBuilder
 
-    Let pos pat mexpr mblk -> do
-        when (isJust mblk) pushSymbolTable
-        pat' <- resolvePattern pat
-        mexpr' <- traverse resolveExpr mexpr
-        mblk' <- traverse resolveStmt mblk
-        when (isJust mblk) popSymbolTable
-        return (Let pos pat' mexpr' mblk')
 
-    If pos expr stmt melse -> do
-        pushSymbolTable
-        expr' <- resolveExpr expr
-        stmt' <- resolveStmt stmt
-        popSymbolTable
-        pushSymbolTable
-        melse' <- traverse resolveStmt melse
-        popSymbolTable
-        return (If pos expr' stmt' melse')
+resolveBlock :: InstBuilderState -> Stmt -> DoM ResolveState ID
+resolveBlock instState (Stmt id) = do
+    let Just stmt = Map.lookup id (statements instState)
+    case stmt of
+        Block stmts -> do
+            pushSymbolTable
+            id <- newStmt (Block [])
+            withCurId id $ mapM (resolveStmt instState) stmts
+            popSymbolTable
+            return id
 
-    While pos expr stmt -> do
-        pushSymbolTable
-        expr' <- resolveExpr expr
-        stmt' <- resolveStmt stmt
-        popSymbolTable
-        return (While pos expr' stmt')
-    
-    EmbedC pos [] str -> do 
-        map <- processCEmbed str
-        return (EmbedC pos map str)
-    ExprStmt expr -> ExprStmt <$> resolveExpr expr
 
-    Assign pos (Sym str) expr -> do
-        symbol <- genSymbol (SymResolved str)
-        define symbol KeyVar symbol False
-        Assign pos symbol <$> resolveExpr expr
+resolveStmt :: InstBuilderState -> Stmt -> DoM ResolveState ()
+resolveStmt instState (Stmt id) = do
+    let Just statement = Map.lookup id (statements instState)
+    case statement of
+        Block stmts -> do
+            pushSymbolTable
+            id <- appendStmt (Block [])
+            withCurId id $ mapM_ (resolveStmt instState) stmts
+            popSymbolTable
+            
+        Return pos mexpr -> void $ appendStmt . Return pos =<< traverse resolveExpr mexpr
+        ExprStmt expr -> void $ appendStmt . ExprStmt =<< resolveExpr expr
+        EmbedC pos [] str -> do
+            strMap <- processCEmbed str
+            void $ appendStmt $ EmbedC pos strMap str
 
-    x -> error (show x)
+        Let pos pattern mexpr Nothing -> do
+            pattern' <- resolvePattern pattern
+            mexpr'   <- traverse resolveExpr mexpr
+            void $ appendStmt $ Let pos pattern' mexpr' Nothing
+
+        Assign pos (Sym str) expr -> do
+            symbol <- genSymbol (SymResolved str)
+            define symbol KeyVar symbol False
+            void $ appendStmt . Assign pos symbol =<< resolveExpr expr
+
+        If pos expr stmt melse -> do
+            pushSymbolTable
+            expr' <- resolveExpr expr
+
+            trueId <- resolveBlock instState stmt
+            popSymbolTable
+            pushSymbolTable
+
+            falseId <- traverse (resolveBlock instState) melse
+            popSymbolTable
+            void $ appendStmt $ If pos expr' (Stmt trueId) (fmap Stmt falseId)
+
+        While pos expr blk -> do
+            pushSymbolTable
+            expr' <- resolveExpr expr
+            id <- resolveBlock instState blk
+            popSymbolTable
+            void $ appendStmt $ While pos expr' (Stmt id)
+
+        x -> error (show x)
 
 
 resolvePattern :: Pattern -> DoM ResolveState Pattern
