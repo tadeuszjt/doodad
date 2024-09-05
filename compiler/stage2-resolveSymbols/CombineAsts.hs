@@ -14,7 +14,6 @@ import Error
 import Type
 import AstBuilder
 import InstBuilder
-import Constraint
 import InferTypes
 
  
@@ -66,7 +65,7 @@ combineAsts astBuildState supply imports = fmap snd $
                     let (TypeDef (SymResolved xs), _) = unfoldType feature
 
                     symbol' <- genSymbol $ SymResolved $ xs ++ [typeCode feature]
-                    let stmt' = Derives pos generics typ [feature]
+                    let stmt' = TopStmt (Derives pos generics typ [feature])
 
                     existing <- gets $ maybe Map.empty id . Map.lookup featureSymbol . instancesAll
                     modify $ \s -> s { instancesAll = Map.insert featureSymbol (Map.insert symbol' stmt' existing) (instancesAll s) }
@@ -80,7 +79,7 @@ combineAsts astBuildState supply imports = fmap snd $
                 let (TypeDef (SymResolved xs), _) = unfoldType acqType
 
                 symbol <- genSymbol $ SymResolved $ xs ++ [typeCode acqType]
-                let stmt = Instance p g acqType a r (Block [])
+                let stmt = TopInst p g acqType a r (initInstBuilderState)
 
                 resm <- gets $ Map.lookup featureSymbol . instancesAll
                 let existing = maybe Map.empty id resm
@@ -91,7 +90,7 @@ combineAsts astBuildState supply imports = fmap snd $
 
 
         forM_ symbols $ \(featureSymbol, symbol, instState) -> do
-            (Instance a b acqTyp params e _) <- gets $ (Map.! symbol) . (Map.! featureSymbol) . instancesAll
+            (TopInst a b acqTyp params e _) <- gets $ (Map.! symbol) . (Map.! featureSymbol) . instancesAll
 
             types' <- forM (types instState) $ \typ -> case unfoldType typ of
                 (TypeDef symbol, []) | isFuncSymbol symbol -> do
@@ -110,10 +109,7 @@ combineAsts astBuildState supply imports = fmap snd $
 
             inst'' <- infer params' retty inst'
 
-            (blk, ()) <- runDoMExcept () $ unbuildInst inst'' 0
-
-            let stmt = Instance a b acqTyp params e blk
-
+            let stmt = TopInst a b acqTyp params e inst''
 
             existing <- gets $ (Map.! featureSymbol) . instancesAll
             modify $ \s -> s { instancesAll = Map.insert featureSymbol (Map.insert symbol stmt existing) (instancesAll s) }

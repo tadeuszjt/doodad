@@ -67,7 +67,6 @@ executable doodad
     other-modules:
         AST,
         Args,
-        Apply,
         Error,
         Modules,
         Monad,
@@ -83,7 +82,6 @@ executable doodad
         CGenerate,
         CAst,
         Compile,
-        Constraint,
         Builtin,
         ResolveAst,
         CombineAsts,

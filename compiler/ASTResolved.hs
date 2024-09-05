@@ -10,6 +10,7 @@ import AST
 import Symbol
 import Type
 import Monad
+import AstBuilder
 
 import qualified IR
 
@@ -26,13 +27,12 @@ data ASTResolved
         , featuresTop          :: Set.Set Symbol
         , featuresAll          :: Map.Map Symbol Stmt
 
-        , instancesAll         :: Map.Map Symbol (Map.Map Symbol Stmt)
+        , instancesAll         :: Map.Map Symbol (Map.Map Symbol TopStmt)
 
         , funcInstance         :: Map.Map Type (IR.FuncIrHeader, IR.FuncIR)
 
         , symSupply            :: Map.Map Symbol Int              
         }
-    deriving (Eq)
 
 
 instance TypeDefs (DoM ASTResolved) where

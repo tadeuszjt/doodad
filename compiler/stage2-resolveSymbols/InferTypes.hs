@@ -11,10 +11,10 @@ import Type hiding (typeOfExpr)
 import Monad
 import InstBuilder
 import ASTResolved
-import Constraint
 import Symbol
 import AST
 import Error
+import AstBuilder
 
 
 annotate :: InstBuilderState -> DoM Int InstBuilderState
@@ -38,6 +38,12 @@ deAnnotate state = state { types = Map.map (mapType f) (types state) }
         f typ = case typ of
             Type n -> Type 0
             _ -> typ
+
+
+data Constraint
+    = ConsEq Type Type
+    | ConsDefault Type Type
+    deriving (Eq, Ord, Show)
 
 
 data CollectState = CollectState
@@ -111,11 +117,11 @@ collectCall exprType exprTypes callType = do
 
     fullAcqs <- fmap catMaybes $ forM (Map.elems $ instances) $ \stmt -> do
         appliedAcqType <- case stmt of
-            Instance _ generics acqType _ _ _ -> do
+            TopInst _ generics acqType _ _ _ -> do
                 let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
                 return (applyType genericsToVars acqType)
 
-            Derives pos generics argType [featureType] -> do
+            TopStmt (Derives pos generics argType [featureType]) -> do
                 let acqType = Apply featureType argType
                 let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
                 return (applyType genericsToVars acqType)

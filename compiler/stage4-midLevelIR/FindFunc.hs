@@ -8,11 +8,16 @@ import Monad
 import AST
 import ASTResolved
 import Type
-import Apply
-import Constraint
 import Error
 import Symbol
 import IR
+import InstBuilder
+import AstBuilder
+
+
+data Constraint
+    = ConsEq Type Type
+    deriving (Eq, Ord, Show)
 
 
 unifyOne :: MonadFail m => Constraint -> m [(Type, Type)]
@@ -37,6 +42,13 @@ unify (x:xs) = do
     s <- unifyOne (applyConstraint subs x)
     return (s ++ subs)
 
+applyConstraint :: [(Type, Type)] -> Constraint -> Constraint
+applyConstraint subs constraint = case constraint of
+    ConsEq t1 t2           -> ConsEq (rf t1) (rf t2)
+    where
+        rf = applyType subs
+
+
 
 getConstraintsFromTypes :: MonadFail m => Type -> Type -> m [Constraint]
 getConstraintsFromTypes t1 t2 = case (t1, t2) of
@@ -58,7 +70,7 @@ makeHeaderInstance callType = do
     let (TypeDef callSymbol, _) = unfoldType callType
     Just instances <- gets $ Map.lookup callSymbol . instancesAll
     results <- fmap catMaybes $ forM (Map.toList instances) $ \(symbol, stmt) -> case stmt of
-        Derives _ generics argType [featureType] -> do
+        TopStmt (Derives _ generics argType [featureType]) -> do
             let genericSubs = zip (map TypeDef generics) (map Type [1..])
             let upperType = applyType genericSubs (Apply featureType argType)
 
@@ -73,7 +85,7 @@ makeHeaderInstance callType = do
                     unless (typeFullyResolved lower) (error "propagating type vars")
                     makeHeaderInstance lower
 
-        Instance pos generics implType args isRef scope -> do
+        TopInst pos generics implType args isRef inst -> do
             --liftIO $ putStrLn $ "checking aquire: " ++ prettySymbol symbol
             let genericSubs = zip (map TypeDef generics) (map Type [1..])
             let typ = applyType genericSubs implType
@@ -109,7 +121,7 @@ makeInstance callType = do
     let (TypeDef callSymbol, _) = unfoldType callType
     Just instances <- gets $ Map.lookup callSymbol . instancesAll
     results <- fmap catMaybes $ forM (Map.toList instances) $ \(symbol, stmt) -> case stmt of
-        Derives _ generics argType [featureType] -> do
+        TopStmt (Derives _ generics argType [featureType]) -> do
             let genericSubs = zip (map TypeDef generics) (map Type [1..])
             let upperType = applyType genericSubs $ Apply featureType argType
 
@@ -125,7 +137,7 @@ makeInstance callType = do
                     unless (typeFullyResolved lower) (error "propagating type vars")
                     makeInstance lower
 
-        Instance pos generics implType args isRef scope -> do
+        TopInst pos generics implType args isRef inst -> do
             --liftIO $ putStrLn $ "checking aquire: " ++ prettySymbol symbol
             let genericSubs = zip (map TypeDef generics) (map Type [1..])
             let typ = applyType genericSubs implType
@@ -139,9 +151,10 @@ makeInstance callType = do
                     unless (length argTypes == length args) (error "something else went wrong")
 
                     -- args need to be swapped from void
+                    let inst' = inst { types = Map.map (applyType subs . applyType genericSubs) (types inst) }
+                    (stmt', _) <- runDoMExcept () (unbuildInst inst' 0)
                     let args'   = zipWith (\t p -> p { paramType = t}) argTypes args 
                     let retty'  = (if isRef then RefRetty else Retty) retType
-                    let stmt'   = applyStmt subs (applyStmt genericSubs scope)
                     return $ Just $ AST.FuncInst pos [] symbol args' retty' stmt'
 
     case results of
