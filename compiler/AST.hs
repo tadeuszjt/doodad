@@ -56,7 +56,8 @@ instance Type.Typeof Retty where
     typeof (RefRetty t) = t
 
 data Pattern
-    = PatLiteral   Expr                   -- equal(a, b)
+    = Pattern      Int
+    | PatLiteral   Expr                   -- equal(a, b)
     | PatIgnore    TextPos                -- fine
     | PatIdent     TextPos Symbol         -- set(&ident, b)
     | PatTuple     TextPos [Pattern]      -- set(&a, first(&z)); set(&b, second(&z)) ...
@@ -190,6 +191,7 @@ instance Show Retty where
 
 instance Show Pattern where
     show pattern = case pattern of
+        Pattern i                -> show i
         PatLiteral c             -> show c
         PatIgnore pos            -> "_"
         PatIdent pos symbol      -> prettySymbol symbol

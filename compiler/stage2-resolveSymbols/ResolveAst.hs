@@ -352,7 +352,7 @@ resolveStmt instState (Stmt id) = do
 
 
 resolvePattern :: Pattern -> DoM ResolveState Pattern
-resolvePattern pattern = withPos pattern $ case pattern of
+resolvePattern pattern = withPos pattern $ fmap Pattern $ newPattern =<< case pattern of
     PatAnnotated pat typ -> do
         typ' <- resolveType typ
         pat' <- resolvePattern pat

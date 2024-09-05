@@ -83,22 +83,16 @@ combineAsts astBuildState supply imports = fmap snd $
 
                 symbol <- genSymbol $ SymResolved $ xs ++ [typeCode acqType]
 
-                expressions' <- fmap Map.fromList $ forM (Map.toList $ expressions instState) $
-                    \(id, expression) -> case expression of
-                        (Call pos typ exprs) -> do
-                            let (TypeDef symbol, _) = unfoldType typ
+                expressions' <- forM (expressions instState) $ \expression -> case expression of
+                    (Call pos typ exprs) -> do
+                        let (TypeDef symbol, _) = unfoldType typ
+                        Just (generics, _) <- Map.lookup symbol <$> getTypeDefs
+                        let typ' = case unfoldType typ of
+                                (TypeDef _, []) -> foldl Apply typ $ replicate (length generics) (Type 0)
+                                (TypeDef _, _ ) -> typ
 
-                            resm <- Map.lookup symbol <$> getTypeDefs
-                            unless (isJust resm) (fail $ "no def for: " ++ prettySymbol symbol)
-                            let Just (generics, _) = resm
-
-                            let typ' = case (typ, generics) of
-                                    (TypeDef _, []) -> typ
-                                    (TypeDef _, x)  -> foldl Apply typ $ replicate (length x) (Type 0)
-                                    (_, x)          -> typ
-
-                            return $ (id, Call pos typ' exprs)
-                        _ -> return (id, expression)
+                        return (Call pos typ' exprs)
+                    _ -> return expression
 
                 (blk, ()) <- runDoMExcept () $ unbuildInst (instState { expressions = expressions' }) 0
                 let stmt = Instance p g acqType a r blk

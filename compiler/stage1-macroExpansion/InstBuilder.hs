@@ -16,6 +16,7 @@ globalId = 0
 data InstBuilderState = InstBuilderState
     { statements    :: Map.Map ID Stmt
     , expressions   :: Map.Map ID Expr
+    , patterns      :: Map.Map ID Pattern
     , idSupply      :: ID
     , curId         :: ID
     }
@@ -31,6 +32,7 @@ instance MonadInstBuilder (DoM InstBuilderState) where
 initInstBuilderState = InstBuilderState
     { statements = Map.singleton globalId (Block [])
     , expressions = Map.empty
+    , patterns    = Map.empty
     , idSupply   = globalId + 1
     , curId      = globalId
     }
@@ -74,6 +76,11 @@ newExpr expr = do
     liftInstBuilderState $ modify $ \s -> s { expressions = Map.insert id expr (expressions s) }
     return id
 
+newPattern :: MonadInstBuilder m => Pattern -> m ID
+newPattern pattern = do
+    id <- generateId
+    liftInstBuilderState $ modify $ \s -> s { patterns = Map.insert id pattern (patterns s) }
+    return id
 
 appendStmt :: MonadInstBuilder m => Stmt -> m ID
 appendStmt stmt = do
@@ -110,6 +117,19 @@ unbuildExpr state expression = do
         x -> error (show x)
 
 
+unbuildPattern :: InstBuilderState-> Pattern -> DoM () Pattern
+unbuildPattern state pattern = do
+    pat <- case pattern of
+        Pattern id -> let Just pat = Map.lookup id (patterns state) in return pat
+        pat    -> return pat
+    case pat of
+        PatIdent pos symbol -> return pat
+        PatAnnotated p typ  -> do
+            p' <- unbuildPattern state p
+            return (PatAnnotated p' typ)
+        x -> error (show x)
+
+
 unbuildInst :: InstBuilderState -> ID -> DoM () Stmt
 unbuildInst instState id = do
     let Just stmt = Map.lookup id (statements instState)
@@ -119,8 +139,9 @@ unbuildInst instState id = do
         ExprStmt expr    -> ExprStmt <$> unbuildExpr instState expr
         EmbedC _ _ _     -> return stmt
         Let pos pat mexpr Nothing  -> do
+            pat' <- unbuildPattern instState pat
             mexpr' <- traverse (unbuildExpr instState) mexpr
-            return $ Let pos pat mexpr' Nothing
+            return $ Let pos pat' mexpr' Nothing
         Assign pos s expr -> Assign pos s <$> unbuildExpr instState expr
 
         If pos expr (Stmt trueId) mfalse -> do
