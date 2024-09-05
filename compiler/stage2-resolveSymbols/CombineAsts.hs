@@ -15,6 +15,7 @@ import Type
 import AstBuilder
 import InstBuilder
 import Constraint
+import InferTypes
 
  
 initAstResolved modName imports = ASTResolved
@@ -73,27 +74,46 @@ combineAsts astBuildState supply imports = fmap snd $
             _ -> return ()
 
 
-        forM_ (topStmts astBuildState) $ \topStmt -> case topStmt of
+        symbols <- fmap catMaybes $ forM (topStmts astBuildState) $ \topStmt -> case topStmt of
             TopInst p g acqType a r instState -> do
                 let (TypeDef featureSymbol, _) = unfoldType acqType
                 let (TypeDef (SymResolved xs), _) = unfoldType acqType
 
                 symbol <- genSymbol $ SymResolved $ xs ++ [typeCode acqType]
-
-                types' <- forM (types instState) $ \typ -> case unfoldType typ of
-                    (TypeDef symbol, []) | isFuncSymbol symbol -> do
-                        Just (generics, _) <- Map.lookup symbol <$> getTypeDefs
-                        return $ foldl Apply typ $ replicate (length generics) (Type 0)
-                    _ -> return typ
-
-                (blk, ()) <- runDoMExcept () $ unbuildInst (instState { types = types' }) 0
-                let stmt = Instance p g acqType a r blk
+                let stmt = Instance p g acqType a r (Block [])
 
                 resm <- gets $ Map.lookup featureSymbol . instancesAll
                 let existing = maybe Map.empty id resm
                 modify $ \s -> s { instancesAll = Map.insert featureSymbol (Map.insert symbol stmt existing) (instancesAll s) }
+                return $ Just (featureSymbol, symbol, instState)
 
-            _ -> return ()
+            _ -> return Nothing
+
+
+        forM_ symbols $ \(featureSymbol, symbol, instState) -> do
+            (Instance a b c d e _) <- gets $ (Map.! symbol) . (Map.! featureSymbol) . instancesAll
+
+            types' <- forM (types instState) $ \typ -> case unfoldType typ of
+                (TypeDef symbol, []) | isFuncSymbol symbol -> do
+                    Just (generics, _) <- Map.lookup symbol <$> getTypeDefs
+                    return $ foldl Apply typ $ replicate (length generics) (Type 0)
+                _ -> return typ
+
+            let inst' = instState { types = types' }
+
+            ast <- get
+            (instAnnotated, _) <- runDoMExcept 0 (annotate inst')
+            --(_, collectState)  <- runDoMExcept (initCollectState ast) (collect instAnnotated)
+
+
+            (blk, ()) <- runDoMExcept () $ unbuildInst inst' 0
+
+            let stmt = Instance a b c d e blk
+
+
+            existing <- gets $ (Map.! featureSymbol) . instancesAll
+            modify $ \s -> s { instancesAll = Map.insert featureSymbol (Map.insert symbol stmt existing) (instancesAll s) }
+
 
 
 isFuncSymbol :: Symbol -> Bool

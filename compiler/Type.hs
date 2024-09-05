@@ -115,6 +115,16 @@ mapType f typ = f $ case typ of
     _           -> typ
 
 
+mapTypeM :: Monad m => (Type -> m Type) -> Type -> m Type
+mapTypeM f typ = do
+    f =<< case typ of
+        Apply t1 t2     -> do
+            t1' <- mapTypeM f t1
+            t2' <- mapTypeM f t2
+            return (Apply t1' t2')
+        _ -> return typ
+
+
 applyType :: [(Type, Type)] -> Type -> Type
 applyType subs = mapType (f subs)
     where

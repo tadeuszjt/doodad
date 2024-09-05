@@ -65,8 +65,6 @@ applyPattern subs pattern = case pattern of
 applyConstraint :: [(Type, Type)] -> Constraint -> Constraint
 applyConstraint subs constraint = case constraint of
     ConsEq t1 t2           -> ConsEq (rf t1) (rf t2)
-    ConsField  t1 s t2     -> ConsField (rf t1) s (rf t2)
-    ConsSlice t1 t2        -> ConsSlice (rf t1) (rf t2)
     ConsDefault t1 t2      -> ConsDefault (rf t1) (rf t2)
     where
         rf = applyType subs

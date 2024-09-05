@@ -3,7 +3,7 @@ module ASTMapper where
 
 import Control.Monad.State
 import AST
-import Type
+import Type hiding (mapTypeM)
 import Error
 import Monad
 

@@ -22,27 +22,6 @@ unifyOne info constraint = withPos info $ case constraint of
             
         _ -> fail $ (infoMsg info) ++ ":" ++ show (t1, t2)
 
-    ConsField typ idx exprType -> do
-        base <- baseTypeOfm typ
-        case base of
-            Nothing -> return []
-            Just x -> case unfoldType x of
-                (Tuple, ts) -> unifyOne info $ ConsEq exprType (ts !! idx)
-                (Sum,   ts) -> unifyOne info $ ConsEq exprType (ts !! idx)
-                (Table, [t]) -> do
-                    baseT <- baseTypeOf t
-                    case unfoldType baseT of
-                        (Tuple, ts) -> unifyOne info $ ConsEq exprType (Apply Slice $ ts !! idx)
-                        x -> error (show x)
-                x -> error (show x)
-
-    ConsSlice exprType typ -> do
-        basem <- baseTypeOfm typ
-        case basem of
-            Nothing -> return []
-            --Just (Apply Table [t]) -> unifyOne info $ ConsEq exprType (Apply Type.Slice [t])
-            x -> error (show x)
-
     ConsDefault t1 t2 -> case (t1, t2) of
         _ | t1 == t2 -> return []
         (Type _, _)  -> return [(t1, t2)]

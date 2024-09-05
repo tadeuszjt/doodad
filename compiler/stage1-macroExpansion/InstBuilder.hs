@@ -175,3 +175,22 @@ unbuildInst instState id = do
 
 
         x -> error (show x)
+
+
+prettyInst :: InstBuilderState -> IO ()
+prettyInst state = do
+    putStrLn "statements:"
+    forM_ (Map.toList $ statements state) $ \(id, stmt) ->
+        putStrLn $ show id ++ ": " ++ show stmt
+
+    putStrLn "expressions:"
+    forM_ (Map.toList $ expressions state) $ \(id, expr) ->
+        putStrLn $ show id ++ ": " ++ show expr
+
+    putStrLn "patterns:"
+    forM_ (Map.toList $ patterns state) $ \(id, pat) ->
+        putStrLn $ show id ++ ": " ++ show pat
+
+    putStrLn "types:"
+    forM_ (Map.toList $ types state) $ \(id, typ) ->
+        putStrLn $ show id ++ ": " ++ show typ

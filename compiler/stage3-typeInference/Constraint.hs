@@ -6,8 +6,6 @@ import Error
 -- constraints obtained from sub-expressions must be to the left
 data Constraint
     = ConsEq Type Type               -- t1 == t2
-    | ConsField Type Int Type        -- ((MyType:t1).x):t2
-    | ConsSlice Type Type           
     | ConsDefault Type Type
     deriving (Eq, Ord, Show)
 

@@ -102,4 +102,5 @@ executable doodad
         FuncIrInline,
         FuncIrConst,
         FuncIrChecker,
-        AstBuilder
+        AstBuilder,
+        InferTypes
