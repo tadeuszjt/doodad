@@ -91,7 +91,7 @@ combineAsts astBuildState supply imports = fmap snd $
 
 
         forM_ symbols $ \(featureSymbol, symbol, instState) -> do
-            (Instance a b c d e _) <- gets $ (Map.! symbol) . (Map.! featureSymbol) . instancesAll
+            (Instance a b acqTyp params e _) <- gets $ (Map.! symbol) . (Map.! featureSymbol) . instancesAll
 
             types' <- forM (types instState) $ \typ -> case unfoldType typ of
                 (TypeDef symbol, []) | isFuncSymbol symbol -> do
@@ -101,14 +101,18 @@ combineAsts astBuildState supply imports = fmap snd $
 
             let inst' = instState { types = types' }
 
-            ast <- get
-            (instAnnotated, _) <- runDoMExcept 0 (annotate inst')
-            --(_, collectState)  <- runDoMExcept (initCollectState ast) (collect instAnnotated)
+            (Type.Func, retty : argTypes) <- unfoldType <$> baseTypeOf acqTyp
 
+            unless (length argTypes == length params) (error "arg lenght mismatch")
+            params' <- forM (zip params argTypes) $ \(param, argType) -> case param of
+                Param pos symbol typ -> return (Param pos symbol argType)
+                RefParam pos symbol typ -> return (RefParam pos symbol argType)
 
-            (blk, ()) <- runDoMExcept () $ unbuildInst inst' 0
+            inst'' <- infer params' retty inst'
 
-            let stmt = Instance a b c d e blk
+            (blk, ()) <- runDoMExcept () $ unbuildInst inst'' 0
+
+            let stmt = Instance a b acqTyp params e blk
 
 
             existing <- gets $ (Map.! featureSymbol) . instancesAll

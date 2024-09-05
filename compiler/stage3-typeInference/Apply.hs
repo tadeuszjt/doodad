@@ -5,16 +5,6 @@ import Constraint
 import AST
 
 
-applyRetty :: [(Type, Type)] -> Retty -> Retty
-applyRetty subs (Retty t)    = Retty (applyType subs t)
-applyRetty subs (RefRetty t) = RefRetty (applyType subs t)
-
-
-applyParam :: [(Type, Type)] -> Param -> Param
-applyParam subs (Param pos symbol typ) = Param pos symbol (applyType subs typ)
-applyParam subs (RefParam pos symbol typ) = RefParam pos symbol (applyType subs typ)
-
-
 applyStmt :: [(Type, Type)] -> Stmt -> Stmt
 applyStmt subs stmt = case stmt of
     Return pos mexpr -> Return pos (fmap applyEx mexpr)

@@ -8,7 +8,6 @@ import Control.Monad.State
 
 import Monad
 import AST
-import ASTMapper
 import Symbol
 import InstBuilder
 import AstBuilder
@@ -23,8 +22,8 @@ preprocess ast = do
     where
         preprocess' :: DoM BuildState ()
         preprocess' = do
-            stmts' <- mapM (mapStmtM preprocessMapper) (astStmts ast)
-            forM_ stmts' $ \stmt -> case stmt of
+            --stmts' <- mapM (mapStmtM preprocessMapper) (astStmts ast)
+            forM_ (astStmts ast) $ \stmt -> case stmt of
                     Feature _ _ _ _ _ _ -> addTopStmt (TopStmt stmt)
                     Derives _ _ _ _     -> addTopStmt (TopStmt stmt)
                     Typedef _ _ _ _     -> addTopStmt (TopStmt stmt)
@@ -484,10 +483,10 @@ buildStmt statement = withPos statement $ case statement of
     x -> error (show x)
 
 
-preprocessMapper :: Elem -> DoM s Elem
-preprocessMapper element = case element of
-    ElemStmt (Let pos pattern mexpr (Just blk)) -> do
-        return $ ElemStmt $ Block [Let pos pattern mexpr Nothing, blk]
-
-    _ -> return element
-
+--preprocessMapper :: Elem -> DoM s Elem
+--preprocessMapper element = case element of
+--    ElemStmt (Let pos pattern mexpr (Just blk)) -> do
+--        return $ ElemStmt $ Block [Let pos pattern mexpr Nothing, blk]
+--
+--    _ -> return element
+--

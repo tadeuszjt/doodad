@@ -362,7 +362,8 @@ resolvePattern pattern = withPos pattern $ fmap Pattern $ case pattern of
     PatIdent pos (Sym str) -> do
         symbol <- genSymbol (SymResolved str)
         define symbol KeyVar symbol False
-        newPattern (PatIdent pos symbol)
+        id <- newPattern (PatIdent pos symbol)
+        newType id (Type 0)
 
     x -> error (show x)
 
@@ -378,20 +379,46 @@ resolveExpr state expression = withPos expression $ do
         Call pos typ exprs -> do
             id <- generateId
             newType id =<< resolveType typ
-            newExpr . Call pos (Type id) =<< mapM (resolveExpr state) exprs
+            id' <- newExpr . Call pos (Type id) =<< mapM (resolveExpr state) exprs
+            newType id' (Type 0)
 
-        AST.Int pos n -> newExpr (AST.Int pos n)
-        AST.Bool pos b -> newExpr (AST.Bool pos b)
-        AST.Char pos c -> newExpr (AST.Char pos c)
-        AST.Float pos f -> newExpr (AST.Float pos f)
-        Ident pos symbol -> newExpr . Ident pos =<< look symbol KeyVar
-        Reference pos expr -> newExpr =<< (Reference pos <$> (resolveExpr state) expr)
+        AST.Int pos n -> do
+            id <- newExpr (AST.Int pos n)
+            newType id (Type 0)
+
+        AST.Bool pos b -> do
+            id <- newExpr (AST.Bool pos b)
+            newType id (Type 0)
+
+        AST.Char pos c -> do
+            id <- newExpr (AST.Char pos c)
+            newType id (Type 0)
+
+        AST.Float pos f -> do
+            id <- newExpr (AST.Float pos f)
+            newType id (Type 0)
+
+        Ident pos symbol -> do
+            id <- newExpr . Ident pos =<< look symbol KeyVar
+            newType id (Type 0)
+
+        Reference pos expr -> do
+            id <- newExpr =<< (Reference pos <$> (resolveExpr state) expr)
+            newType id (Type 0)
+
         Match pos expr pat -> do
             expr' <- (resolveExpr state) expr
             pat' <- resolvePattern pat
-            newExpr (Match pos expr' pat')
-        AST.String pos s -> newExpr (AST.String pos s)
-        AST.Array pos exprs -> newExpr . AST.Array pos =<< mapM (resolveExpr state) exprs
+            id <- newExpr (Match pos expr' pat')
+            newType id (Type 0)
+
+        AST.String pos s -> do
+            id <- newExpr (AST.String pos s)
+            newType id (Type 0)
+
+        AST.Array pos exprs -> do
+            id <- newExpr . AST.Array pos =<< mapM (resolveExpr state) exprs
+            newType id (Type 0)
 
         x -> error (show x)
             

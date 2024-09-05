@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 module InstBuilder where
 
+import Data.Maybe
 import qualified Data.Map as Map
 import Control.Monad.State
 import Control.Monad.Identity
@@ -73,10 +74,12 @@ newStmt stmt = do
     return id
 
 
-newType :: MonadInstBuilder m => ID -> Type -> m ()
+newType :: MonadInstBuilder m => ID -> Type -> m ID
 newType id typ = do
-    Nothing <- liftInstBuilderState $ gets $ Map.lookup id . types
+    --resm <- liftInstBuilderState $ gets $ Map.lookup id . types
+    --unless (isNothing resm) (fail $ "id already typed: " ++ show id)
     liftInstBuilderState $ modify $ \s -> s { types = Map.insert id typ (types s) }
+    return id
 
 
 newExpr :: MonadInstBuilder m => Expr -> m ID

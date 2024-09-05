@@ -22,7 +22,6 @@ import Monad
 import Error
 import Args
 import AST
-import Infer
 import ASTResolved
 import CPretty as C
 import CGenerate as C
@@ -198,14 +197,14 @@ buildModule isMain args modPath = do
 
         --when (isMain && printAstResolved args) $ liftIO (prettyAST astResolved')
 
-        astCombined' <- CombineAsts.combineAsts astResolved' supply astImports
+        astFinal <- CombineAsts.combineAsts astResolved' supply astImports
         --liftIO $ prettyAST astResolved'
         
         -- infer ast types
-        when (verbose args) $ liftIO $ putStrLn "inferring types..."
+        --when (verbose args) $ liftIO $ putStrLn "inferring types..."
 
-        (astFinal) <- withErrorPrefix "infer: " $
-            infer astCombined' (printAstAnnotated args) (verbose args)
+        --(astFinal) <- withErrorPrefix "infer: " $
+        --    infer astCombined' (printAstAnnotated args) (verbose args)
 
         when (isMain && printAstFinal args ) $ liftIO (prettyASTResolved astFinal)
 
