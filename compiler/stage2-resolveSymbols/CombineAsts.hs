@@ -1,6 +1,7 @@
 module CombineAsts where
 
 import Data.Maybe
+import Data.Char
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Monad.State
@@ -13,23 +14,19 @@ import Error
 import Type
 import AstBuilder
 import InstBuilder
+import Constraint
 
  
 initAstResolved modName imports = ASTResolved
     { moduleName     = modName
     , includes       = Set.empty
     , links          = Set.empty
-
     , typeDefsTop    = Set.empty
     , typeDefsAll    = Map.unions (map typeDefsAll imports)
-
     , featuresTop    = Set.empty
     , featuresAll    = Map.unions (map featuresAll imports)
-
-    , instancesAll    = Map.unionsWith Map.union (map instancesAll imports) 
-
+    , instancesAll   = Map.unionsWith Map.union (map instancesAll imports) 
     , funcInstance   = Map.unions (map funcInstance imports)
-
     , symSupply      = Map.empty
     }
 
@@ -83,18 +80,13 @@ combineAsts astBuildState supply imports = fmap snd $
 
                 symbol <- genSymbol $ SymResolved $ xs ++ [typeCode acqType]
 
-                expressions' <- forM (expressions instState) $ \expression -> case expression of
-                    (Call pos typ exprs) -> do
-                        let (TypeDef symbol, _) = unfoldType typ
+                types' <- forM (types instState) $ \typ -> case unfoldType typ of
+                    (TypeDef symbol, []) | isFuncSymbol symbol -> do
                         Just (generics, _) <- Map.lookup symbol <$> getTypeDefs
-                        let typ' = case unfoldType typ of
-                                (TypeDef _, []) -> foldl Apply typ $ replicate (length generics) (Type 0)
-                                (TypeDef _, _ ) -> typ
+                        return $ foldl Apply typ $ replicate (length generics) (Type 0)
+                    _ -> return typ
 
-                        return (Call pos typ' exprs)
-                    _ -> return expression
-
-                (blk, ()) <- runDoMExcept () $ unbuildInst (instState { expressions = expressions' }) 0
+                (blk, ()) <- runDoMExcept () $ unbuildInst (instState { types = types' }) 0
                 let stmt = Instance p g acqType a r blk
 
                 resm <- gets $ Map.lookup featureSymbol . instancesAll
@@ -102,3 +94,8 @@ combineAsts astBuildState supply imports = fmap snd $
                 modify $ \s -> s { instancesAll = Map.insert featureSymbol (Map.insert symbol stmt existing) (instancesAll s) }
 
             _ -> return ()
+
+
+isFuncSymbol :: Symbol -> Bool
+isFuncSymbol symbol = isLower $ head (sym symbol)
+

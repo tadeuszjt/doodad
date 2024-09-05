@@ -352,43 +352,46 @@ resolveStmt instState (Stmt id) = do
 
 
 resolvePattern :: Pattern -> DoM ResolveState Pattern
-resolvePattern pattern = withPos pattern $ fmap Pattern $ newPattern =<< case pattern of
+resolvePattern pattern = withPos pattern $ fmap Pattern $ case pattern of
     PatAnnotated pat typ -> do
         typ' <- resolveType typ
-        pat' <- resolvePattern pat
-        return (PatAnnotated pat' typ')
+        pat'@(Pattern id) <- resolvePattern pat
+        newType id typ'
+        return id
 
     PatIdent pos (Sym str) -> do
         symbol <- genSymbol (SymResolved str)
         define symbol KeyVar symbol False
-        return (PatIdent pos symbol)
+        newPattern (PatIdent pos symbol)
 
     x -> error (show x)
 
 
 resolveExpr :: InstBuilderState -> Expr -> DoM ResolveState Expr
-resolveExpr state expression = do
-    fmap Expr $ newExpr =<< case expression of
+resolveExpr state expression = withPos expression $ do
+    fmap Expr $ case expression of
         AExpr typ expr -> do
-            expr' <- (resolveExpr state) expr
-            typ' <- resolveType typ
-            return (AExpr typ' expr')
-        AST.Int pos n -> return (AST.Int pos n)
-        AST.Bool pos b -> return (AST.Bool pos b)
-        AST.Char pos c -> return (AST.Char pos c)
-        AST.Float pos f -> return (AST.Float pos f)
-        Ident pos symbol -> Ident pos <$> look symbol KeyVar
-        Reference pos expr -> Reference pos <$> (resolveExpr state) expr
+            expr'@(Expr id) <- resolveExpr state expr
+            newType id =<< resolveType typ
+            return id
+
+        Call pos typ exprs -> do
+            id <- generateId
+            newType id =<< resolveType typ
+            newExpr . Call pos (Type id) =<< mapM (resolveExpr state) exprs
+
+        AST.Int pos n -> newExpr (AST.Int pos n)
+        AST.Bool pos b -> newExpr (AST.Bool pos b)
+        AST.Char pos c -> newExpr (AST.Char pos c)
+        AST.Float pos f -> newExpr (AST.Float pos f)
+        Ident pos symbol -> newExpr . Ident pos =<< look symbol KeyVar
+        Reference pos expr -> newExpr =<< (Reference pos <$> (resolveExpr state) expr)
         Match pos expr pat -> do
             expr' <- (resolveExpr state) expr
             pat' <- resolvePattern pat
-            return (Match pos expr' pat')
-        AST.String pos s -> return (AST.String pos s)
-        AST.Array pos exprs -> AST.Array pos <$> mapM (resolveExpr state) exprs
-
-        Call pos typ exprs -> do
-            typ' <- resolveType typ
-            Call pos typ' <$> mapM (resolveExpr state) exprs
+            newExpr (Match pos expr' pat')
+        AST.String pos s -> newExpr (AST.String pos s)
+        AST.Array pos exprs -> newExpr . AST.Array pos =<< mapM (resolveExpr state) exprs
 
         x -> error (show x)
             

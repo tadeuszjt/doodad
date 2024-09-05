@@ -7,6 +7,7 @@ import Control.Monad.Identity
 
 import AST
 import Monad
+import Type
 
 
 type ID = Int
@@ -17,6 +18,7 @@ data InstBuilderState = InstBuilderState
     { statements    :: Map.Map ID Stmt
     , expressions   :: Map.Map ID Expr
     , patterns      :: Map.Map ID Pattern
+    , types         :: Map.Map ID Type
     , idSupply      :: ID
     , curId         :: ID
     }
@@ -33,6 +35,7 @@ initInstBuilderState = InstBuilderState
     { statements = Map.singleton globalId (Block [])
     , expressions = Map.empty
     , patterns    = Map.empty
+    , types      = Map.empty
     , idSupply   = globalId + 1
     , curId      = globalId
     }
@@ -70,6 +73,12 @@ newStmt stmt = do
     return id
 
 
+newType :: MonadInstBuilder m => ID -> Type -> m ()
+newType id typ = do
+    Nothing <- liftInstBuilderState $ gets $ Map.lookup id . types
+    liftInstBuilderState $ modify $ \s -> s { types = Map.insert id typ (types s) }
+
+
 newExpr :: MonadInstBuilder m => Expr -> m ID
 newExpr expr = do
     id <- generateId
@@ -100,12 +109,14 @@ withCurId id f = do
 
 
 unbuildExpr :: InstBuilderState-> Expr -> DoM () Expr
-unbuildExpr state expression = do
-    expr <- case expression of
-        Expr id -> let Just expr = Map.lookup id (expressions state) in return expr
-        expr    -> return expr
-    case expr of
-        Call pos typ exprs -> Call pos typ <$> mapM (unbuildExpr state) exprs
+unbuildExpr state (Expr id) = do
+    let Just expr = Map.lookup id (expressions state)
+    let mtype     = Map.lookup id (types state)
+
+    expr' <- case expr of
+        Call pos (Type tid) exprs -> do
+            let Just typ = Map.lookup tid (types state)
+            Call pos typ <$> mapM (unbuildExpr state) exprs
         Reference pos expr -> Reference pos <$> unbuildExpr state expr
         Ident pos symbol   -> return expr
         Int pos n          -> return expr
@@ -113,21 +124,26 @@ unbuildExpr state expression = do
         AST.Bool pos b     -> return expr
         AST.Char pos c     -> return expr
         AST.String pos s   -> return expr
-        AExpr t e          -> AExpr t <$> unbuildExpr state e
         x -> error (show x)
+
+    case mtype of
+        Nothing -> return expr'
+        Just typ -> return (AExpr typ expr')
+
 
 
 unbuildPattern :: InstBuilderState-> Pattern -> DoM () Pattern
-unbuildPattern state pattern = do
-    pat <- case pattern of
-        Pattern id -> let Just pat = Map.lookup id (patterns state) in return pat
-        pat    -> return pat
-    case pat of
+unbuildPattern state (Pattern id) = do
+    let Just pat = Map.lookup id (patterns state)
+    let mtype    = Map.lookup id (types state)
+
+    pat' <- case pat of
         PatIdent pos symbol -> return pat
-        PatAnnotated p typ  -> do
-            p' <- unbuildPattern state p
-            return (PatAnnotated p' typ)
         x -> error (show x)
+
+    case mtype of
+        Nothing -> return pat'
+        Just typ -> return (PatAnnotated pat' typ)
 
 
 unbuildInst :: InstBuilderState -> ID -> DoM () Stmt
