@@ -14,7 +14,7 @@ import Type
 
 data TopStmt
     = TopStmt Stmt
-    | TopInst TextPos Generics Type [Param] Bool InstBuilderState
+    | TopInst TextPos Generics Type [Param] Retty InstBuilderState
 
 data AstBuilderState = AstBuilderState
     { topStmts :: [TopStmt]

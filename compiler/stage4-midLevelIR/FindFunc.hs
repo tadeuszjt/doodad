@@ -85,7 +85,7 @@ makeHeaderInstance callType = do
                     unless (typeFullyResolved lower) (error "propagating type vars")
                     makeHeaderInstance lower
 
-        TopInst pos generics implType args isRef inst -> do
+        TopInst pos generics implType args retty inst -> do
             --liftIO $ putStrLn $ "checking aquire: " ++ prettySymbol symbol
             let genericSubs = zip (map TypeDef generics) (map Type [1..])
             let typ = applyType genericSubs implType
@@ -103,11 +103,11 @@ makeHeaderInstance callType = do
                         (Param _ _ _, Apply Type.Slice typ) -> return (ParamIR IR.Slice typ)
                         (RefParam _ _ _, _)                 -> return (ParamIR Ref t)
                         (Param _ _ _, _)                    -> return (ParamIR Value t)
-                    retty' <- case (isRef, retType) of
-                        (False, Apply Type.Slice t) -> return (RettyIR IR.Slice t)
-                        (True,  Apply Type.Slice t) -> return (RettyIR IR.Slice t)
-                        (False, _                 ) -> return (RettyIR IR.Value retType)
-                        (True, _                  ) -> return (RettyIR IR.Ref retType)
+                    retty' <- case (retty, retType) of
+                        (Retty _,    Apply Type.Slice t) -> return (RettyIR IR.Slice t)
+                        (RefRetty _, Apply Type.Slice t) -> return (RettyIR IR.Slice t)
+                        (Retty _, _)                     -> return (RettyIR IR.Value retType)
+                        (RefRetty _, _)                  -> return (RettyIR IR.Ref retType)
 
                     return $ Just $ FuncIrHeader { irFuncSymbol = symbol, irArgs = args', irRetty = retty' }
 
@@ -119,7 +119,7 @@ makeHeaderInstance callType = do
         funcs  -> fail $ "multiple instances for: " ++ show callType
 
 
-makeInstance :: Type -> DoM ASTResolved (Maybe AST.Stmt)
+makeInstance :: Type -> DoM ASTResolved (Maybe TopStmt)
 makeInstance callType = do
     -- In haskell, instances are globally visible, so we do not have to worry about different instances.
     let (TypeDef callSymbol, _) = unfoldType callType
@@ -141,7 +141,7 @@ makeInstance callType = do
                     unless (typeFullyResolved lower) (error "propagating type vars")
                     makeInstance lower
 
-        TopInst pos generics implType args isRef inst -> do
+        TopInst pos generics implType args retty inst -> do
             --liftIO $ putStrLn $ "checking aquire: " ++ prettySymbol symbol
             let genericSubs = zip (map TypeDef generics) (map Type [1..])
             let typ = applyType genericSubs implType
@@ -156,10 +156,11 @@ makeInstance callType = do
 
                     -- args need to be swapped from void
                     let inst' = inst { types = Map.map (applyType subs . applyType genericSubs) (types inst) }
-                    (stmt', _) <- runDoMExcept () (unbuildInst inst' 0)
                     let args'   = zipWith (\t p -> p { paramType = t}) argTypes args 
-                    let retty'  = (if isRef then RefRetty else Retty) retType
-                    return $ Just $ AST.FuncInst pos [] symbol args' retty' stmt'
+                    retty' <- case retty of
+                        Retty _ -> return (Retty retType)
+                        RefRetty _ -> return (RefRetty retType)
+                    return $ Just $ TopInst pos [] callType args' retty' inst'
 
     case results of
         []     -> do

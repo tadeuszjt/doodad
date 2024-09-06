@@ -14,6 +14,8 @@ import Type
 import FindFunc
 import Error
 import IR
+import AstBuilder
+import InstBuilder hiding (ID, appendStmt, generateId)
 import qualified AST as S
 
 
@@ -63,8 +65,10 @@ withCurrentID id f = do
     liftFuncIrState $ modify $ \s -> s { irCurrentId = oldId }
 
 
-makeFuncIR :: S.Stmt -> DoM FuncIRState (FuncIrHeader, FuncIR)
-makeFuncIR (S.FuncInst _ [] symbol args retty stmt) = do
+makeFuncIR :: TopStmt -> DoM FuncIRState (FuncIrHeader, FuncIR)
+makeFuncIR (TopInst _ [] funcType args retty inst) = do
+    let (TypeDef funcSymbol, _) = unfoldType funcType
+
     irParams <- forM args $ \param -> case param of
         S.Param _ symbol (Apply Type.Slice typ) -> do
             id <- generateId
@@ -94,252 +98,277 @@ makeFuncIR (S.FuncInst _ [] symbol args retty stmt) = do
 
     modify $ \s -> s { rettyIr = rettyIr }
 
-    case stmt of
-        S.Block stmts -> mapM_ makeStmt stmts
-        stmt          -> makeStmt stmt
+    let Just (S.Block stmts) = Map.lookup 0 (statements inst)
+    mapM_ (makeStmt inst) stmts
 
     state <- get
     let funcIrHeader = FuncIrHeader
             { irRetty     = rettyIr
             , irArgs      = irParams
-            , irFuncSymbol = symbol
+            , irFuncSymbol = funcSymbol
             }
     return (funcIrHeader, irFunc state)
 
 
 
-makeStmt :: S.Stmt -> DoM FuncIRState ()
-makeStmt statement = withPos statement $ case statement of
-    S.Block stmts -> do
-        id <- appendStmt (Block [])
-        withCurrentID id (mapM_ makeStmt stmts)
+makeStmt :: InstBuilderState -> S.Stmt -> DoM FuncIRState ()
+makeStmt inst (S.Stmt stmtId) = do
+    let Just statement = Map.lookup stmtId (statements inst)
+    case statement of
+        S.Block stmts -> do
+            id <- appendStmt (Block [])
+            withCurrentID id (mapM_ (makeStmt inst) stmts)
 
-    S.EmbedC _ strMap str -> do
-        strMap' <- forM strMap $ \(s, symbol) -> do
-            id' <- look symbol
-            return (s, id')
-        uses <- mapM look (map snd strMap)
-        void $ appendStmt (EmbedC strMap' str)
+        S.EmbedC _ strMap str -> do
+            strMap' <- forM strMap $ \(s, symbol) -> do
+                id' <- look symbol
+                return (s, id')
+            uses <- mapM look (map snd strMap)
+            void $ appendStmt (EmbedC strMap' str)
 
-    S.Let _ (S.PatAnnotated (S.PatIdent _ symbol) typ) (Just expr) Nothing -> do
-        val <- makeVal expr
-        case val of
-            ArgConst _ _ -> define symbol =<< appendSSA typ Value (InitVar $ Just val)
-            ArgID argId -> do
-                resm <- liftFuncIrState $ gets (Map.lookup argId . irStmts)
-                case resm of
-                    Just (SSA (Call _ _)) -> do define symbol argId
-                    _ -> do
-                        (ArgID id) <- copy (ArgID argId)
-                        void $ define symbol id
+        S.Let _ (S.Pattern patId) (Just expr) Nothing -> do
+            let Just (S.PatIdent _ symbol) = Map.lookup patId (patterns inst)
+            let Just typ                   = Map.lookup patId (types inst)
+            val <- (makeVal inst) expr
+            case val of
+                ArgConst _ _ -> define symbol =<< appendSSA typ Value (InitVar $ Just val)
+                ArgID argId -> do
+                    resm <- liftFuncIrState $ gets (Map.lookup argId . irStmts)
+                    case resm of
+                        Just (SSA (Call _ _)) -> do define symbol argId
+                        _ -> do
+                            (ArgID id) <- copy (ArgID argId)
+                            void $ define symbol id
 
 
-    S.Let _ (S.PatAnnotated (S.PatIdent _ symbol) typ) Nothing Nothing -> do
-        define symbol =<< appendSSA typ Value (InitVar Nothing)
+        S.Let _ (S.Pattern patId) Nothing Nothing -> do
+            let Just (S.PatIdent _ symbol) = Map.lookup patId (patterns inst)
+            let Just typ                   = Map.lookup patId (types inst)
+            define symbol =<< appendSSA typ Value (InitVar Nothing)
 
-    S.Assign _ symbol expr -> do
-        case typeof expr of
-            Apply Type.Slice t -> do
-                arg@(ArgID id) <- makeSlice expr
-                define symbol id
-            _ -> do
-                arg <- makeVal expr
-                case arg of
-                    ArgConst typ const -> define symbol =<< appendSSA typ Value (InitVar $ Just arg)
-                    ArgID id -> define symbol id
-                    x -> error (show x)
+        S.Assign _ symbol expr@(S.Expr ei) -> do
+            let Just typeOfExpr = Map.lookup ei (types inst)
+            case typeOfExpr of
+                Apply Type.Slice t -> do
+                    arg@(ArgID id) <- makeSlice inst expr
+                    define symbol id
+                _ -> do
+                    arg <- (makeVal inst) expr
+                    case arg of
+                        ArgConst typ const -> define symbol =<< appendSSA typ Value (InitVar $ Just arg)
+                        ArgID id -> define symbol id
+                        x -> error (show x)
 
-    S.Return _ (Just expr) -> do
-        retty <- gets rettyIr
-        case retty of
-            RettyIR Value (Apply Type.Slice _) -> fail "val to slice"
-            RettyIR Ref   (Apply Type.Slice _) -> fail "ref to slice"
-            RettyIR IR.Slice typ -> void $ appendStmt . Return =<< makeSlice expr
-            RettyIR Ref   typ -> void $ appendStmt . Return . ArgID =<< makeRef expr
-            RettyIR Value typ -> void $ appendStmt . Return =<< makeVal expr
-            x -> error (show x)
+        S.Return _ (Just expr) -> do
+            retty <- gets rettyIr
+            case retty of
+                RettyIR Value (Apply Type.Slice _) -> fail "val to slice"
+                RettyIR Ref   (Apply Type.Slice _) -> fail "ref to slice"
+                RettyIR IR.Slice typ -> void $ appendStmt . Return =<< makeSlice inst expr
+                RettyIR Ref   typ -> void $ appendStmt . Return . ArgID =<< (makeRef inst) expr
+                RettyIR Value typ -> void $ appendStmt . Return =<< (makeVal inst) expr
+                x -> error (show x)
 
-    S.Return _ Nothing     -> void $ appendStmt ReturnVoid
-    S.ExprStmt expr        -> void (makeVal expr)
+        S.Return _ Nothing     -> void $ appendStmt ReturnVoid
+        S.ExprStmt expr        -> void ((makeVal inst) expr)
 
-    S.While _ expr (S.Block stmts) -> do
-        id <- appendStmt $ Loop []
-        withCurrentID id $ do
-            cnd <- makeVal expr
+        S.While _ expr (S.Stmt stmtId) -> do
+            id <- appendStmt $ Loop []
+            withCurrentID id $ do
+                cnd <- (makeVal inst) expr
+
+                trueBlkId <- generateId
+                falseBlkId <- generateId
+                appendStmt (If cnd trueBlkId falseBlkId)
+                addStmt trueBlkId (Block [])
+                addStmt falseBlkId (Block [])
+                withCurrentID falseBlkId $ do
+                    appendStmt Break
+
+                let Just (S.Block stmts) = Map.lookup stmtId (statements inst)
+                mapM_ (makeStmt inst) stmts
+
+
+        S.If _ expr (S.Stmt trueId) mfalse -> do
+            arg <- (makeVal inst) expr
 
             trueBlkId <- generateId
             falseBlkId <- generateId
-            appendStmt (If cnd trueBlkId falseBlkId)
+            appendStmt (If arg trueBlkId falseBlkId)
             addStmt trueBlkId (Block [])
             addStmt falseBlkId (Block [])
-            withCurrentID falseBlkId $ do
-                appendStmt Break
-                
-            mapM_ makeStmt stmts
+
+            let Just (S.Block trueStmts) = Map.lookup trueId (statements inst)
+            withCurrentID trueBlkId (mapM_ (makeStmt inst) trueStmts)
+
+            case mfalse of
+                Nothing -> return ()
+                Just (S.Stmt falseId) -> do
+                    let Just (S.Block falseStmts) = Map.lookup falseId (statements inst)
+                    withCurrentID falseBlkId $ mapM_ (makeStmt inst) falseStmts
+            
+
+        x -> error (show x)
 
 
-    S.If _ expr (S.Block trueStmts) mfalse -> do
-        arg <- makeVal expr
+makeSlice :: InstBuilderState -> S.Expr -> DoM FuncIRState Arg
+makeSlice inst (S.Expr exprId) = do
+    let Just expression = Map.lookup exprId (expressions inst)
+    let Just exprType   = Map.lookup exprId (types inst)
 
-        trueBlkId <- generateId
-        falseBlkId <- generateId
-        appendStmt (If arg trueBlkId falseBlkId)
-        addStmt trueBlkId (Block [])
-        addStmt falseBlkId (Block [])
+    withPos expression $ case expression of
+        S.String _ str -> do
+            let Apply Type.Slice typ = exprType
+            fmap ArgID $ appendSSA typ IR.Slice (MakeString str)
 
-        withCurrentID trueBlkId (mapM_ makeStmt trueStmts)
-        case mfalse of
-            Nothing -> return ()
-            Just (S.Block falseStmts) -> do
-                withCurrentID falseBlkId (mapM_ makeStmt falseStmts)
-        
+        S.Ident _ symbol -> do
+            id <- look symbol
+            (typ, IR.Slice) <- getType (ArgID id)
+            return (ArgID id)
 
-    x -> error (show x)
+        S.Reference _ expr -> makeSlice inst expr
 
-
-makeSlice :: S.Expr -> DoM FuncIRState Arg
-makeSlice (S.AExpr exprType expression) = withPos expression $ case expression of
-    S.String _ str -> do
-        let Apply Type.Slice typ = exprType
-        fmap ArgID $ appendSSA typ IR.Slice (MakeString str)
-
-    S.Ident _ symbol -> do
-        id <- look symbol
-        (typ, IR.Slice) <- getType (ArgID id)
-        return (ArgID id)
-
-    S.Reference _ expr -> makeSlice expr
-
-    S.Array _ exprs -> do
-        let Apply Type.Slice t = exprType
-        fmap ArgID $ appendSSA t IR.Slice . MakeSlice =<< mapM copy =<< mapM makeVal exprs
+        S.Array _ exprs -> do
+            let Apply Type.Slice t = exprType
+            fmap ArgID $ appendSSA t IR.Slice . MakeSlice =<< mapM copy =<< mapM (makeVal inst) exprs
 
 
-    S.Call _ funcType exprs -> do
-        let (TypeDef funcSymbol, _) = unfoldType funcType
-
-        ast <- gets astResolved
-        resm <- fmap fst $ runDoMExcept ast (makeHeaderInstance funcType)
-        irHeader <- case resm of
-            Just x -> return x
-            Nothing -> fail ("no instance for: " ++ show funcType)
-        unless (length exprs == length (irArgs irHeader)) (error "arg length mismatch")
-
-        args <- forM (zip exprs (irArgs irHeader)) $ \(expr, arg) -> do
-            case arg of
-                ParamIR _ (Apply Type.Slice _) -> error "there"
-                ParamIR IR.Slice _ -> makeSlice expr
-                ParamIR Ref _ -> ArgID <$> makeRef expr
-                ParamIR Value argType -> do
-                    if symbolsCouldMatch funcSymbol (Sym ["builtin", "copy"]) then makeVal expr
-                    else copy =<< makeVal expr
-
-        case irRetty irHeader of
-            RettyIR IR.Slice t -> fmap ArgID $ appendSSA t IR.Slice (Call funcType args)
-            x -> error ""
+        S.Call pos (Type funcTypeId) exprs -> do
+            let Just funcType           = Map.lookup funcTypeId (types inst)
+            let (TypeDef funcSymbol, _) = unfoldType funcType
 
 
-    x -> error (show x)
+            ast <- gets astResolved
+            resm <- fmap fst $ runDoMExcept ast (makeHeaderInstance funcType)
+            irHeader <- case resm of
+                Just x -> return x
+                Nothing -> fail ("no instance for: " ++ show funcType)
+            unless (length exprs == length (irArgs irHeader)) (error "arg length mismatch")
+
+            args <- forM (zip exprs (irArgs irHeader)) $ \(expr, arg) -> do
+                case arg of
+                    ParamIR _ (Apply Type.Slice _) -> error "there"
+                    ParamIR IR.Slice _ -> makeSlice inst expr
+                    ParamIR Ref _ -> ArgID <$> (makeRef inst) expr
+                    ParamIR Value argType -> do
+                        if symbolsCouldMatch funcSymbol (Sym ["builtin", "copy"]) then (makeVal inst) expr
+                        else copy =<< (makeVal inst) expr
+
+            case irRetty irHeader of
+                RettyIR IR.Slice t -> fmap ArgID $ appendSSA t IR.Slice (Call funcType args)
+                x -> withPos pos $ fail (show $ irRetty irHeader)
+
+
+        x -> error (show x)
 
 
 -- returns either a Value or a Const ID
-makeVal :: S.Expr -> DoM FuncIRState Arg
-makeVal (S.AExpr exprType expression) = withPos expression $ case expression of
-    S.Bool _ b -> return (ArgConst exprType $ ConstBool b)
-    S.Char _ c -> return (ArgConst exprType $ ConstChar c)
-    S.Int _  n -> return (ArgConst exprType $ ConstInt n)
-    S.Float _ f -> return $ ArgConst exprType (ConstFloat f)
-    S.Reference _ expr -> makeVal expr
+makeVal :: InstBuilderState -> S.Expr -> DoM FuncIRState Arg
+makeVal inst (S.Expr exprId) = do
+    let Just expression = Map.lookup exprId (expressions inst)
+    let Just exprType   = Map.lookup exprId (types inst)
 
-    S.Ident _ symbol -> do
-        id <- look symbol
-        (typ, refType) <- getType (ArgID id)
-        case refType of
-            Value -> return (ArgID id)
-            Ref   -> fmap ArgID $ appendSSA typ Value (MakeValueFromReference (ArgID id))
-            x -> fail "here"
+    withPos expression $ case expression of
+        S.Bool _ b -> return (ArgConst exprType $ ConstBool b)
+        S.Char _ c -> return (ArgConst exprType $ ConstChar c)
+        S.Int _  n -> return (ArgConst exprType $ ConstInt n)
+        S.Float _ f -> return $ ArgConst exprType (ConstFloat f)
+        S.Reference _ expr -> (makeVal inst) expr
 
---    S.Array _ exprs -> do
---        let (Type.Slice, [t]) = unfoldType exprType
---
---        appendSSA (foldType [Array, Size (length exprs), t]) Value (InitVar Nothing)
---        forM_ (zip exprs [0..]) $ \(expr, i) -> do
---            error "here"
---
---        error (show exprType)
+        S.Ident _ symbol -> do
+            id <- look symbol
+            (typ, refType) <- getType (ArgID id)
+            case refType of
+                Value -> return (ArgID id)
+                Ref   -> fmap ArgID $ appendSSA typ Value (MakeValueFromReference (ArgID id))
+                x -> fail "here"
+
+    --    S.Array _ exprs -> do
+    --        let (Type.Slice, [t]) = unfoldType exprType
+    --
+    --        appendSSA (foldType [Array, Size (length exprs), t]) Value (InitVar Nothing)
+    --        forM_ (zip exprs [0..]) $ \(expr, i) -> do
+    --            error "here"
+    --
+    --        error (show exprType)
 
 
 
-    S.Call _ funcType exprs -> do
-        let (TypeDef funcSymbol, _) = unfoldType funcType
+        S.Call _ (Type funcTypeId) exprs -> do
+            let Just funcType           = Map.lookup funcTypeId (types inst)
+            let (TypeDef funcSymbol, _) = unfoldType funcType
 
-        ast <- gets astResolved
-        resm <- fmap fst $ runDoMExcept ast (makeHeaderInstance funcType)
-        irHeader <- case resm of
-            Just x -> return x
-            Nothing -> fail ("no instance for: " ++ show funcType)
-        unless (length exprs == length (irArgs irHeader)) (error "arg length mismatch")
+            ast <- gets astResolved
+            resm <- fmap fst $ runDoMExcept ast (makeHeaderInstance funcType)
+            irHeader <- case resm of
+                Just x -> return x
+                Nothing -> fail ("no instance for: " ++ show funcType)
+            unless (length exprs == length (irArgs irHeader)) (error "arg length mismatch")
 
-        args <- forM (zip exprs (irArgs irHeader)) $ \(expr, arg) -> do
-            case arg of
-                ParamIR _ (Apply Type.Slice _) -> error "there"
+            args <- forM (zip exprs (irArgs irHeader)) $ \(expr, arg) -> do
+                case arg of
+                    ParamIR _ (Apply Type.Slice _) -> error "there"
 
-                ParamIR IR.Slice _ -> makeSlice expr
-                ParamIR Ref _ -> ArgID <$> makeRef expr
-                ParamIR Value argType -> do
-                    if symbolsCouldMatch funcSymbol (Sym ["builtin", "copy"]) then makeVal expr
-                    else copy =<< makeVal expr
+                    ParamIR IR.Slice _ -> makeSlice inst expr
+                    ParamIR Ref _ -> ArgID <$> (makeRef inst) expr
+                    ParamIR Value argType -> do
+                        if symbolsCouldMatch funcSymbol (Sym ["builtin", "copy"]) then (makeVal inst) expr
+                        else copy =<< (makeVal inst) expr
 
-        case irRetty irHeader of
-            RettyIR IR.Slice _ -> fail "slice return"
-            RettyIR _ Void -> fmap ArgID $ appendSSA Void Const (Call funcType args)
-            RettyIR Value typ -> fmap ArgID $ appendSSA typ Value (Call funcType args)
-            RettyIR Ref typ -> do
-                fmap ArgID $ appendSSA typ Value . MakeValueFromReference . ArgID =<<
-                    appendSSA typ Ref (Call funcType args)
+            case irRetty irHeader of
+                RettyIR IR.Slice _ -> fail "slice return"
+                RettyIR _ Void -> fmap ArgID $ appendSSA Void Const (Call funcType args)
+                RettyIR Value typ -> fmap ArgID $ appendSSA typ Value (Call funcType args)
+                RettyIR Ref typ -> do
+                    fmap ArgID $ appendSSA typ Value . MakeValueFromReference . ArgID =<<
+                        appendSSA typ Ref (Call funcType args)
 
-            x -> error (show x)
+                x -> error (show x)
 
-    x -> error (show x)
-makeVal expr = withPos expr $ fail $ "unresolved: " ++ show expr
+        x -> error (show x)
 
 
 -- returns a Ref ID
-makeRef :: S.Expr -> DoM FuncIRState ID
-makeRef (S.AExpr exprType expression) = withPos expression $ case expression of
-    S.Reference _ expr -> makeRef expr
-    S.Ident _ symbol -> do
-        id <- look symbol
-        (typ, refType) <- getType (ArgID id)
-        --TODO these may be different because of lower functions
-        --unless (typ == exprType) (fail $ "type mismatch: " ++ show typ ++ ", " ++ show exprType)
+makeRef :: InstBuilderState -> S.Expr -> DoM FuncIRState ID
+makeRef inst (S.Expr exprId) = do
+    let Just expression = Map.lookup exprId (expressions inst)
+    let Just exprType   = Map.lookup exprId (types inst)
 
-        case refType of
-            Value -> appendSSA typ Ref (MakeReferenceFromValue $ ArgID id)
+    withPos expression $ case expression of
+        S.Reference _ expr -> (makeRef inst) expr
+        S.Ident _ symbol -> do
+            id <- look symbol
+            (typ, refType) <- getType (ArgID id)
+            --TODO these may be different because of lower functions
+            --unless (typ == exprType) (fail $ "type mismatch: " ++ show typ ++ ", " ++ show exprType)
 
-            Ref -> return id
-                
-            x -> error (show x)
+            case refType of
+                Value -> appendSSA typ Ref (MakeReferenceFromValue $ ArgID id)
 
-    S.Call _ funcType exprs -> do
-        ast <- gets astResolved
-        Just irHeader <- fmap fst $ runDoMExcept ast (makeHeaderInstance funcType)
-        unless (length exprs == length (irArgs irHeader)) (error "arg length mismatch")
+                Ref -> return id
+                    
+                x -> error (show x)
 
-        args <- forM (zip exprs (irArgs irHeader)) $ \(expr, arg) -> do
-            case arg of
-                ParamIR IR.Slice _ -> makeSlice expr
-                ParamIR Ref   _ -> ArgID <$> makeRef expr
-                ParamIR Value _ -> makeVal expr
+        S.Call _ (Type funcTypeId) exprs -> do
+            let Just funcType = Map.lookup funcTypeId (types inst)
+            ast <- gets astResolved
+            Just irHeader <- fmap fst $ runDoMExcept ast (makeHeaderInstance funcType)
+            unless (length exprs == length (irArgs irHeader)) (error "arg length mismatch")
 
-        case irRetty irHeader of
-            RettyIR Ref typ -> appendSSA typ Ref (Call funcType args)
-            RettyIR Value typ -> do
-                id <- appendSSA typ Value (Call funcType args)
-                appendSSA typ Ref (MakeReferenceFromValue $ ArgID id)
-            x -> error (show x)
+            args <- forM (zip exprs (irArgs irHeader)) $ \(expr, arg) -> do
+                case arg of
+                    ParamIR IR.Slice _ -> makeSlice inst expr
+                    ParamIR Ref   _ -> ArgID <$> (makeRef inst) expr
+                    ParamIR Value _ -> (makeVal inst) expr
 
-    x -> error (show x)
+            case irRetty irHeader of
+                RettyIR Ref typ -> appendSSA typ Ref (Call funcType args)
+                RettyIR Value typ -> do
+                    id <- appendSSA typ Value (Call funcType args)
+                    appendSSA typ Ref (MakeReferenceFromValue $ ArgID id)
+                x -> error (show x)
+
+        x -> error (show x)
 
 
 copy :: Arg -> DoM FuncIRState Arg

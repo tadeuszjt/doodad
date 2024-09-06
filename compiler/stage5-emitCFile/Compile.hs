@@ -86,8 +86,8 @@ generateFunc funcType = do
     if isInstance then gets $ fst . fromJust . Map.lookup funcType . funcInstance . astResolved
     else do
         ast <- gets astResolved
-        Just funcAst <- fmap fst $ runDoMExcept ast (makeInstance funcType)
-        (funcIrHeader, funcIr') <- fmap fst $ runDoMExcept (IR.initFuncIRState ast) (IR.makeFuncIR funcAst)
+        Just funcInst <- fmap fst $ runDoMExcept ast (makeInstance funcType)
+        (funcIrHeader, funcIr') <- fmap fst $ runDoMExcept (IR.initFuncIRState ast) (IR.makeFuncIR funcInst)
 
         void $ runDoMExcept (IrChecker.initFuncIrCheckerState ast) (IrChecker.funcIrChecker funcIr')
 

@@ -92,26 +92,23 @@ buildTopStatement statement = case statement of
             -- write instance
             let typ = foldType (TypeDef symbol : map TypeDef generics)
             let acq = foldType [TypeDef fieldSymbol, typ, fieldType]
-            addTopStmt . TopInst pos generics acq [RefParam pos (Sym ["x"]) Void] True =<<
+            addTopStmt . TopInst pos generics acq [RefParam pos (Sym ["x"]) Void] (RefRetty Void) =<<
                 buildInst (appendStmt $ Return pos . Just $ field fieldType i (Ident pos $ Sym ["x"]))
 
             let acq2 = foldType [TypeDef fieldSymbol, Apply Table typ, Apply Slice fieldType]
-            addTopStmt . TopInst pos generics acq2 [RefParam pos (Sym ["x"]) Void] False =<<
+            addTopStmt . TopInst pos generics acq2 [RefParam pos (Sym ["x"]) Void] (Retty Void) =<<
                 buildInst (appendStmt $ Return pos . Just $ field (Apply Slice fieldType) i (Ident pos $ Sym ["x"]))
 
     Instance pos generics typ args isRef (Block stmts) -> do
-        addTopStmt . TopInst pos generics typ args isRef =<< buildInst (mapM_ buildStmt stmts)
+        retty <- case isRef of
+            False -> return (Retty Void)
+            True  -> return (RefRetty Void)
+        addTopStmt . TopInst pos generics typ args retty =<< buildInst (mapM_ buildStmt stmts)
 
     FuncInst pos generics symbol args retty (Block stmts) -> do
         addTopStmt $ TopStmt $ Feature pos generics [] symbol (map typeof args) (typeof retty)
-
-        acqIsRef <- case retty of
-            RefRetty _ -> return True
-            Retty _    -> return False
-
         inst' <- buildInst (mapM_ buildStmt stmts)
-        addTopStmt $ TopInst pos generics (foldl Apply (TypeDef symbol) $ map TypeDef generics) args acqIsRef inst'
-
+        addTopStmt $ TopInst pos generics (foldl Apply (TypeDef symbol) $ map TypeDef generics) args retty inst'
 
 
     Enum pos generics symbol cases -> do
@@ -136,7 +133,7 @@ buildTopStatement statement = case statement of
             addTopStmt $ TopStmt $ Feature pos [t] [] name [TypeDef t] Type.Bool
             -- instance{A, B}  field0{0, MyType{A, B}, MyType.0} (a&) -> &
             let acq = foldl Apply (TypeDef name) [sumType]
-            addTopStmt $ TopInst pos generics acq [RefParam pos (Sym ["en"]) Void] False inst'
+            addTopStmt $ TopInst pos generics acq [RefParam pos (Sym ["en"]) Void] (Retty Void) inst'
 
         -- write case0, case1 constructors
         forM_ (zip cases [0..]) $ \( (Sym [str], ts) , i) -> do
@@ -165,7 +162,7 @@ buildTopStatement statement = case statement of
             args <- forM (zip ts [0..]) $ \(t, j) -> return $ Param pos (Sym ["a" ++ show j]) t
             addTopStmt $ TopStmt $ Feature pos generics [] name ts sumType
             let acq = foldl Apply (TypeDef name) (map TypeDef generics)
-            addTopStmt $ TopInst pos generics acq args False inst'
+            addTopStmt $ TopInst pos generics acq args (Retty Void) inst'
 
 
         -- write fromCase0, fromCase1 accessors
@@ -183,7 +180,7 @@ buildTopStatement statement = case statement of
             let acq = foldl Apply (TypeDef name) [Size (fromIntegral i), fieldType, sumType]
             inst' <- buildInst $ appendStmt $ Return pos . Just $
                 field fieldType i (Ident pos $ Sym ["x"])
-            addTopStmt $ TopInst pos generics acq [RefParam pos (Sym ["x"]) Void] True inst'
+            addTopStmt $ TopInst pos generics acq [RefParam pos (Sym ["x"]) Void] (RefRetty Void) inst'
 
     x -> error (show x)
 
