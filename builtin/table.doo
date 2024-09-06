@@ -15,5 +15,14 @@ inst{T} copy{Table{T}} (a)
     return b
 
 
+inst{A, B} builtin::field{0, Slice{A}, Table{Tuple{A, B}}} (table&)
+    return builtin::builtinField{0, Slice{A}, Table{Tuple{A, B}}}(&table)
+inst{A, B} builtin::field{1, Slice{B}, Table{Tuple{A, B}}} (table&)
+    return builtin::builtinField{1, Slice{B}, Table{Tuple{A, B}}}(&table)
 
-
+inst{A, B, C} builtin::field{0, Slice{A}, Table{Tuple{A, B, C}}} (table&)
+    return builtin::builtinField{0, Slice{A}, Table{Tuple{A, B, C}}}(&table)
+inst{A, B, C} builtin::field{1, Slice{B}, Table{Tuple{A, B, C}}} (table&)
+    return builtin::builtinField{1, Slice{B}, Table{Tuple{A, B, C}}}(&table)
+inst{A, B, C} builtin::field{2, Slice{C}, Table{Tuple{A, B, C}}} (table&)
+    return builtin::builtinField{2, Slice{C}, Table{Tuple{A, B, C}}}(&table)

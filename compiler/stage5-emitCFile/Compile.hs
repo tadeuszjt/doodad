@@ -41,6 +41,7 @@ generate = withErrorPrefix "generate: " $ do
             IR.RettyIR IR.Ref t -> cRefTypeOf t
 
         cats <- forM (IR.irArgs header) $ \param -> case param of
+            IR.ParamIR IR.Slice t -> cTypeOf (Apply Type.Slice t)
             IR.ParamIR IR.Value t -> cTypeOf t
             IR.ParamIR IR.Ref t -> cRefTypeOf t
         appendExtern (showSymGlobal $ IR.irFuncSymbol header) crt cats [C.Extern]
@@ -99,9 +100,9 @@ generateFunc funcType = do
             funcIr''' <- fmap (IrConst.funcIr . snd) $ runDoMExcept (IrConst.initFuncIrConstState ast) (IrConst.funcIrConst funcIr'')
             return funcIr'''
 
-        --liftIO $ putStrLn (show n)
-        --liftIO $ putStrLn $ show funcIrHeader
-        --liftIO $ IR.prettyIR "" funcIr'
+        liftIO $ putStrLn (show n)
+        liftIO $ putStrLn $ show funcIrHeader
+        liftIO $ IR.prettyIR "" funcIr'
 
         generatedSymbol <- CGenerate.genSymbol (SymResolved [typeCode funcType])
         --liftIO $ putStrLn $ "generating: " ++ prettySymbol generatedSymbol
@@ -111,19 +112,16 @@ generateFunc funcType = do
             { funcInstance = Map.insert funcType (header', funcIr) (funcInstance $ astResolved s) } }
 
         args <- forM (zip (IR.irArgs funcIrHeader) [1..]) $ \(arg, i) -> case arg of
-            IR.ParamIR IR.Value typ -> do
-                cType <- cTypeOf typ
-                return $ C.Param (idName i) cType
-
-            IR.ParamIR IR.Ref typ -> do
-                cType <- cRefTypeOf typ
-                return $ C.Param (idName i) cType
+            IR.ParamIR IR.Value typ -> C.Param (idName i) <$> cTypeOf typ
+            IR.ParamIR IR.Ref typ   -> C.Param (idName i) <$> cRefTypeOf typ
+            IR.ParamIR IR.Slice typ -> C.Param (idName i) <$> cTypeOf (Apply Type.Slice typ)
 
             x -> error (show x)
 
         cRettyType <- case IR.irRetty funcIrHeader of
             IR.RettyIR IR.Value typ -> cTypeOf typ
             IR.RettyIR IR.Ref   typ -> cRefTypeOf typ
+            IR.RettyIR IR.Slice typ -> cTypeOf (Apply Type.Slice typ)
             x -> error (show x)
 
         appendExtern (showSymGlobal $ generatedSymbol) cRettyType (map C.cType args) []
@@ -201,9 +199,8 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
                 void $ appendAssign cType (idName id) cexpr
 
             IR.MakeString str -> do
-                let Apply Slice Type.Char = ssaTyp
-                let IR.Value = ssaRefTyp
-                cType <- cTypeOf ssaTyp
+                unless (ssaRefTyp == IR.Slice) (error "wasn't a slice")
+                cType <- cTypeOf (Apply Type.Slice ssaTyp)
                 let len = fromIntegral (length str)
                 void $ appendAssign cType (idName id) $ C.Initialiser [C.String str, C.Int len, C.Int len]
 
@@ -403,8 +400,8 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
 
                         let IR.ArgID argId = args !! 0
 
-                        let (argType, IR.Value) = (IR.irTypes funcIr) Map.! argId
-                        Ref refTyp cref <- builtinSliceAt argType carg cidx
+                        let (argType, IR.Slice) = (IR.irTypes funcIr) Map.! argId
+                        Ref refTyp cref <- builtinSliceAt (Apply Type.Slice argType) carg cidx
 
                         case (IR.irTypes funcIr) Map.! id of
                             (_, IR.Ref) -> do
@@ -447,12 +444,10 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
                                         let ptr = C.Cast (Cpointer Cvoid) (C.PMember cexpr "r0")
                                         let row = C.Infix C.Plus ptr $ C.Infix C.Times off $ C.PMember cexpr "cap"
                                         -- setting slice cap to 0 represents non-flat memory
-                                        slice <- assign "slice" $ Value (Apply Slice $ ts !! i) $
+                                        
+                                        cSlice <- cTypeOf (Apply Slice $ ts !! i)
+                                        void $ appendElem $ C.Assign cSlice (idName id) $ 
                                             C.Initialiser [ row, C.PMember cexpr "len", C.Int 0 ]
-
-                                        refExpr <- makeRef slice
-                                        cRefType <- cRefTypeOf (Apply Slice $ ts !! i)
-                                        void $ appendAssign cRefType (idName id) refExpr
 
                             (Tuple, ts) -> do
                                 let IR.Ref = ssaRefTyp
@@ -498,6 +493,9 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
                                 cRefType <- cRefTypeOf typ
                                 void $ appendAssign cRefType (idName id) cCall
 
+                            (typ, IR.Slice) -> do
+                                cType <- cTypeOf (Apply Type.Slice typ)
+                                void $ appendAssign cType (idName id) cCall
 
                             x -> error (show x)
 

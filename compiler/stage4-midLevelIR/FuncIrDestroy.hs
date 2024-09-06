@@ -114,7 +114,7 @@ processStmt funcIr id = let stmt = irStmts funcIr Map.! id in case stmt of
 
 
     Break -> do
-        -- destroy
+        --TODO Bug - need to clean from all block levels created in last loop
         set <- Set.toList <$> gets (head . destroyStack)
         forM_ set $ \idToDestroy -> destroy idToDestroy
         void $ appendStmtWithId id stmt

@@ -70,7 +70,6 @@ builtinArrayAt typ cexpr cidx = do
     fmap (Ref t) $ makeRef $ Value t $ C.Subscript (C.PMember cexpr "arr") cidx
 
 
--- TODO slice may represent non-flat memory when representing table row
 builtinSliceAt :: Type -> C.Expression -> C.Expression -> Generate Value
 builtinSliceAt typ cexpr cidx = do
     Apply Slice t <- baseTypeOf typ

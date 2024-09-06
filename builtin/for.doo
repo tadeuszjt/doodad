@@ -9,8 +9,8 @@ import builtin/arithmetic
 func{T}             forEnd(T) I64
 func{V, T | T -> V} forAt( T, I64 ) V
 
-inst{T} forEnd{ T.Slice } (s&);           return s.len
-inst{X} forAt{ X, X.Slice} (s&, idx) -> &; return s.at(idx)
+inst{T} forEnd{ T.Slice } (s);           return s.len
+inst{T} forAt{ T, T.Slice} (s, idx) -> &; return s.at(idx)
 
 inst forEnd{   Tuple{I64, I64} } (t);           return t.1 - t.0
 inst forAt{    I64, Tuple{I64, I64} } (t, idx); return idx + t.0

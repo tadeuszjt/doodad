@@ -85,6 +85,10 @@ fresh suggestion = do
 
 assign :: String -> Value -> Generate Value
 assign suggestion val = do
+    case unfoldType (typeof val) of
+        (Type.Slice, _) -> fail "cannot assign slice"
+        _ -> return ()
+
     name <- fresh suggestion
     case val of
         Value _ _ -> do
@@ -146,21 +150,12 @@ deref typ expr = do
         _ -> return (C.Deref expr)
     
 
-cParamOf :: S.Param -> Generate C.Param
-cParamOf param = do
-    ctype <- case param of
-        S.Param _ _ _ -> cTypeOf param
-        S.RefParam _ _ _ -> cRefTypeOf param
-    return $ C.Param { C.cName = showSymLocal (paramSymbol param), C.cType = ctype }
-
-
 cRefTypeOf :: Typeof a => a -> Generate C.Type
 cRefTypeOf a = do
     base <- baseTypeOf a -- use base makes conversions simpler
     case unfoldType base of
         (x, []) | isSimple x -> Cpointer <$> cTypeOf base
         (Table, _)           -> Cpointer <$> cTypeOf base
-        (Slice, _)           -> Cpointer <$> cTypeOf base
         (Sum, _)             -> Cpointer <$> cTypeOf base
         (Type.Array, _)      -> Cpointer <$> cTypeOf base
 
@@ -169,7 +164,7 @@ cRefTypeOf a = do
             cst <- return $ Cstruct [C.Param "ptr" pt, C.Param "idx" Csize_t, C.Param "cap" Csize_t]
             getTypedef "WideRef" cst
 
-        x -> error (show x)
+        x -> fail $ "cannot create cRefType of: " ++  (show x)
 
 
 cTypeOf :: (Typeof a) => a -> Generate C.Type

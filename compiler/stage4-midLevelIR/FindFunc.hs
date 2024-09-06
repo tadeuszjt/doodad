@@ -98,14 +98,18 @@ makeHeaderInstance callType = do
                     (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType
                     unless (length argTypes == length args) (error "something else went wrong")
 
-                    args' <- forM (zip args argTypes) $ \(arg, t) -> case arg of
-                        RefParam _ _ _ -> return (ParamIR Ref t)
-                        Param _ _ _    -> return (ParamIR Value t)
-                    return $ Just $ FuncIrHeader
-                        { irFuncSymbol = symbol
-                        , irArgs       = args'
-                        , irRetty      = RettyIR (if isRef then Ref else Value) retType
-                        }
+                    args' <- forM (zip args argTypes) $ \(arg, t) -> case (arg, t) of
+                        (RefParam pos _ _, Apply Type.Slice _)-> withPos pos $ fail "reference to slice"
+                        (Param _ _ _, Apply Type.Slice typ) -> return (ParamIR IR.Slice typ)
+                        (RefParam _ _ _, _)                 -> return (ParamIR Ref t)
+                        (Param _ _ _, _)                    -> return (ParamIR Value t)
+                    retty' <- case (isRef, retType) of
+                        (False, Apply Type.Slice t) -> return (RettyIR IR.Slice t)
+                        (True,  Apply Type.Slice t) -> return (RettyIR IR.Slice t)
+                        (False, _                 ) -> return (RettyIR IR.Value retType)
+                        (True, _                  ) -> return (RettyIR IR.Ref retType)
+
+                    return $ Just $ FuncIrHeader { irFuncSymbol = symbol, irArgs = args', irRetty = retty' }
 
         _ -> return Nothing
 
