@@ -68,33 +68,3 @@ builtinArrayAt :: Type -> C.Expression -> C.Expression -> Generate Value
 builtinArrayAt typ cexpr cidx = do
     (Array, [Size n, t]) <- unfoldType <$> baseTypeOf typ
     fmap (Ref t) $ makeRef $ Value t $ C.Subscript (C.PMember cexpr "arr") cidx
-
-
-builtinSliceAt :: Type -> C.Expression -> C.Expression -> Generate Value
-builtinSliceAt typ cexpr cidx = do
-    Apply Slice t <- baseTypeOf typ
-    base <- baseTypeOf t
-    -- ptr = ptr + (cap ? 0 : sizeof(struct) * idx)
-    -- idx = cap ? idx : 0
-    -- cap = cap ? cap : 1
-    case unfoldType base of
-        (Tuple, ts) -> do 
-            ct <- cTypeOf base
-            let ptr = C.Infix C.Plus (C.Cast (C.Cpointer C.Cvoid) $ C.Member cexpr "ptr") $ C.CndExpr (C.Member cexpr "cap")
-                    (C.Int 0)
-                    (C.Infix C.Times cidx (C.SizeofType ct))
-            let id = C.CndExpr (C.Member cexpr "cap") cidx (C.Int 0)
-            let cap = C.CndExpr (C.Member cexpr "cap") (C.Member cexpr "cap") (C.Int 1)
-            assign "ref" $ Ref t $ C.Initialiser [ptr, id, cap]
-
-        (_, _) -> assign "ref" $ Ref t $ C.Address $ C.Subscript (C.Member cexpr "ptr") cidx
-
-
-
-builtinTableAt :: Type -> C.Expression -> C.Expression -> Generate Value
-builtinTableAt typ cexpr cidx = do
-    Apply Table t <- baseTypeOf typ
-    base <- baseTypeOf t
-    case unfoldType base of
-        (Tuple, ts) -> assign "ref" $ Ref t $ C.Initialiser [C.PMember cexpr "r0", cidx, C.PMember cexpr "cap"]
-        _           -> assign "ref" $ Ref t $ C.Address $ C.Subscript (C.PMember cexpr "r0") cidx

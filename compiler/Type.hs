@@ -126,11 +126,11 @@ mapTypeM f typ = do
 
 
 applyType :: [(Type, Type)] -> Type -> Type
-applyType subs = mapType (f subs)
+applyType subs = mapType (fun subs)
     where
-        f :: [(Type, Type)] -> Type -> Type
-        f []          z = z
-        f ((x, u):xs) z = f xs (if z == x then u else z)
+        fun :: [(Type, Type)] -> Type -> Type
+        fun []          z = z
+        fun ((x, u):xs) z = fun xs (if z == x then u else z)
 
 
 applyTypeM :: MonadFail m => [Symbol] -> [Type] -> Type -> m Type

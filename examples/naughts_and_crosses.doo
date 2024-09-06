@@ -47,7 +47,6 @@ fn winner(board Board) Square
         if row == [cross(), cross(), cross()]
             return cross()
 
-
     // check for vertical lines
     for (0, board[0].len) -> col
         let match = true
@@ -57,7 +56,6 @@ fn winner(board Board) Square
 
         if match && board[0][col] != empty()
             return board[0][col]
-
 
     // check diagonals
     let match = true
@@ -86,9 +84,7 @@ fn getPlayerInput(io &Io) Input
         none() ; return quit()
         some(l); line = l
 
-    let row = 0
-    let col = 0
-    let idx = 0
+    let (row, col, idx) = (0, 0, 0)
 
     if line.read(idx) -> some(n, num)
         row = n

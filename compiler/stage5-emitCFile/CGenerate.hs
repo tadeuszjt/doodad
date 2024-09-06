@@ -83,6 +83,14 @@ fresh suggestion = do
     return $ suggestion ++ show n
 
 
+assignRef :: String -> Type.Type -> C.Expression -> Generate C.Expression
+assignRef suggestion typ expr = do
+    name <- fresh suggestion
+    ctyp <- cRefTypeOf typ
+    appendElem $ C.Assign ctyp name expr
+    return (C.Ident name)
+
+
 assign :: String -> Value -> Generate Value
 assign suggestion val = do
     case unfoldType (typeof val) of

@@ -69,26 +69,16 @@ makeFuncIR :: TopStmt -> DoM FuncIRState (FuncIrHeader, FuncIR)
 makeFuncIR (TopInst _ [] funcType args retty inst) = do
     let (TypeDef funcSymbol, _) = unfoldType funcType
 
-    irParams <- forM args $ \param -> case param of
-        S.Param _ symbol (Apply Type.Slice typ) -> do
-            id <- generateId
-            define symbol id
-            addType id typ IR.Slice
-            return (ParamIR IR.Slice typ)
-        
-        S.Param _ symbol typ -> do
-            id <- generateId
-            define symbol id
-            addType id typ Value
-            return $ ParamIR Value typ
+    irParams <- forM args $ \param -> do
+        (refType, typ, symbol) <- case param of
+            S.Param _ symbol (Apply Type.Slice typ) -> return (IR.Slice, typ, symbol)
+            S.Param _ symbol typ    -> return (Value, typ, symbol)
+            S.RefParam _ symbol typ -> return (Ref, typ, symbol)
 
-        S.RefParam _ symbol typ -> do
-            id <- generateId
-            define symbol id
-            addType id typ Ref
-            return $ ParamIR Ref typ
-
-        x -> error (show x)
+        id <- generateId
+        define symbol id
+        addType id typ refType
+        return (ParamIR refType typ)
 
     rettyIr <- case retty of
         S.Retty (Apply Type.Slice t) -> return (RettyIR IR.Slice t)
@@ -282,17 +272,6 @@ makeVal inst (S.Expr exprId) = do
                 Value -> return (ArgID id)
                 Ref   -> fmap ArgID $ appendSSA typ Value (MakeValueFromReference (ArgID id))
                 x -> fail "here"
-
-    --    S.Array _ exprs -> do
-    --        let (Type.Slice, [t]) = unfoldType exprType
-    --
-    --        appendSSA (foldType [Array, Size (length exprs), t]) Value (InitVar Nothing)
-    --        forM_ (zip exprs [0..]) $ \(expr, i) -> do
-    --            error "here"
-    --
-    --        error (show exprType)
-
-
 
         S.Call _ (Type funcTypeId) exprs -> do
             let Just funcType           = Map.lookup funcTypeId (types inst)
