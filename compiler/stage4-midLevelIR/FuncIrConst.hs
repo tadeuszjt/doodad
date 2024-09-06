@@ -152,7 +152,9 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
         void $ appendStmtWithId id stmt
 
     SSA (MakeValueFromReference _) -> void $ appendStmtWithId id stmt
-    SSA (MakeString str)               -> void $ appendStmtWithId id stmt
+    SSA (MakeString str)           -> void $ appendStmtWithId id stmt
+    SSA (MakeSlice args) -> void $ appendStmtWithId id . SSA . MakeSlice =<< mapM processArg args
+
 
     x -> error (show x)
 

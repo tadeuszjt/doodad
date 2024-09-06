@@ -3,7 +3,7 @@ module builtin
 
 fn{T, G} pretend(a &T) &G; return a.builtinPretend
 
-//fn{T} swap(a &T, b &T); builtinSwap(&a, &b)
+func{T, G | G -> T} makeSlice(Slice{T}) G
 
 // destroy func
 func{T} destroy(T)

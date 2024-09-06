@@ -8,6 +8,7 @@ import builtin/builtin
 import builtin/for
 import builtin/compare
 import builtin/destroy
+import builtin/assert
 
 
 inst{S, T} add{ Array{S, T} } (a, b)
@@ -34,9 +35,26 @@ inst{S, T} destroy{ Array{S, T} } (arr&)
         arr[i].destroy
     
 
-inst{X, S} copy{ Array{S, X} } (a)
+inst{S, T} copy{ Array{S, T} } (a)
     let b
     for (0, a.len) -> i
         b[i] = a[i]
 
     return b
+
+
+inst{S, T} equal{ Array{S, T} } (a, b)
+    for (0, a.len) -> i
+        if a[i] != b[i]
+            return false
+    return true
+
+
+inst{S, T} makeSlice{ T, Array{S, T} } (slice)
+    let arr
+    assert(arr.len == slice.len)
+
+    for (0, slice.len) -> i
+        arr[i] = slice[i]
+
+    return arr

@@ -42,12 +42,10 @@ inst{P} printLn{ P, Board } (p&, board)
 fn winner(board Board) Square
     // check for horizontal lines
     for board -> row
-        let match = true
-        for row -> square
-            if square != row[0]
-                match = false
-        if match && row[0] != empty()
-            return row[0]
+        if row == [naught(), naught(), naught()]
+            return naught()
+        if row == [cross(), cross(), cross()]
+            return cross()
 
 
     // check for vertical lines

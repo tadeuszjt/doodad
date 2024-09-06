@@ -63,6 +63,7 @@ getArgSubject funcIr (ArgID id) = case Map.lookup id (irTypes funcIr) of
     Just (_, Value) -> return (Just id)
     Just (_, IR.Slice) -> case Map.lookup id (irStmts funcIr) of
         Nothing -> return (Just id) -- an arg
+        Just (SSA (MakeSlice _ )) -> return (Just id)
         Just (SSA (MakeString _)) -> return (Just id)
         Just (SSA (Call _ args)) -> do
             results <- fmap catMaybes $ forM args $ \arg -> case arg of
@@ -121,6 +122,8 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
     SSA (MakeReferenceFromValue (ArgID i)) -> return ()
     SSA (MakeValueFromReference _)         -> return ()
     SSA (MakeString str)                   -> return ()
+
+    SSA (MakeSlice args) -> return ()
 
     SSA (Call callType args) -> do
         bases <- fmap catMaybes $ mapM (getArgSubject funcIr) args

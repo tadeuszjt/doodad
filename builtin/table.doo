@@ -15,6 +15,13 @@ inst{T} copy{Table{T}} (a)
     return b
 
 
+inst{T} makeSlice{ T, Table{T} } (slice)
+    let table
+    for (0, slice.len) -> i
+        table.push(slice[i])
+    return table
+
+
 inst{A, B} builtin::field{0, Slice{A}, Table{Tuple{A, B}}} (table&)
     return builtin::builtinField{0, Slice{A}, Table{Tuple{A, B}}}(&table)
 inst{A, B} builtin::field{1, Slice{B}, Table{Tuple{A, B}}} (table&)

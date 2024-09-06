@@ -127,6 +127,7 @@ unbuildExpr state (Expr id) = do
         AST.Bool pos b     -> return expr
         AST.Char pos c     -> return expr
         AST.String pos s   -> return expr
+        AST.Array pos es   -> AST.Array pos <$> mapM (unbuildExpr state) es
         x -> error (show x)
 
     case mtype of

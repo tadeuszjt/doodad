@@ -57,6 +57,7 @@ data Operation
     | MakeReferenceFromValue Arg
     | MakeValueFromReference Arg
     | MakeString String
+    | MakeSlice [Arg]
     deriving (Eq)
 
 instance Show Operation where
@@ -65,6 +66,7 @@ instance Show Operation where
         MakeReferenceFromValue arg -> "&" ++ show arg
         MakeValueFromReference arg -> "*" ++ show arg
         MakeString str            -> show str
+        MakeSlice args -> "[" ++ intercalate ", " (map show args) ++ "]"
         Call callType args -> show callType ++ "(" ++ intercalate ", " (map show args) ++ ")"
         x -> error (show x)
 

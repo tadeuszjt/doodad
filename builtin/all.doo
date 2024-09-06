@@ -11,6 +11,5 @@ export builtin/container
 export builtin/builtin
 export builtin/arithmetic
 export builtin/array
-export builtin/slice
 export builtin/sum
 export builtin/table

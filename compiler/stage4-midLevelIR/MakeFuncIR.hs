@@ -210,6 +210,11 @@ makeSlice (S.AExpr exprType expression) = withPos expression $ case expression o
 
     S.Reference _ expr -> makeSlice expr
 
+    S.Array _ exprs -> do
+        let Apply Type.Slice t = exprType
+        fmap ArgID $ appendSSA t IR.Slice . MakeSlice =<< mapM copy =<< mapM makeVal exprs
+
+
     S.Call _ funcType exprs -> do
         let (TypeDef funcSymbol, _) = unfoldType funcType
 

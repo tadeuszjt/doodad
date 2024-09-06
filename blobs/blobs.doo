@@ -106,14 +106,14 @@ inst rand::uniform{sf::Colour} (rand&, min, max)
 
 
 fn makeQuad(position sf::Vec2f, colour sf::Colour) sf::Quad
-    let quad
-    quad[0] = (position + (-10.0, -10.0), colour, (0.0, 0.0))
-    quad[1] = (position + (10.0, -10.0),  colour, (640.0, 0.0))
-    quad[2] = (position + (10.0, 10.0),   colour, (640.0, 640.0))
-    quad[3] = (position + (-10.0, -10.0), colour, (0.0, 0.0))
-    quad[4] = (position + (10.0, 10.0),   colour, (640.0, 640.0))
-    quad[5] = (position + (-10.0, 10.0),  colour, (0.0, 640.0))
-    return quad
+    return [
+        (position + (-10.0, -10.0), colour, (0.0, 0.0))
+        (position + (10.0, -10.0),  colour, (640.0, 0.0))
+        (position + (10.0, 10.0),   colour, (640.0, 640.0))
+        (position + (-10.0, -10.0), colour, (0.0, 0.0))
+        (position + (10.0, 10.0),   colour, (640.0, 640.0))
+        (position + (-10.0, 10.0),  colour, (0.0, 640.0))
+    ]
 
 
 fn containsBlob(table &Blob.Table, point Vec2) Bool

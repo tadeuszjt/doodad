@@ -95,6 +95,12 @@ funcIrUnused func = do
 
         SSA (MakeString str) -> return ()
 
+        SSA (MakeSlice args) -> do
+            forM_ args $ \arg -> case arg of
+                ArgID i -> addUsed i
+                x -> error (show x)
+
+
         SSA (Call _ args) -> do 
             forM_ args $ \arg -> case arg of
                 ArgConst _ _ -> return ()

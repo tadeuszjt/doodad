@@ -202,6 +202,13 @@ collect retty params state = do
             AST.Char _ _ -> constraint exprType Type.Char
             AST.String _ _ -> constraint exprType (Apply Slice Type.Char)
 
+            AST.Array _ exprs -> do
+                when (length exprs > 0) $ do
+                    constraint exprType (Apply Type.Slice $ typeOfExpr state $ exprs !! 0)
+                    forM_ exprs $ \expr -> do
+                        constraint (typeOfExpr state expr) (typeOfExpr state $ exprs !! 0)
+
+
             Call _ (Type tid) exprs -> do
                 let Just callType = Map.lookup tid (types state)
                 let exprTypes = map (typeOfExpr state) exprs

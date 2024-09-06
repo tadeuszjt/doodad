@@ -189,8 +189,20 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
         
     IR.SSA operation -> let Just (ssaTyp, ssaRefTyp) = Map.lookup id (IR.irTypes funcIr) in
         case operation of
+            IR.MakeSlice args -> do
+                exprs <- mapM generateArg args
+                cType <- C.Carray (length args) <$> cTypeOf ssaTyp
+                name <- fresh "slice"
+                void $ appendAssign cType name $ C.Initialiser exprs
+
+                cSlice <- cTypeOf (Apply Type.Slice ssaTyp)
+                void $ appendAssign cSlice (idName id) $ C.Initialiser
+                    [ C.Ident name
+                    , C.Int (fromIntegral $ length args)
+                    , C.Int 0
+                    ]
+
             IR.InitVar marg -> do
-                let IR.Value = ssaRefTyp
                 cType <- cTypeOf ssaTyp
                 cexpr <- case marg of
                     Nothing -> return (C.Initialiser [C.Int 0])
