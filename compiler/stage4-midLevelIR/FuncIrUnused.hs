@@ -1,5 +1,7 @@
+{-# LANGUAGE FlexibleInstances #-}
 module FuncIrUnused where
 
+import Control.Monad.Identity
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Monad
@@ -7,7 +9,7 @@ import Control.Monad.State
 --import Control.Monad.IO.Class
 import Data.Maybe
 
-import IR
+import IR hiding (withCurrentId)
 import Monad
 import ASTResolved
 import Symbol
@@ -41,19 +43,28 @@ isUsed id = do
     gets $ Set.member id . usedSet
 
 
-liftFuncIr :: DoM FuncIR a -> DoM FuncIrUnusedState a
-liftFuncIr f = do
-    fn <- gets funcIr
-    (a, fn') <- runDoMExcept fn f
-    modify $ \s -> s { funcIr = fn' }
-    return a
+instance MonadFuncIR (DoM FuncIrUnusedState) where
+    liftFuncIrState (StateT s) = do
+        irFunc <- gets funcIr
+        let (a, irFunc') = runIdentity (s irFunc)
+        modify $ \s -> s { funcIr = irFunc' }
+        return a
 
+
+withCurrentId :: ID -> DoM FuncIrUnusedState a -> DoM FuncIrUnusedState a
+withCurrentId id f = do
+    oldId <- liftFuncIrState (gets irCurrentId)
+    liftFuncIrState $ modify $ \s -> s { irCurrentId = id }
+    a <- f
+    liftFuncIrState $ modify $ \s -> s { irCurrentId = oldId }
+    modify $ \s -> s { hasReturned = False }
+    return a
 
 
 funcIrUnused :: FuncIR -> DoM FuncIrUnusedState ()
 funcIrUnused func = do
-    liftFuncIr $ modify $ \s -> s { irTypes = irTypes func }
-    liftFuncIr $ modify $ \s -> s { irIdSupply = irIdSupply func }
+    liftFuncIrState $ modify $ \s -> s { irTypes = irTypes func }
+    liftFuncIrState $ modify $ \s -> s { irIdSupply = irIdSupply func }
 
     forM_ (Map.toList $ irStmts func) $ \(id, stmt) -> case stmt of
         Block _ -> addUsed id
@@ -95,27 +106,17 @@ funcIrUnused func = do
     void $ processStmt func 0
 
 
-withCurrentId :: ID -> DoM FuncIrUnusedState a -> DoM FuncIrUnusedState a
-withCurrentId id f = do
-    oldId <- liftFuncIr (gets irCurrentId)
-    liftFuncIr $ modify $ \s -> s { irCurrentId = id }
-    a <- f
-    liftFuncIr $ modify $ \s -> s { irCurrentId = oldId }
-    modify $ \s -> s { hasReturned = False }
-    return a
-
-
 processStmt :: FuncIR -> ID -> DoM FuncIrUnusedState ()
 processStmt funcIr id = do
     hasReturned <- gets hasReturned
     unless hasReturned $ let stmt = irStmts funcIr Map.! id in case stmt of
         Block ids -> do
-            unless (id == 0) $ liftFuncIr $ appendStmtWithId id (Block [])
+            unless (id == 0) $ appendStmtWithId id (Block [])
             withCurrentId id $ do
                 mapM_ (processStmt funcIr) ids
 
         Loop ids -> do
-            void $ liftFuncIr $ appendStmtWithId id (Loop [])
+            void $ appendStmtWithId id (Loop [])
             withCurrentId id $ do
                 mapM_ (processStmt funcIr) ids
 
@@ -128,9 +129,9 @@ processStmt funcIr id = do
             mapM_ (processStmt funcIr) falseIds
 
         If cnd trueBlkId falseBlkId -> do
-            void $ liftFuncIr $ appendStmtWithId id (If cnd trueBlkId falseBlkId)
-            liftFuncIr $ addStmt trueBlkId (Block [])
-            liftFuncIr $ addStmt falseBlkId (Block [])
+            void $ appendStmtWithId id (If cnd trueBlkId falseBlkId)
+            addStmt trueBlkId (Block [])
+            addStmt falseBlkId (Block [])
 
             let Just (Block trueIds) = Map.lookup trueBlkId (irStmts funcIr)
             let Just (Block falseIds) = Map.lookup falseBlkId (irStmts funcIr)
@@ -139,22 +140,22 @@ processStmt funcIr id = do
 
         Break -> do
             modify $ \s -> s { hasReturned = True }
-            void $ liftFuncIr $ appendStmtWithId id stmt
+            void $ appendStmtWithId id stmt
 
         EmbedC _ _ ->
-            void $ liftFuncIr (appendStmtWithId id stmt)
+            void $ appendStmtWithId id stmt
 
         Return arg -> do
             modify $ \s -> s { hasReturned = True }
-            void $ liftFuncIr (appendStmtWithId id stmt)
+            void $ appendStmtWithId id stmt
 
         ReturnVoid -> do
             modify $ \s -> s { hasReturned = True }
-            void $ liftFuncIr (appendStmtWithId id stmt)
+            void $ appendStmtWithId id stmt
 
         SSA _ -> do
             used <- isUsed id
-            when used $ void $ liftFuncIr (appendStmtWithId id stmt)
+            when used $ void $ appendStmtWithId id stmt
 
         x -> error (show x)
 

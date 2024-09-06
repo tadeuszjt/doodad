@@ -58,12 +58,18 @@ freshSym suggestion = do
 
 
 instance MonadAstBuilder (DoM BuildState) where
-    liftAstBuilderState (StateT s) = DoM $
-        StateT (\a -> pure $ (\(x, b) -> (x, a { astBuilderState = b })) $ runIdentity $ s $ astBuilderState a)
+    liftAstBuilderState (StateT s) = do
+        astState <- gets astBuilderState
+        let (a, astState') = runIdentity (s astState)
+        modify $ \s -> s { astBuilderState = astState' }
+        return a
 
 instance MonadInstBuilder (DoM BuildState) where
-    liftInstBuilderState (StateT s) = DoM $
-        StateT (\a -> pure $ (\(x, b) -> (x, a { instBuilderState = b })) $ runIdentity $ s $ instBuilderState a)
+    liftInstBuilderState (StateT s) = do
+        instState <- gets instBuilderState
+        let (a, instState') = runIdentity (s instState)
+        modify $ \s -> s { instBuilderState = instState' }
+        return a
 
 
 buildInst :: DoM BuildState a -> DoM BuildState InstBuilderState

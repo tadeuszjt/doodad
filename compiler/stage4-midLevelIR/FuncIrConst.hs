@@ -1,5 +1,7 @@
+{-# LANGUAGE FlexibleInstances #-}
 module FuncIrConst where
 
+import Control.Monad.Identity
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Control.Monad
@@ -34,6 +36,14 @@ initFuncIrConstState ast = FuncIrConstState
     }
 
 
+instance MonadFuncIR (DoM FuncIrConstState) where
+    liftFuncIrState (StateT s) = do
+        irFunc <- gets funcIr
+        let (a, irFunc') = runIdentity (s irFunc)
+        modify $ \s -> s { funcIr = irFunc' }
+        return a
+
+
 addConst :: ID -> Arg -> DoM FuncIrConstState ()
 addConst id arg = do
     --liftIO $ putStrLn $ "adding: " ++ show (id, arg)
@@ -55,27 +65,10 @@ removeConst id = do
     modify $ \s -> s { constMap = Map.delete id (constMap s) }
 
 
-liftFuncIr :: DoM FuncIR a -> DoM FuncIrConstState a
-liftFuncIr f = do
-    fn <- gets funcIr
-    (a, fn') <- runDoMExcept fn f
-    modify $ \s -> s { funcIr = fn' }
-    return a
-
-
-withCurrentId :: ID -> DoM FuncIrConstState a -> DoM FuncIrConstState a
-withCurrentId id f = do
-    oldId <- liftFuncIr (gets irCurrentId)
-    liftFuncIr $ modify $ \s -> s { irCurrentId = id }
-    a <- f
-    liftFuncIr $ modify $ \s -> s { irCurrentId = oldId }
-    return a
-
-
 funcIrConst :: FuncIR -> DoM FuncIrConstState FuncIR
 funcIrConst func = do
-    liftFuncIr $ modify $ \s -> s { irTypes = irTypes func }
-    liftFuncIr $ modify $ \s -> s { irIdSupply = irIdSupply func }
+    liftFuncIrState $ modify $ \s -> s { irTypes = irTypes func }
+    liftFuncIrState $ modify $ \s -> s { irIdSupply = irIdSupply func }
     processStmt func 0
     gets funcIr
 
@@ -95,34 +88,34 @@ processArg arg = case arg of
 processStmt :: FuncIR -> ID -> DoM FuncIrConstState ()
 processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case stmt of
     Block ids -> do
-        unless (id == 0) $ void $ liftFuncIr $ appendStmtWithId id (Block [])
+        unless (id == 0) $ void $ appendStmtWithId id (Block [])
         withCurrentId id $ mapM_ (processStmt funcIr) ids
 
     Loop ids -> do
         modify $ \s -> s { constMap = Map.empty } -- TODO
-        void $ liftFuncIr $ appendStmtWithId id (Loop [])
+        void $ appendStmtWithId id (Loop [])
         withCurrentId id $ mapM_ (processStmt funcIr) ids
 
     If arg trueBlkId falseBlkId -> do
         arg' <- processArg arg
-        void $ liftFuncIr $ appendStmtWithId id (If arg' trueBlkId falseBlkId)
-        liftFuncIr $ addStmt trueBlkId (Block [])
-        liftFuncIr $ addStmt falseBlkId (Block [])
+        void $ appendStmtWithId id (If arg' trueBlkId falseBlkId)
+        addStmt trueBlkId (Block [])
+        addStmt falseBlkId (Block [])
         let Just (Block trueIds) = Map.lookup trueBlkId (irStmts funcIr)
         let Just (Block falseIds) = Map.lookup falseBlkId (irStmts funcIr)
         withCurrentId trueBlkId $ mapM_ (processStmt funcIr) trueIds
         withCurrentId falseBlkId $ mapM_ (processStmt funcIr) falseIds
 
-    Break        -> void $ liftFuncIr $ appendStmtWithId id stmt
-    ReturnVoid  -> void $ liftFuncIr $ appendStmtWithId id stmt
+    Break        -> void $ appendStmtWithId id stmt
+    ReturnVoid  -> void $ appendStmtWithId id stmt
 
     EmbedC strMap _ -> do
         mapM_ removeConst (map snd strMap)
-        void $ liftFuncIr (appendStmtWithId id stmt)
+        void $ appendStmtWithId id stmt
 
     Return arg -> do
         arg' <- processArg arg
-        void $ liftFuncIr (appendStmtWithId id $ Return arg')
+        void $ appendStmtWithId id $ Return arg'
 
     SSA (InitVar ma) -> do
         let Just (typ, Value) = Map.lookup id (irTypes funcIr)
@@ -148,18 +141,18 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
                 _ -> return ma
                 x -> error (show x)
 
-        void $ liftFuncIr $ appendStmtWithId id $ SSA (InitVar ma')
+        void $ appendStmtWithId id $ SSA (InitVar ma')
 
     SSA (Call callType args) -> do
         args' <- mapM processArg args
-        void $ liftFuncIr $ appendStmtWithId id (SSA $ Call callType args')
+        void $ appendStmtWithId id (SSA $ Call callType args')
 
     SSA (MakeReferenceFromValue (ArgID i)) -> do
         removeConst i
-        void $ liftFuncIr $ appendStmtWithId id stmt
+        void $ appendStmtWithId id stmt
 
-    SSA (MakeValueFromReference _) -> void $ liftFuncIr $ appendStmtWithId id stmt
-    SSA (MakeString str)               -> void $ liftFuncIr $ appendStmtWithId id stmt
+    SSA (MakeValueFromReference _) -> void $ appendStmtWithId id stmt
+    SSA (MakeString str)               -> void $ appendStmtWithId id stmt
 
     x -> error (show x)
 

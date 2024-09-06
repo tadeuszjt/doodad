@@ -125,75 +125,86 @@ initFuncIr = FuncIR
     , irCurrentId = 0
     }
 
+class (Monad m, MonadFail m) => MonadFuncIR m where
+    liftFuncIrState :: State FuncIR a -> m a
 
 
-generateId :: DoM FuncIR ID
+withCurrentId :: MonadFuncIR m => ID -> m a -> m a
+withCurrentId id f = do
+    oldId <- liftFuncIrState (gets irCurrentId)
+    liftFuncIrState $ modify $ \s -> s { irCurrentId = id }
+    a <- f
+    liftFuncIrState $ modify $ \s -> s { irCurrentId = oldId }
+    return a
+
+
+generateId :: MonadFuncIR m => m ID
 generateId = do
-    id <- gets irIdSupply
-    modify $ \s -> s { irIdSupply = (irIdSupply s) + 1 }
+    id <- liftFuncIrState $ gets irIdSupply
+    liftFuncIrState $ modify $ \s -> s { irIdSupply = (irIdSupply s) + 1 }
     return id
 
 
-addType :: ID -> Type -> RefType -> DoM FuncIR ()
+addType :: MonadFuncIR m => ID -> Type -> RefType -> m ()
 addType id typ refType = do
-    resm <- gets (Map.lookup id . irTypes)
+    resm <- liftFuncIrState $ gets (Map.lookup id . irTypes)
     unless (isNothing resm) (fail $ "id already typed: " ++ show id)
-    modify $ \s -> s { irTypes = Map.insert id (typ, refType) (irTypes s) }
+    liftFuncIrState $ modify $ \s -> s { irTypes = Map.insert id (typ, refType) (irTypes s) }
 
-addTextPos :: ID -> TextPos -> DoM FuncIR ()
+addTextPos :: MonadFuncIR m => ID -> TextPos -> m ()
 addTextPos id pos = do
-    modify $ \s -> s { irTextPos = Map.insert id pos (irTextPos s) }
+    liftFuncIrState $ modify $ \s -> s { irTextPos = Map.insert id pos (irTextPos s) }
 
-addStmt :: ID -> Stmt -> DoM FuncIR ()
+addStmt :: MonadFuncIR m => ID -> Stmt -> m ()
 addStmt id stmt = do
-    resm <- gets $ Map.lookup id . irStmts
+    resm <- liftFuncIrState $ gets $ Map.lookup id . irStmts
     unless (isNothing resm) (fail $ "stmt already added: " ++ show (id, stmt))
-    modify $ \s -> s { irStmts = Map.insert id stmt (irStmts s) }
+    liftFuncIrState $ modify $ \s -> s { irStmts = Map.insert id stmt (irStmts s) }
 
 
 
-getType :: Arg -> DoM FuncIR (Type, RefType)
+getType :: MonadFuncIR m => Arg -> m (Type, RefType)
 getType arg = case arg of
     ArgConst typ _ -> return (typ, Const)
     ArgID id -> do
-        resm <- gets (Map.lookup id . irTypes)
+        resm <- liftFuncIrState $ gets (Map.lookup id . irTypes)
         unless (isJust resm) (fail $ "id isn't typed: " ++ show id)
         return (fromJust resm)
     
 
-appendStmt :: Stmt -> DoM FuncIR ID
+appendStmt :: MonadFuncIR m => Stmt -> m ID
 appendStmt stmt = do
     id <- generateId
 
-    curId <- (gets irCurrentId)
-    curStmt <- gets $ (Map.! curId) . irStmts
+    curId <- liftFuncIrState $ (gets irCurrentId)
+    curStmt <- liftFuncIrState $ gets $ (Map.! curId) . irStmts
     curStmt' <- case curStmt of
         Block xs -> return (Block $ xs ++ [id])
         Loop ids -> return (Loop $ ids ++ [id])
         x -> error (show x)
 
-    modify $ \s -> s { irStmts = Map.insert curId curStmt' (irStmts s) }
+    liftFuncIrState $ modify $ \s -> s { irStmts = Map.insert curId curStmt' (irStmts s) }
     addStmt id stmt
     return id
 
 
-appendSSA :: Type -> RefType -> Operation -> DoM FuncIR ID
+appendSSA :: MonadFuncIR m => Type -> RefType -> Operation -> m ID
 appendSSA typ refType op = do
     id <- appendStmt (SSA op)
     addType id typ refType
     return id
 
 
-appendStmtWithId :: ID -> Stmt -> DoM FuncIR ()
+appendStmtWithId :: MonadFuncIR m => ID -> Stmt -> m ()
 appendStmtWithId id stmt = do
-    curId <- (gets irCurrentId)
-    curStmt <- gets $ (Map.! curId) . irStmts
+    curId <- liftFuncIrState (gets irCurrentId)
+    curStmt <- liftFuncIrState $ gets $ (Map.! curId) . irStmts
     curStmt' <- case curStmt of
         Block xs -> return (Block $ xs ++ [id])
         Loop ids -> return (Loop $ ids ++ [id])
         x -> error (show x)
 
-    modify $ \s -> s { irStmts = Map.insert curId curStmt' (irStmts s) }
+    liftFuncIrState $ modify $ \s -> s { irStmts = Map.insert curId curStmt' (irStmts s) }
     addStmt id stmt
 
 

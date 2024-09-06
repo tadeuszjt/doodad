@@ -40,10 +40,3 @@ initAstBuilderState name imports = AstBuilderState
 addTopStmt :: MonadAstBuilder m => TopStmt -> m ()
 addTopStmt stmt =
     liftAstBuilderState $ modify $ \s -> s { topStmts = (topStmts s) ++ [stmt] }
-
-
-unbuildStmt :: AstBuilderState -> TopStmt -> DoM () Stmt
-unbuildStmt state statement = case statement of
-    TopStmt s -> return s
-    TopInst pos generics typ args retty instState -> do
-        Instance pos generics typ args retty <$> unbuildInst instState 0

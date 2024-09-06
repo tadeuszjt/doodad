@@ -1,6 +1,7 @@
+{-# LANGUAGE FlexibleInstances #-}
 module FuncIrChecker where
 
-
+import Control.Monad.Identity
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Control.Monad
@@ -32,21 +33,12 @@ initFuncIrCheckerState ast = FuncIrCheckerState
     }
 
 
-liftFuncIr :: DoM FuncIR a -> DoM FuncIrCheckerState a
-liftFuncIr f = do
-    fn <- gets funcIr
-    (a, fn') <- runDoMExcept fn f
-    modify $ \s -> s { funcIr = fn' }
-    return a
-
-
-withCurrentId :: ID -> DoM FuncIrCheckerState a -> DoM FuncIrCheckerState a
-withCurrentId id f = do
-    oldId <- liftFuncIr (gets irCurrentId)
-    liftFuncIr $ modify $ \s -> s { irCurrentId = id }
-    a <- f
-    liftFuncIr $ modify $ \s -> s { irCurrentId = oldId }
-    return a
+instance MonadFuncIR (DoM FuncIrCheckerState) where
+    liftFuncIrState (StateT s) = do
+        irFunc <- gets funcIr
+        let (a, irFunc') = runIdentity (s irFunc)
+        modify $ \s -> s { funcIr = irFunc' }
+        return a
 
 
 funcIrChecker :: FuncIR -> DoM FuncIrCheckerState ()

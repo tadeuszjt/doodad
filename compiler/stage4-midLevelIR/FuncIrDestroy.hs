@@ -1,5 +1,7 @@
+{-# LANGUAGE FlexibleInstances #-}
 module FuncIrDestroy where
 
+import Control.Monad.Identity
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Monad
@@ -30,14 +32,12 @@ initFuncIrDestroyState ast = FuncIrDestroyState
     , astResolved  = ast
     }
 
-
-liftFuncIr :: DoM FuncIR a -> DoM FuncIrDestroyState a
-liftFuncIr f = do
-    fn <- gets funcIr
-    (a, fn') <- runDoMExcept fn f
-    modify $ \s -> s { funcIr = fn' }
-    return a
-
+instance MonadFuncIR (DoM FuncIrDestroyState) where
+    liftFuncIrState (StateT s) = do
+        irFunc <- gets funcIr
+        let (a, irFunc') = runIdentity (s irFunc)
+        modify $ \s -> s { funcIr = irFunc' }
+        return a
 
 pushStack :: DoM FuncIrDestroyState ()
 pushStack = do
@@ -57,27 +57,18 @@ addDestroy id = do
 addFuncDestroy :: FuncIR -> DoM FuncIrDestroyState ()
 addFuncDestroy func = do
     -- copy types from old map
-    liftFuncIr $ modify $ \s -> s { irTypes = irTypes func }
+    liftFuncIrState $ modify $ \s -> s { irTypes = irTypes func }
 
     -- generate new ids from here
-    liftFuncIr $ modify $ \s -> s { irIdSupply = irIdSupply func }
+    liftFuncIrState $ modify $ \s -> s { irIdSupply = irIdSupply func }
 
     processStmt func 0
-
-
-withCurrentId :: ID -> DoM FuncIrDestroyState a -> DoM FuncIrDestroyState a
-withCurrentId id f = do
-    oldId <- liftFuncIr (gets irCurrentId)
-    liftFuncIr $ modify $ \s -> s { irCurrentId = id }
-    a <- f
-    liftFuncIr $ modify $ \s -> s { irCurrentId = oldId }
-    return a
 
 
 processStmt :: FuncIR -> ID -> DoM FuncIrDestroyState ()
 processStmt funcIr id = let stmt = irStmts funcIr Map.! id in case stmt of
     Block ids -> do
-        unless (id == 0) $ void $ liftFuncIr $ appendStmtWithId id (Block [])
+        unless (id == 0) $ void $ appendStmtWithId id (Block [])
         withCurrentId id $ do
             pushStack
             mapM_ (processStmt funcIr) ids
@@ -88,7 +79,7 @@ processStmt funcIr id = let stmt = irStmts funcIr Map.! id in case stmt of
             popStack
 
     Loop ids -> do
-        void $ liftFuncIr $ appendStmtWithId id (Loop [])
+        void $ appendStmtWithId id (Loop [])
         withCurrentId id $ do
             pushStack
             mapM_ (processStmt funcIr) ids
@@ -99,9 +90,9 @@ processStmt funcIr id = let stmt = irStmts funcIr Map.! id in case stmt of
             popStack
 
     If cnd trueBlkId falseBlkId -> do
-        void $ liftFuncIr $ appendStmtWithId id (If cnd trueBlkId falseBlkId)
-        liftFuncIr $ addStmt trueBlkId (Block [])
-        liftFuncIr $ addStmt falseBlkId (Block [])
+        void $ appendStmtWithId id (If cnd trueBlkId falseBlkId)
+        addStmt trueBlkId (Block [])
+        addStmt falseBlkId (Block [])
 
         withCurrentId trueBlkId $ do
             let Block ids = irStmts funcIr Map.! trueBlkId
@@ -126,11 +117,11 @@ processStmt funcIr id = let stmt = irStmts funcIr Map.! id in case stmt of
         -- destroy
         set <- Set.toList <$> gets (head . destroyStack)
         forM_ set $ \idToDestroy -> destroy idToDestroy
-        void $ liftFuncIr $ appendStmtWithId id stmt
+        void $ appendStmtWithId id stmt
 
 
     EmbedC _ _ ->
-        void $ liftFuncIr (appendStmtWithId id stmt)
+        void $ appendStmtWithId id stmt
 
     Return arg -> do
         allSet <- gets $ Set.unions . destroyStack
@@ -140,25 +131,25 @@ processStmt funcIr id = let stmt = irStmts funcIr Map.! id in case stmt of
             x -> error (show x)
 
         mapM_ destroy allSet'
-        void $ liftFuncIr (appendStmtWithId id stmt)
+        void $ appendStmtWithId id stmt
 
     ReturnVoid -> do
         allSet <- gets $ concat . (map Set.toList) . destroyStack
         forM_ allSet $ \idToDestroy -> destroy idToDestroy
-        void $ liftFuncIr (appendStmtWithId id stmt)
+        void $ appendStmtWithId id stmt
 
     SSA (InitVar _) -> do
         addDestroy id
-        void $ liftFuncIr (appendStmtWithId id stmt)
+        void $ appendStmtWithId id stmt
 
-    SSA _ -> void $ liftFuncIr (appendStmtWithId id stmt)
+    SSA _ -> void $ appendStmtWithId id stmt
 
     x -> error (show x)
 
 
 destroy :: ID -> DoM FuncIrDestroyState ()
 destroy id = do
-    (typ, refType) <- liftFuncIr $ getType (ArgID id)
+    (typ, refType) <- getType (ArgID id)
 
     -- get destroy symbol
     ast <- gets astResolved
@@ -174,7 +165,7 @@ destroy id = do
         Nothing -> fail ("no destroy instance for: " ++ show typ)
         Just irHeader -> return (irArgs irHeader)
 
-    id1 <- liftFuncIr $ appendSSA typ Ref (MakeReferenceFromValue $ ArgID id)
-    void $ liftFuncIr $ appendSSA Void Const $
+    id1 <- appendSSA typ Ref (MakeReferenceFromValue $ ArgID id)
+    void $ appendSSA Void Const $
         Call (Apply (TypeDef destroySymbol) typ) [ArgID id1]
 
