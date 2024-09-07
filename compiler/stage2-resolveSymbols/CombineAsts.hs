@@ -50,14 +50,11 @@ combineAsts astBuildState supply imports = fmap snd $
                 modify $ \s -> s { typeDefsTop = Set.insert symbol (typeDefsTop s) }
                 modify $ \s -> s { typeDefsAll = Map.insert symbol (generics, typ) (typeDefsAll s) }
 
-            TopStmt stmt@(Feature _ generics _ symbol@(SymResolved _) args retty) -> do
+            TopStmt stmt@(Function _ generics _ symbol@(SymResolved _) funcType) -> do
                 modify $ \s -> s { featuresTop = Set.insert symbol (featuresTop s) }
                 modify $ \s -> s { typeDefsTop = Set.insert symbol (typeDefsTop s) }
                 modify $ \s -> s { featuresAll = Map.insert symbol stmt (featuresAll s) }
-                modify $ \s -> s { typeDefsAll = Map.insert
-                    symbol
-                    (generics, foldl Apply Type.Func (retty : args))
-                    (typeDefsAll s) }
+                modify $ \s -> s { typeDefsAll = Map.insert symbol (generics, funcType) (typeDefsAll s) }
 
             TopStmt (Derives pos generics typ features) -> do
                 forM_ features $ \feature -> do

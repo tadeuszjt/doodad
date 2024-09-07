@@ -170,10 +170,10 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
                     define symbol' KeyType symbol' False
                     return $ TopStmt (Typedef pos generics symbol' typ)
 
-                TopStmt (Feature pos generics funDeps symbol args retty) -> do
+                TopStmt (Function pos generics funDeps symbol funcType) -> do
                     symbol' <- genSymbol (SymResolved $ symStr symbol)
                     define symbol' KeyType symbol' False
-                    return $ TopStmt (Feature pos generics funDeps symbol' args retty)
+                    return $ TopStmt (Function pos generics funDeps symbol' funcType)
 
                 _ -> return stmt
 
@@ -220,6 +220,8 @@ resolveType typ = case typ of
         Sym ["Sum"]   -> return Sum
         Sym ["Tuple"] -> return Tuple
         Sym ["Slice"] -> return Slice
+        Sym ["Void"]  -> return Void
+        Sym ["Func"]  -> return Type.Func
         _             -> TypeDef <$> look s KeyType
 
     Apply t1 t2 -> do
@@ -232,7 +234,7 @@ resolveType typ = case typ of
 
 resolveTopStmt :: TopStmt -> DoM ResolveState TopStmt
 resolveTopStmt statement = case statement of
-    TopStmt (Feature pos generics funDeps symbol args retty) -> do
+    TopStmt (Function pos generics funDeps symbol funcType) -> do
         unless (symbolIsResolved symbol) (fail "feature symbol wasn't resolved")
         pushSymbolTable
         generics' <- defineGenerics generics
@@ -240,10 +242,9 @@ resolveTopStmt statement = case statement of
             let [a'] = filter (symbolsCouldMatch a) generics'
             let [b'] = filter (symbolsCouldMatch b) generics'
             return (a', b')
-        args' <- mapM resolveType args
-        retty' <- resolveType retty
+        funcType' <- resolveType funcType
         popSymbolTable
-        return $ TopStmt (Feature pos generics' funDeps' symbol args' retty')
+        return $ TopStmt (Function pos generics' funDeps' symbol funcType')
 
 
     TopInst pos generics typ args isRef instState -> do

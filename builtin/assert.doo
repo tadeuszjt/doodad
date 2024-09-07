@@ -1,5 +1,7 @@
 module assert
 
+import builtin/builtin
+
 
 fn assert(cnd Bool)
     ${ if (!$cnd) { abort(); } }

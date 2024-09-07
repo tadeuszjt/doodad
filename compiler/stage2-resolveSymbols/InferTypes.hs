@@ -108,7 +108,7 @@ collectCall exprType exprTypes callType = do
     -- functional dependencies. If the independent variables fully describe the call type,
     -- it can be said that no other overlapping definition could conflict with it so we can
     -- type check.
-    let Feature _ featureGenerics funDeps _ _ _ = features Map.! funcSymbol
+    let Function _ featureGenerics funDeps _ _ = features Map.! funcSymbol
     unless (length callTypeArgs == length featureGenerics) (error "xs needs to be > 0")
     indices <- fmap catMaybes $ forM (zip featureGenerics [0..]) $ \(g, i) -> do
         case findIndex (g ==) (map snd funDeps) of

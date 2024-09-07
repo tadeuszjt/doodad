@@ -159,6 +159,7 @@ derivesDef : derives generics type_ '(' callTypes1 ')'
 
 
 funcGenerics : '{' Idents1 funDeps '}'  { (map (\s -> Symbol.Sym [s]) $2, $3) }
+             | {-empty-}                { ([], []) }
 
 funDeps : {-empty-}    { [] }
         | '|' funDeps1 { $2 }
@@ -168,11 +169,15 @@ funDeps1 : funDep              { [$1] }
          | funDep ',' funDeps1 { $1:$3 }
 
 funcDef : func funcGenerics ident '(' types ')' typeMaybe
-            { Feature (tokPos $1) (fst $2) (snd $2) (Sym [tokStr $3]) $5 (case $7 of Nothing -> Void; Just x -> x) }
+            { Function (tokPos $1) (fst $2) (snd $2) (Sym [tokStr $3]) $ foldType (Type.Func: (case $7 of Nothing -> Void; Just x -> x): $5) }
+        | func funcGenerics ident '::' callType
+            { Function (tokPos $1) (fst $2) (snd $2) (Sym [tokStr $3]) $5 }
+        | func funcGenerics ident '::' type_
+            { Function (tokPos $1) (fst $2) (snd $2) (Sym [tokStr $3]) $5 }
 
 
-instDef : inst generics symbol '{' types '}' '(' args ')' instRetty scope
-            { Instance (tokPos $1) $2 (foldl Apply (TypeDef $ snd $3) $5) $8 $10 $11 }
+instDef : inst generics callType '(' args ')' instRetty scope
+            { Instance (tokPos $1) $2 $3 $5 $7 $8 }
 
 
 instRetty : {-empty-}  { False }

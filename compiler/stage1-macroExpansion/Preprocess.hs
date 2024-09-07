@@ -24,7 +24,7 @@ preprocess ast = do
         preprocess' = do
             --stmts' <- mapM (mapStmtM preprocessMapper) (astStmts ast)
             forM_ (astStmts ast) $ \stmt -> case stmt of
-                    Feature _ _ _ _ _ _ -> addTopStmt (TopStmt stmt)
+                    Function _ _ _ _ _ -> addTopStmt (TopStmt stmt)
                     Derives _ _ _ _     -> addTopStmt (TopStmt stmt)
                     Typedef _ _ _ _     -> addTopStmt (TopStmt stmt)
                     x                   -> buildTopStatement x
@@ -87,7 +87,7 @@ buildTopStatement statement = case statement of
             -- write field feature
             let a = Sym ["A"]
             let b = Sym ["B"]
-            addTopStmt $ TopStmt $ Feature pos [a, b] [(a, b)] fieldSymbol [TypeDef a] (TypeDef b)
+            addTopStmt $ TopStmt $ Function pos [a, b] [(a, b)] fieldSymbol $ foldType [Type.Func, TypeDef b, TypeDef a]
 
             -- write instance
             let typ = foldType (TypeDef symbol : map TypeDef generics)
@@ -106,7 +106,7 @@ buildTopStatement statement = case statement of
         addTopStmt . TopInst pos generics typ args retty =<< buildInst (mapM_ buildStmt stmts)
 
     FuncInst pos generics symbol args retty (Block stmts) -> do
-        addTopStmt $ TopStmt $ Feature pos generics [] symbol (map typeof args) (typeof retty)
+        addTopStmt $ TopStmt $ Function pos generics [] symbol $ foldType (Type.Func : typeof retty : map typeof args)
         inst' <- buildInst (mapM_ buildStmt stmts)
         addTopStmt $ TopInst pos generics (foldl Apply (TypeDef symbol) $ map TypeDef generics) args retty inst'
 
@@ -130,7 +130,7 @@ buildTopStatement statement = case statement of
 
             -- feature{N, T, G} field0(A) B
             let (t) = (Sym ["T"])
-            addTopStmt $ TopStmt $ Feature pos [t] [] name [TypeDef t] Type.Bool
+            addTopStmt $ TopStmt $ Function pos [t] [] name $ foldType [Type.Func, Type.Bool, TypeDef t]
             -- instance{A, B}  field0{0, MyType{A, B}, MyType.0} (a&) -> &
             let acq = foldl Apply (TypeDef name) [sumType]
             addTopStmt $ TopInst pos generics acq [RefParam pos (Sym ["en"]) Void] (Retty Void) inst'
@@ -160,7 +160,7 @@ buildTopStatement statement = case statement of
                 appendStmt $ Return pos $ Just (Ident pos $ Sym ["en"])
 
             args <- forM (zip ts [0..]) $ \(t, j) -> return $ Param pos (Sym ["a" ++ show j]) t
-            addTopStmt $ TopStmt $ Feature pos generics [] name ts sumType
+            addTopStmt $ TopStmt $ Function pos generics [] name $ foldType (Type.Func: sumType :ts)
             let acq = foldl Apply (TypeDef name) (map TypeDef generics)
             addTopStmt $ TopInst pos generics acq args (Retty Void) inst'
 
@@ -174,7 +174,7 @@ buildTopStatement statement = case statement of
 
             -- feature{N, T, G} field0(A) B
             let (n, t, g) = (Sym ["N"], Sym ["T"], Sym ["G"])
-            addTopStmt $ TopStmt $ Feature pos [n, g, t] [(n, g), (t, n)] name [TypeDef t] (TypeDef g)
+            addTopStmt $ TopStmt $ Function pos [n, g, t] [(n, g), (t, n)] name (foldType [Type.Func, TypeDef g, TypeDef t])
 
             -- instance{A, B}  field0{0, MyType{A, B}, MyType.0} (a&) -> &
             let acq = foldl Apply (TypeDef name) [Size (fromIntegral i), fieldType, sumType]

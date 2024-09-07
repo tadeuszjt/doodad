@@ -100,8 +100,8 @@ data Stmt
     | Block       [Stmt]
     | If          TextPos Expr Stmt (Maybe Stmt)
     | While       TextPos Expr Stmt
-    | FuncInst     TextPos Generics Symbol [Param] Retty Stmt
-    | Feature     TextPos Generics FunDeps Symbol [Type] Type
+    | FuncInst    TextPos Generics Symbol [Param] Retty Stmt
+    | Function    TextPos Generics FunDeps Symbol Type
     | Instance    TextPos Generics Type [Param] Bool Stmt
     | Typedef     TextPos Generics Symbol Type
     | Switch      TextPos Expr [(Pattern, Stmt)]
@@ -155,7 +155,7 @@ instance TextPosition Stmt where
         Switch      p _ _ -> p
         For         p _ _ _ -> p
         EmbedC      p _ _ -> p
-        Feature     p _ _ _ _ _ -> p
+        Function     p _ _ _ _ -> p
         Enum        p _ _ _ -> p
         MacroTuple  p _ _ _ -> p
         Assign      p _ _ -> p
@@ -251,7 +251,7 @@ prettyStmt pre stmt = case stmt of
             ++ show funcRetty
         prettyStmt pre blk
 
-    Feature pos generics funDeps symbol args typ  -> do
+    Function pos generics funDeps symbol funcType  -> do
         let funDepsStr = case funDeps of
                 [] -> ""
                 xs -> " | " ++ intercalate ", " (map (\(a, b) -> show a ++ "->" ++ show b) funDeps)
@@ -259,13 +259,7 @@ prettyStmt pre stmt = case stmt of
                 [] -> "" 
                 xs -> brcStrs [intercalate ", " (map prettySymbol xs), funDepsStr]
         putStrLn ""
-        putStrLn $ pre
-            ++ "feature"
-            ++ genericsStr
-            ++ " "
-            ++ prettySymbol symbol
-            ++ tupStrs (map show args)
-            ++ " " ++ show typ
+        putStrLn $ pre ++ "func" ++ genericsStr ++ " " ++ prettySymbol symbol ++ " " ++ show funcType
 
     Let pos pat mexpr mblk -> do
         exprStr <- case mexpr of
