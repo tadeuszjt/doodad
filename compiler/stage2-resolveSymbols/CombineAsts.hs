@@ -87,7 +87,7 @@ combineAsts astBuildState supply imports = fmap snd $
 
 
         forM_ symbols $ \(featureSymbol, symbol, instState) -> do
-            (TopInst a b acqTyp params e _) <- gets $ (Map.! symbol) . (Map.! featureSymbol) . instancesAll
+            (TopInst pos b acqTyp params e _) <- gets $ (Map.! symbol) . (Map.! featureSymbol) . instancesAll
 
             types' <- forM (types instState) $ \typ -> case unfoldType typ of
                 (TypeDef symbol, []) | isFuncSymbol symbol -> do
@@ -99,14 +99,15 @@ combineAsts astBuildState supply imports = fmap snd $
 
             (Type.Func, retty : argTypes) <- unfoldType <$> baseTypeOf acqTyp
 
-            unless (length argTypes == length params) (error "arg lenght mismatch")
+            unless (length argTypes == length params) $ withPos pos $
+                fail "invalid number of instance arguments"
             params' <- forM (zip params argTypes) $ \(param, argType) -> case param of
                 Param pos symbol typ -> return (Param pos symbol argType)
                 RefParam pos symbol typ -> return (RefParam pos symbol argType)
 
             inst'' <- infer params' retty inst'
 
-            let stmt = TopInst a b acqTyp params e inst''
+            let stmt = TopInst pos b acqTyp params e inst''
 
             existing <- gets $ (Map.! featureSymbol) . instancesAll
             modify $ \s -> s { instancesAll = Map.insert featureSymbol (Map.insert symbol stmt existing) (instancesAll s) }

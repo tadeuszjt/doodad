@@ -102,7 +102,7 @@ fn getPlayerInput(io &Io) Input
 
 
 
-func{R, A} ioFunc(Io, A) R
+func{R} ioFunc :: Func{R, Io}
 
 
 func cpuMove :: ioFunc{Void, Board}

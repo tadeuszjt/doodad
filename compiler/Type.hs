@@ -135,9 +135,10 @@ applyType subs = mapType (fun subs)
 
 applyTypeM :: MonadFail m => [Symbol] -> [Type] -> Type -> m Type
 applyTypeM argSymbols argTypes typ = do
-    unless (length argSymbols == length argTypes) (fail $ "invalid arguments: " ++ show typ)
     let subs = zip (map TypeDef argSymbols) argTypes
-    return (applyType subs typ)
+    let (x, xs) = unfoldType (applyType subs typ)
+    unless (length argSymbols <= length argTypes) (fail "invalid type arguments")
+    return $ foldType $ (x : xs) ++ drop (length argSymbols) argTypes
 
 
 baseTypeOf :: (MonadFail m, TypeDefs m, Typeof a) => a -> m Type
@@ -154,7 +155,7 @@ baseTypeOfm a = case unfoldType (typeof a) of
 
     (TypeDef s, ts) -> do
         resm <- Map.lookup s <$> getTypeDefs
-        (ss, t) <- case resm of
+        (ss, t) <- case resm of -- [R], Func{R, Io}
             Nothing -> error $ prettySymbol s ++ " isn't in typeDefs"
             Just x -> return x
         baseTypeOfm =<< applyTypeM ss ts t
