@@ -107,7 +107,6 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
         withCurrentId falseBlkId $ mapM_ (processStmt funcIr) falseIds
 
     Break        -> void $ appendStmtWithId id stmt
-    ReturnVoid  -> void $ appendStmtWithId id stmt
 
     EmbedC strMap _ -> do
         mapM_ removeConst (map snd strMap)

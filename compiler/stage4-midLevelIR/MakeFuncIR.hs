@@ -31,7 +31,7 @@ initFuncIRState ast = FuncIRState
     { symbolTable = Map.empty
     , irFunc = initFuncIr
     , astResolved = ast
-    , rettyIr = RettyIR Const Void
+    , rettyIr = RettyIR Value Tuple
     }
 
 
@@ -159,7 +159,7 @@ makeStmt inst (S.Stmt stmtId) = do
                 RettyIR Value typ -> void $ appendStmt . Return =<< (makeVal inst) expr
                 x -> error (show x)
 
-        S.Return _ Nothing     -> void $ appendStmt ReturnVoid
+        S.Return _ Nothing     -> void $ appendStmt $ Return (ArgConst Tuple (ConstTuple []))-- void $ appendStmt ReturnVoid
         S.ExprStmt expr        -> void ((makeVal inst) expr)
 
         S.While _ expr (S.Stmt stmtId) -> do
@@ -296,7 +296,7 @@ makeVal inst (S.Expr exprId) = do
 
             case irRetty irHeader of
                 RettyIR IR.Slice _ -> fail "slice return"
-                RettyIR _ Void -> fmap ArgID $ appendSSA Void Const (Call funcType args)
+                --RettyIR _ Tuple -> fmap ArgID $ appendSSA Tuple Const (Call funcType args)
                 RettyIR Value typ -> fmap ArgID $ appendSSA typ Value (Call funcType args)
                 RettyIR Ref typ -> do
                     fmap ArgID $ appendSSA typ Value . MakeValueFromReference . ArgID =<<

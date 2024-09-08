@@ -99,9 +99,9 @@ generateFunc funcType = do
             funcIr''' <- fmap (IrConst.funcIr . snd) $ runDoMExcept (IrConst.initFuncIrConstState ast) (IrConst.funcIrConst funcIr'')
             return funcIr'''
 
-        --liftIO $ putStrLn (show n)
-        --liftIO $ putStrLn $ show funcIrHeader
-        --liftIO $ IR.prettyIR "" funcIr'
+        liftIO $ putStrLn (show n)
+        liftIO $ putStrLn $ show funcIrHeader
+        liftIO $ IR.prettyIR "" funcIr'
 
         generatedSymbol <- CGenerate.genSymbol (SymResolved [typeCode funcType])
         --liftIO $ putStrLn $ "generating: " ++ prettySymbol generatedSymbol
@@ -162,6 +162,7 @@ generateArg (IR.ArgConst typ const) = case const of
     IR.ConstInt  n -> return (C.Int n)
     IR.ConstString s -> return (C.String s)
     IR.ConstFloat f  -> return (C.Float f)
+    IR.ConstTuple [] -> return (C.Int 0)
     x -> error (show x)
 
 
@@ -173,7 +174,6 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
     IR.Block ids -> mapM_ (generateStmt funcIr) ids
     IR.EmbedC strMap str  -> void $ appendElem . C.Embed =<< processCEmbed strMap str
     IR.Return arg -> void $ appendElem . C.Return =<< generateArg arg
-    IR.ReturnVoid -> void $ appendElem C.ReturnVoid
 
     IR.Loop ids -> do
         forId <- appendElem $ C.For Nothing Nothing Nothing []
@@ -516,7 +516,7 @@ generateCall funcIr id = do
             let cCall = C.Call (showSymGlobal $ IR.irFuncSymbol header) cArgs
 
             case (IR.irTypes funcIr) Map.! id of
-                (Void, IR.Const) -> void $ appendElem (C.ExprStmt cCall)
+                --(Tuple, IR.Const) -> void $ appendElem (C.ExprStmt cCall)
                 (typ, IR.Value) -> do
                     cType <- cTypeOf typ
                     void $ appendAssign cType (idName id) cCall

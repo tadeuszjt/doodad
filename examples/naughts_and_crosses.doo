@@ -101,12 +101,11 @@ fn getPlayerInput(io &Io) Input
     return move(row, col)
 
 
-
 func{R} ioFunc :: Func{R, Io}
 
 
-func cpuMove :: ioFunc{Void, Board}
-inst cpuMove (io &, board &)
+func cpuMove :: ioFunc{(), Board}
+inst cpuMove (io&, board&)
     io.stdout.printLn("cpu moving ...")
 
     // find all empty squares

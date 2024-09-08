@@ -103,7 +103,6 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
 
     Break      -> void $ appendStmtWithId id stmt
     Return arg -> void $ appendStmtWithId id . Return =<< processArg arg
-    ReturnVoid -> void $ appendStmtWithId id stmt
 
     SSA (Call callType callArgs) -> do -- TODO can also inline ref calls
         callArgs' <- mapM processArg callArgs
@@ -189,8 +188,6 @@ processInline callIr stmtId = let Just stmt = Map.lookup stmtId (irStmts callIr)
                     arg' <- processArg arg
                     fmap ArgID $ appendSSA typ Value $ (InitVar $ Just arg')
             _ -> processArg arg
-
-    ReturnVoid -> return undefined
 
     SSA (Call callType args) -> do
         let Just (typ, refType) = Map.lookup stmtId (irTypes callIr)

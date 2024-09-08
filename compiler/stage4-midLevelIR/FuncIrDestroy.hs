@@ -133,11 +133,6 @@ processStmt funcIr id = let stmt = irStmts funcIr Map.! id in case stmt of
         mapM_ destroy allSet'
         void $ appendStmtWithId id stmt
 
-    ReturnVoid -> do
-        allSet <- gets $ concat . (map Set.toList) . destroyStack
-        forM_ allSet $ \idToDestroy -> destroy idToDestroy
-        void $ appendStmtWithId id stmt
-
     SSA (InitVar _) -> do
         addDestroy id
         void $ appendStmtWithId id stmt
@@ -166,6 +161,6 @@ destroy id = do
         Just irHeader -> return (irArgs irHeader)
 
     id1 <- appendSSA typ Ref (MakeReferenceFromValue $ ArgID id)
-    void $ appendSSA Void Const $
+    void $ appendSSA Tuple Value $
         Call (Apply (TypeDef destroySymbol) typ) [ArgID id1]
 

@@ -93,6 +93,8 @@ getArgSubject funcIr (ArgID id) = case Map.lookup id (irTypes funcIr) of
                 []  -> return Nothing -- TODO fail ("what: " ++ show id)
                 [x] -> return x
 
+    x -> error (show x)
+
 
 processStmt :: FuncIR -> ID -> DoM FuncIrCheckerState ()
 processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case stmt of
@@ -100,7 +102,6 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
     Block ids ->  withCurrentId id $ mapM_ (processStmt funcIr) ids
     Loop ids ->  withCurrentId id $ mapM_ (processStmt funcIr) ids
     Break        -> return ()
-    ReturnVoid  -> return ()
     Return arg -> do -- check is arg ref
         resm <- getRefSubject funcIr arg
         case resm of

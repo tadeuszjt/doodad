@@ -184,7 +184,6 @@ instance Show Param where
 
 
 instance Show Retty where
-    show (Retty Void) = ""
     show (Retty t) = show t
     show (RefRetty t) = "&" ++ show t
 

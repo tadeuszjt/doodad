@@ -21,6 +21,7 @@ data Constant
     | ConstInt  Integer
     | ConstString String
     | ConstFloat Double
+    | ConstTuple [Constant]
     deriving (Eq)
 
 instance Show Constant where
@@ -30,6 +31,7 @@ instance Show Constant where
         ConstInt  i -> show i
         ConstString s -> show s
         ConstFloat d -> show d
+        ConstTuple cs -> "(" ++ intercalate ", " (map show cs) ++ ")"
 
 
 
@@ -75,7 +77,6 @@ data Stmt
     | Loop [ID]
     | Break
     | Return Arg
-    | ReturnVoid
     | EmbedC [(String, ID)] String
     | If Arg ID ID
     | SSA Operation
@@ -235,8 +236,6 @@ prettyIrStmt pre funcIr id = do
 
         Return arg -> do
             putStrLn $ "return " ++ show arg
-
-        ReturnVoid -> putStrLn "return"
 
         Loop ids -> do
             putStrLn $ "loop:"

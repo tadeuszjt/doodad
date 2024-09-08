@@ -14,7 +14,6 @@ instance Typeof Type where typeof = id
 
 data Type
     = Type Int
-    | Void
     | U8
     | I8                     
     | I16                    
@@ -38,7 +37,6 @@ data Type
 instance Show Type where
     show t = case t of
         Type id       -> "t" ++ show id
-        Void          -> "void"
         U8            -> "U8"
         I8            -> "I8"
         I16           -> "I16"

@@ -13,7 +13,6 @@ import CBuilder as C hiding (moduleName)
 import CAst as C
 import Control.Monad.State
 import Type
-import AST as S
 import Error
 
 data Value
@@ -183,10 +182,9 @@ cTypeOf a = case typeof a of
     U8             -> return Cuint8_t
     F64            -> return Cdouble
     F32            -> return Cfloat
-    Void           -> return Cvoid
     Type.Bool      -> return Cbool
     Type.Char      -> return Cchar
-    Type.Tuple     -> getTypedef "Tuple" (Cstruct [])
+    Type.Tuple     -> return Cint64_t
 
     TypeDef s -> do
         ([], typ) <- (Map.! s) <$> getTypeDefs
@@ -218,9 +216,9 @@ cTypeOf a = case typeof a of
             U8 ->  return Cuint8_t
             F64 -> return Cdouble
             F32 -> return Cfloat
-            Void -> return Cvoid
             Type.Bool -> return Cbool
             Type.Char -> return Cchar
+            Tuple -> return Cint64_t
 
             Apply Type.Slice t -> do
                 cType <- cTypeOf t

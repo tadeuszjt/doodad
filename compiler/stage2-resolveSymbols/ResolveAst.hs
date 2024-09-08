@@ -220,7 +220,6 @@ resolveType typ = case typ of
         Sym ["Sum"]   -> return Sum
         Sym ["Tuple"] -> return Tuple
         Sym ["Slice"] -> return Slice
-        Sym ["Void"]  -> return Void
         Sym ["Func"]  -> return Type.Func
         _             -> TypeDef <$> look s KeyType
 

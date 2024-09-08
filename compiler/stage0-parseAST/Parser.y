@@ -26,7 +26,7 @@ import Symbol
 %nonassoc  '->'
 %nonassoc  '(' ')' '[' ']' '{' '}'
 %nonassoc  '|'
-%nonassoc  '.'
+%left      '.'
 
 
 %token
@@ -169,7 +169,7 @@ funDeps1 : funDep              { [$1] }
          | funDep ',' funDeps1 { $1:$3 }
 
 funcDef : func funcGenerics ident '(' types ')' typeMaybe
-            { Function (tokPos $1) (fst $2) (snd $2) (Sym [tokStr $3]) $ foldType (Type.Func: (case $7 of Nothing -> Void; Just x -> x): $5) }
+            { Function (tokPos $1) (fst $2) (snd $2) (Sym [tokStr $3]) $ foldType (Type.Func : maybe Tuple id $7 : $5) }
         | func funcGenerics ident '::' callType
             { Function (tokPos $1) (fst $2) (snd $2) (Sym [tokStr $3]) $5 }
         | func funcGenerics ident '::' type_
@@ -185,8 +185,8 @@ instRetty : {-empty-}  { False }
 
 
 
-arg : ident      { Param    (tokPos $1) (Sym [tokStr $1]) Void }
-    | ident '&'  { RefParam (tokPos $1) (Sym [tokStr $1]) Void }
+arg : ident      { Param    (tokPos $1) (Sym [tokStr $1]) Tuple }
+    | ident '&'  { RefParam (tokPos $1) (Sym [tokStr $1]) Tuple }
 
 args : {-empty-}       { [] }
      | args1           { $1 }
@@ -198,7 +198,7 @@ fnDef : fn generics ident '(' paramsA ')' retty scope
             { FuncInst (tokPos $1) $2 (Sym [tokStr $3]) $5 $7 $8 }
 
 
-retty : {-empty-}     { Retty Type.Void }
+retty : {-empty-}     { Retty Tuple }
       | type_         { Retty $1 }
       | '&' type_     { RefRetty $2 }
       | '[' ']' type_ { Retty (foldl Apply Type.Slice [$3]) }
@@ -330,7 +330,7 @@ expr   : literal                                 { $1 }
        | expr '.' callType                       { Call (tokPos $2) $3 (AST.Reference (tokPos $2) $1 : []) }
        | expr '.' callType  '(' exprsA ')'       { Call (tokPos $4) $3 (AST.Reference (tokPos $2) $1 : $5) }
        | callType '(' exprsA ')'                 { Call (tokPos $2) $1 $3 }
-       | type_ '(' exprsA ')'                    { AExpr $1 $ case $3 of [x] -> x; xs -> Call (tokPos $2) (TypeDef $ Sym ["tuple", "make" ++ show (length xs) ]) $3 }
+       | Symbol '(' exprsA ')'                   { AExpr (TypeDef $ snd $1) $ case $3 of [x] -> x; xs -> Call (tokPos $2) (TypeDef $ Sym ["tuple", "make" ++ show (length xs) ]) $3 }
        | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> Call (tokPos $1) (TypeDef $ Sym ["tuple", "make" ++ show (length xs) ]) $2 }
        | expr '+' expr                           { Call (tokPos $2) (TypeDef $ Sym ["add"]) [$1, $3] }
        | expr '-' expr                           { Call (tokPos $2) (TypeDef $ Sym ["subtract"]) [$1, $3] } 
@@ -393,12 +393,10 @@ typeArgs : '{' types  '}'          { $2 }
     
 
 type_     : ordinal_t                      { $1 }
-          | '(' type_ ')'                  { $2 }
+          | '(' types ')'                  { foldl Apply Tuple $2 }
           | Symbol                         { TypeDef (snd $1) }
           | Symbol typeArgs                { foldl Apply (TypeDef $ snd $1) $2 }
-          | type_ '.' Symbol               { foldl Apply (TypeDef $ snd $3) [$1] }
-          | type_ '.' Symbol typeArgs      { foldl Apply (TypeDef $ snd $3) ($1:$4) }
-          | tuple_t                        { $1 }
+          | type_ '.' type_                  { Apply $3 $1 }
 
 ordinal_t   : Bool                         { Type.Bool }
             | U8                           { U8 }
@@ -409,8 +407,6 @@ ordinal_t   : Bool                         { Type.Bool }
             | F32                          { F32 }
             | F64                          { F64 }
             | Char                         { Type.Char }
-
-tuple_t : '(' type_ ',' types1 ')' { foldl Apply Tuple ($2:$4) }
 
 {
 parse :: MonadError Error m => [Token] -> m AST

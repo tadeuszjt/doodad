@@ -88,7 +88,6 @@ funcIrUnused func = do
 
         Return (ArgID argId) -> addUsed argId
         Return (ArgConst _ _) -> return ()
-        ReturnVoid            -> return ()
 
         SSA (MakeReferenceFromValue (ArgID i)) -> addUsed i
         SSA (MakeValueFromReference (ArgID i)) -> addUsed i
@@ -152,10 +151,6 @@ processStmt funcIr id = do
             void $ appendStmtWithId id stmt
 
         Return arg -> do
-            modify $ \s -> s { hasReturned = True }
-            void $ appendStmtWithId id stmt
-
-        ReturnVoid -> do
             modify $ \s -> s { hasReturned = True }
             void $ appendStmtWithId id stmt
 
