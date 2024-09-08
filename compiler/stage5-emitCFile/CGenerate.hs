@@ -15,15 +15,6 @@ import Control.Monad.State
 import Type
 import Error
 
-data Value
-    = Value { valType :: Type.Type, valExpr :: C.Expression }
-    | Ref   { refType :: Type.Type, refExpr :: C.Expression }
-    deriving (Show, Eq)
-
-instance Typeof Value where
-    typeof (Value t _) = t
-    typeof (Ref t _)   = t
-
 
 data GenerateState
     = GenerateState
@@ -90,45 +81,18 @@ assignRef suggestion typ expr = do
     return (C.Ident name)
 
 
-assign :: String -> Value -> Generate Value
-assign suggestion val = do
-    case unfoldType (typeof val) of
-        (Type.Slice, _) -> fail "cannot assign slice"
-        _ -> return ()
-
+assignVal :: String -> Type.Type -> C.Expression -> Generate C.Expression
+assignVal suggestion typ expr = do
     name <- fresh suggestion
-    case val of
-        Value _ _ -> do
-            ctyp <- cTypeOf (typeof val)
-            appendElem $ C.Assign ctyp name (valExpr val)
-            return $ Value (typeof val) $ C.Ident name
-        Ref _ _ -> do
-            ctyp <- cRefTypeOf (typeof val)
-            appendElem $ C.Assign ctyp name (refExpr val)
-            return $ Ref (typeof val) $ C.Ident name
+    ctyp <- cTypeOf typ
+    appendElem $ C.Assign ctyp name expr
+    return (C.Ident name)
 
 
-if_ :: Value -> Generate a -> Generate a
+if_ :: C.Expression -> Generate a -> Generate a
 if_ cnd f = do
-    base@(Type.Bool) <- baseTypeOf cnd
-    id <- appendIf (valExpr cnd)
+    id <- appendIf cnd
     withCurID id f
-
-
-makeRef :: Value -> Generate C.Expression
-makeRef val = do
-    base <- baseTypeOf val
-    case val of
-        Value _ _ -> case unfoldType base of
-            (Tuple, ts) -> fmap refExpr $ assign "ref" $ Ref (typeof val) $ C.Initialiser
-                [ C.Address (valExpr val)  -- ptr
-                , C.Int 0                  -- idx
-                , C.Int 1                  -- cap
-                ]
-
-            (_, _) -> fmap refExpr $ assign "ref" $ Ref (typeof val) $ C.Address (valExpr val)
-
-        Ref _ _ -> return (refExpr val)
 
 
 deref :: Type.Type -> C.Expression -> Generate C.Expression
@@ -136,7 +100,7 @@ deref typ expr = do
     base <- baseTypeOf typ
     case unfoldType base of
         (Tuple, ts) -> do -- {ptr, idx, cap}
-            tup <- assign "deref" $ Value typ $ C.Initialiser [C.Int 0]
+            tup <- assignVal "deref" typ $ C.Initialiser [C.Int 0]
             cts <- mapM cTypeOf ts
             ct <- cTypeOf base
             forM_ (zip ts [0..]) $ \(t, i) -> do
@@ -150,9 +114,9 @@ deref typ expr = do
                 let offset = C.Infix C.Plus (C.Infix C.Times cap off) (C.Infix C.Times idx size)
                 let fieldP = C.Cast (Cpointer $ cts !! i) (C.Infix C.Plus ptr offset)
 
-                appendElem $ C.Set (C.Member (valExpr tup) $ "m" ++ show i) (C.Deref fieldP)
+                appendElem $ C.Set (C.Member tup $ "m" ++ show i) (C.Deref fieldP)
 
-            return (valExpr tup)
+            return tup
 
         _ -> return (C.Deref expr)
     

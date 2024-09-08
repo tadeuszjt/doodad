@@ -58,20 +58,18 @@ generate = withErrorPrefix "generate: " $ do
                     []
 
                 withCurID id $ do
-                    --appendElem $ C.ExprStmt $ C.Call "doodad_set_args" [C.Ident "argc", C.Ident "argv"]
                     (Type.Func, mainRetType : mainArgTypes) <- unfoldType <$> baseTypeOf (TypeDef symbol)
 
                     cts <- mapM cTypeOf mainArgTypes
-                    vals <- forM mainArgTypes $ \argType -> do
-                        assign "mainArg" $ Value argType $ C.Initialiser [C.Int 0]
-
-                    args <- forM (zip vals (IR.irArgs header)) $ \(val, param) -> case param of
-                        IR.ParamIR IR.Value _ -> return val
-                        x -> error (show x)
+                    args <- forM mainArgTypes $ \argType -> do
+                        cType <- cTypeOf argType
+                        name <- fresh "mainArg"
+                        appendAssign cType name $ C.Initialiser [C.Int 0]
+                        return (C.Ident name)
 
                     void $ appendElem $ C.ExprStmt $ C.Call
                         (showSymGlobal $ IR.irFuncSymbol header)
-                        (map valExpr args)
+                        args
 
                     void $ appendElem $ C.Return $ C.Int 0
                 withCurID globalID (append id)
@@ -389,17 +387,13 @@ generateCall funcIr id = do
 
         x | symbolsCouldMatch x (Sym ["builtin", "builtinArrayAt"]) -> do
             [carg, cidx] <- mapM generateArg args
+            let cref = C.Address $ C.Subscript (C.PMember carg "arr") cidx
 
-            let IR.ArgID argId = args !! 0
-            let (argType, IR.Ref) = (IR.irTypes funcIr) Map.! argId
-            Ref refTyp cref <- builtinArrayAt argType carg cidx
-
-            case (IR.irTypes funcIr) Map.! id of
-                (_, IR.Ref) -> do
-                    cRefType <- cRefTypeOf refTyp
-                    void $ appendAssign cRefType (idName id) cref
-
-                x -> error (show x)
+            base <- baseTypeOf ssaTyp
+            cRefType <- cRefTypeOf ssaTyp
+            case unfoldType base of
+                (Tuple, (_:_)) -> void $ appendAssign cRefType (idName id) $ C.Initialiser [cref, C.Int 0, C.Int 1]
+                _              -> void $ appendAssign cRefType (idName id) cref
 
         x | symbolsCouldMatch x (Sym ["builtin", "builtinTableAt"]) -> do
             unless (length args == 2) (error "arg length mismatch")
