@@ -134,20 +134,21 @@ imports : {- empty -}              { [] }
 ---------------------------------------------------------------------------------------------------
 -- Macros -----------------------------------------------------------------------------------------
 
-enumMacro : enum generics Ident '{'  'I' enumCases 'D' '}' { AST.Enum (tokPos $1) $2 (Sym [tokStr $3]) $6 }
+enumMacro : enum generics Ident '{' enumCases '}' { AST.Enum (tokPos $1) $2 (Sym [tokStr $3]) $5 }
 
 enumCases : {-empty-}                         { [] }
-          | ident 'N' enumCases               { (Sym [tokStr $1], []) : $3 }
-          | ident '(' types ')' 'N' enumCases { (Sym [tokStr $1], $3) : $6 }
+          | enumCase                          { [$1] }
+          | enumCase ',' enumCases            { $1 : $3 }
+enumCase : ident               { (Sym [tokStr $1], []) }
+         | ident '(' types ')' { (Sym [tokStr $1], $3) }
 
 
-tupleMacro : tuple generics Ident '{' tupleFieldsN '}' { MacroTuple (tokPos $1) $2 (Sym [tokStr $3]) $5 }
+tupleMacro : tuple generics Ident '{' tupleFields '}' { MacroTuple (tokPos $1) $2 (Sym [tokStr $3]) $5 }
 
-tupleFieldsN : 'N'                   { [] }
-             | 'I' tupleFields1 'D'  { $2 }
-
-tupleFields1 : symbol type_ 'N'              { [(snd $1, $2)] }
-             | symbol type_ 'N' tupleFields1 { (snd $1, $2) : $4 }
+tupleField : symbol type_    { (snd $1, $2) }
+tupleFields : {-empty-}                  { [] }
+            | tupleField                 { [$1] }
+            | tupleField ',' tupleFields { $1 : $3 }
 
 
 ---------------------------------------------------------------------------------------------------
@@ -194,7 +195,7 @@ args1 : arg            { [$1] }
       | arg ',' args1  { ($1 : $3) }
 
 
-fnDef : fn generics ident '(' paramsA ')' retty scope 
+fnDef : fn generics ident '(' params ')' retty scope 
             { FuncInst (tokPos $1) $2 (Sym [tokStr $3]) $5 $7 $8 }
 
 
@@ -273,13 +274,6 @@ params  : {- empty -}                    { [] }
 params1 : param                          { [$1] }
         | param ',' params1              { $1 : $3 }
 
-paramsN : param ',' 'N'                  { [$1] } 
-        | param ',' 'N' paramsN          { $1 : $4 }
-paramsA : params                         { $1 }
-        | 'I' paramsN 'D'                { $2 }
-paramsA1 : params1                       { $1 }
-         | 'I' paramsN 'D'               { $2 }
-
 
 generics : {-empty-}                      { [] }
          | '{' Idents1 '}'                { map (\s -> Symbol.Sym [s]) $2 }
@@ -307,15 +301,10 @@ pattern  : '_'                           { PatIgnore (tokPos $1) }
 -- Expressions ------------------------------------------------------------------------------------
 
 exprs  : {- empty -}                             { [] }
-       | exprs1                                  { $1 }
-exprs1 : expr                                    { [$1] }
-       | expr ',' exprs1                         { $1 : $3 }
-exprsN : expr 'N'                                { [$1] } 
-       | expr 'N' exprsN                         { $1 : $3 }
+       | expr                                    { [$1] }
+       | expr ',' exprs                          { $1 : $3 }
 mexpr  : {-empty-}                               { Nothing }
        | expr                                    { Just $1 }
-exprsA : exprs                                   { $1 }
-       | 'I' exprsN 'D'                          { $2 }
 
 condition : expr                                 { $1 }
           | expr '->' pattern                    { Match (tokPos $2) $1 $3 }
@@ -323,15 +312,15 @@ condition : expr                                 { $1 }
 expr   : literal                                 { $1 }
        | expr ':' type_                          { AExpr $3 $1 }
        | symbol                                  { AST.Ident (fst $1) (snd $1) }
-       | '[' exprsA ']'                          { Call (tokPos $1) (TypeDef $ Sym ["makeSlice"]) [AST.Array (tokPos $1) $2] }
+       | '[' exprs ']'                          { Call (tokPos $1) (TypeDef $ Sym ["makeSlice"]) [AST.Array (tokPos $1) $2] }
        | expr '.' int_c                          { Call (tokPos $2) (foldType $ [TypeDef (Sym ["builtin", "field"]), Size (read $ tokStr $3), Type 0, Type 0]) [AST.Reference (tokPos $2) $1] }
        | '&' expr                                { AST.Reference (tokPos $1) $2 }
        | expr '[' expr ']'                       { Call (tokPos $2) (TypeDef $ Sym ["container", "at"]) [AST.Reference (tokPos $2) $1, $3] }
        | expr '.' callType                       { Call (tokPos $2) $3 (AST.Reference (tokPos $2) $1 : []) }
-       | expr '.' callType  '(' exprsA ')'       { Call (tokPos $4) $3 (AST.Reference (tokPos $2) $1 : $5) }
-       | callType '(' exprsA ')'                 { Call (tokPos $2) $1 $3 }
-       | Symbol '(' exprsA ')'                   { AExpr (TypeDef $ snd $1) $ case $3 of [x] -> x; xs -> Call (tokPos $2) (TypeDef $ Sym ["tuple", "make" ++ show (length xs) ]) $3 }
-       | '(' exprsA ')'                          { case $2 of [x] -> x; xs -> Call (tokPos $1) (TypeDef $ Sym ["tuple", "make" ++ show (length xs) ]) $2 }
+       | expr '.' callType  '(' exprs ')'       { Call (tokPos $4) $3 (AST.Reference (tokPos $2) $1 : $5) }
+       | callType '(' exprs ')'                 { Call (tokPos $2) $1 $3 }
+       | Symbol '(' exprs ')'                   { AExpr (TypeDef $ snd $1) $ case $3 of [x] -> x; xs -> Call (tokPos $2) (TypeDef $ Sym ["tuple", "make" ++ show (length xs) ]) $3 }
+       | '(' exprs ')'                          { case $2 of [x] -> x; xs -> Call (tokPos $1) (TypeDef $ Sym ["tuple", "make" ++ show (length xs) ]) $2 }
        | expr '+' expr                           { Call (tokPos $2) (TypeDef $ Sym ["add"]) [$1, $3] }
        | expr '-' expr                           { Call (tokPos $2) (TypeDef $ Sym ["subtract"]) [$1, $3] } 
        | expr '*' expr                           { Call (tokPos $2) (TypeDef $ Sym ["multiply"]) [$1, $3] } 
@@ -382,14 +371,8 @@ types  : {-empty-}                         { [] }
 types1 : type__                             { [$1] }
        | type__ ',' types1                  { $1 : $3 }
 
-types1N : type__ 'N'                        { [$1] }
-        | type__ ',' 'N'                    { [$1] }
-        | type__ ',' 'N' types1N            { $1 : $4 }
-types2N : type__ ',' 'N' types1N            { $1 : $4 }
-
 
 typeArgs : '{' types  '}'          { $2 }
-         | '{' 'I' types1N 'D' '}' { $3 }
     
 
 type_     : ordinal_t                      { $1 }

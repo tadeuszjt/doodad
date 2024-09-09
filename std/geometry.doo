@@ -6,12 +6,12 @@ import std/print
 import std/maths
 
 tuple Vec2 {
-    x F64
+    x F64,
     y F64
 }
 
 tuple Rect {
-    min Vec2
+    min Vec2,
     max Vec2
 }
 
@@ -136,7 +136,7 @@ fn mat3Translation(v Vec2) Mat3
 
 fn transformVec2(m &Mat3, v Vec2, w F64) Vec2
     return (
-        m[0][0]*v.x + m[0][1]*v.y + m[0][2]*w
+        m[0][0]*v.x + m[0][1]*v.y + m[0][2]*w,
         m[1][0]*v.x + m[1][1]*v.y + m[1][2]*w
     )
 

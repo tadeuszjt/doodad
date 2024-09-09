@@ -56,6 +56,7 @@ typedef enum {
     STATE_C_EMBED
 } State;
 static State state = STATE_INIT;
+static int bracketLevelCount = 0;
 
 /* ---------------C-EMBED--------------------
  * Count of braces                         */
@@ -117,7 +118,7 @@ void indent(const char *spaces) {
     } else if (lenSpaces > lenEntry) { // greater indent
         printToken("indent:\n");
         strcpy(indentStack[indentStackLen++], spaces);
-    } else if (lenSpaces < lenEntry) { // lesser indent
+    } else if (lenSpaces < lenEntry) { // lesser ndent
         printToken("newline:\n");
 
         for (;;) {
@@ -181,6 +182,22 @@ bool isDoubleSymbol(char *s) {
         }
     }
     return false;
+}
+
+int isAnyBracket(char c) {
+    const char *increasing = "([{";
+    const char *decreasing = ")]}";
+    for (int i = 0; increasing[i] != '\0'; i++) {
+        if (increasing[i] == c) {
+            return 1;
+        }
+    }
+    for (int i = 0; decreasing[i] != '\0'; i++) {
+        if (decreasing[i] == c) {
+            return -1;
+        }
+    }
+    return 0;
 }
 
 bool isValidCharLiteral(char c) {
@@ -343,7 +360,9 @@ bool lex() { // returns false for EOF
         } else {
             if (!isDoubleSymbol(stack)) {
                 ungetChar(stackPop());
-            }
+                bracketLevelCount += isAnyBracket(stack[0]);
+                assert(bracketLevelCount >= 0);
+            } 
 
             printToken("symbol: %s\n", stack);
             stackClear();
@@ -425,7 +444,9 @@ bool lex() { // returns false for EOF
             if (c == '\n' || c == ' ' || c == '\t' || c == '/') {
                 stackPush(c);
             } else {
-                indent(strrchr(stack, '\n') + 1); // advance to character after last newline
+                if (bracketLevelCount == 0) {
+                    indent(strrchr(stack, '\n') + 1); // advance to character after last newline
+                }
                 stackClear();
                 state = STATE_INIT;
                 ungetChar(c);

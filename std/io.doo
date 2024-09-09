@@ -13,7 +13,7 @@ derives StdOut (destroy)
 derives StdIn (destroy)
 
 tuple Io {
-    stdout StdOut
+    stdout StdOut,
     stdin  StdIn
 }
 derives Io (destroy)

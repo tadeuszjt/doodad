@@ -21,8 +21,8 @@ include <SFML/Graphics.h>
 
 
 tuple Grid {
-    rect  Rect
-    array Array{20, Array{20, Stack{16, Vec2}}}
+    rect  Rect,
+    array Array{20, Array{20, Stack{16, Vec2}}},
 }
 derives Grid (destroy)
 
@@ -38,13 +38,13 @@ fn gridLocation(g &Grid, p Vec2) (I64, I64)
     let numCols = g.array[0].len
     return (
         clamp(
-            ((p.x - g.rect.min.x) / (g.rect.max.x - g.rect.min.x) * numRows.convert).convert
-            0
+            ((p.x - g.rect.min.x) / (g.rect.max.x - g.rect.min.x) * numRows.convert).convert,
+            0,
             numRows - 1
-        )
+        ),
         clamp(
-            ((p.y - g.rect.min.y) / (g.rect.max.y - g.rect.min.y) * numCols.convert).convert
-            0
+            ((p.y - g.rect.min.y) / (g.rect.max.y - g.rect.min.y) * numCols.convert).convert,
+            0,
             numCols - 1
         )
     )
@@ -69,10 +69,10 @@ fn addToGrid(g &Grid, v Vec2)
 
 
 tuple Blob {
-    position   Vec2
-    velocity   Vec2
-    blobColour sf::Colour
-    sprite     sf::Quad
+    position   Vec2,
+    velocity   Vec2,
+    blobColour sf::Colour,
+    sprite     sf::Quad,
     age        I64
 }
 derives    Blob (copy, destroy)
@@ -91,27 +91,27 @@ inst convert{Mat3, sf::Mat3f} (a)
 
 inst rand::uniform{Vec2} (rand&, min, max)
     return Vec2(
-        rand.uniform(min.x, max.x)
+        rand.uniform(min.x, max.x),
         rand.uniform(min.y, max.y)
     )
 
 
 inst rand::uniform{sf::Colour} (rand&, min, max)
     return (
-        rand.uniform(min.sf::r, max.sf::r)
-        rand.uniform(min.sf::g, max.sf::g)
-        rand.uniform(min.sf::b, max.sf::b)
+        rand.uniform(min.sf::r, max.sf::r),
+        rand.uniform(min.sf::g, max.sf::g),
+        rand.uniform(min.sf::b, max.sf::b),
         rand.uniform(min.sf::a, max.sf::a)
     )
 
 
 fn makeQuad(position sf::Vec2f, colour sf::Colour) sf::Quad
     return [
-        (position + (-10.0, -10.0), colour, (0.0, 0.0))
-        (position + (10.0, -10.0),  colour, (640.0, 0.0))
-        (position + (10.0, 10.0),   colour, (640.0, 640.0))
-        (position + (-10.0, -10.0), colour, (0.0, 0.0))
-        (position + (10.0, 10.0),   colour, (640.0, 640.0))
+        (position + (-10.0, -10.0), colour, (0.0, 0.0)),
+        (position + (10.0, -10.0),  colour, (640.0, 0.0)),
+        (position + (10.0, 10.0),   colour, (640.0, 640.0)),
+        (position + (-10.0, -10.0), colour, (0.0, 0.0)),
+        (position + (10.0, 10.0),   colour, (640.0, 640.0)),
         (position + (-10.0, 10.0),  colour, (0.0, 640.0))
     ]
 
@@ -162,8 +162,8 @@ fn main(io Io, rand Rand, w sf::Window)
         for (0, blobs.len) -> i
             if rand.uniform(0, 100) == 0
                 let childPos = blobs.position[i] + Vec2(
-                    rand.uniform(0, 40)
-                    0
+                    rand.uniform(0, 40),
+                    0,
                 ).rotate(rand.uniform(0, 2 * maths::pi()))
 
                 if arena.contains(childPos)

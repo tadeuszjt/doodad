@@ -9,17 +9,17 @@ import std/rand as rond
 
 
 enum Square {
-    empty
-    naught
-    cross
+    empty,
+    naught,
+    cross,
 }
 derives Square (copy, destroy, equal)
 
 
 enum Input {
-    move(I64, I64)
-    quit()
-    error()
+    move(I64, I64),
+    quit(),
+    error(),
 }
 derives Input (copy, builtin::destroy)
 

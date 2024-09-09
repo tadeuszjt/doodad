@@ -5,7 +5,7 @@ import builtin/all
 
 
 tuple{S, T} Stack {
-    length I64
+    length I64,
     array Array{S, T}
 }
 

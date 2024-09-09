@@ -11,8 +11,8 @@ derives{P, T} Key{T} (print::print{P})
 
 
 tuple{T} Unordered {
-    indices I64.Sparse
-    entries I64.Key.Table
+    indices I64.Sparse,
+    entries I64.Key.Table,
     values  T.Table
 }
 derives{T} T.Unordered (destroy)

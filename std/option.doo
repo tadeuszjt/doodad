@@ -3,8 +3,8 @@ module option
 import builtin/all
 
 enum{T} Option {
-    none
-    some(T)
+    none,
+    some(T),
 }
 
 derives{T} T.Option (copy)

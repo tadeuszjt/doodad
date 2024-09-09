@@ -15,7 +15,7 @@ link csfml-system
 
 
 tuple Vec2f {
-    x F32
+    x F32,
     y F32
 }
 derives    Vec2f (copy, destroy, add, subtract, make2{F32, F32})
@@ -23,7 +23,7 @@ derives{P} Vec2f (print::print{P})
 
 
 tuple Rectf {
-    min Vec2f
+    min Vec2f,
     max Vec2f
 }
 derives Rectf (make2{Vec2f, Vec2f})
@@ -36,9 +36,9 @@ derives Mat3f (copy, destroy, at{I64, Array{3, F32}})
 
 
 tuple Colour {
-    r U8
-    g U8
-    b U8
+    r U8,
+    g U8,
+    b U8,
     a U8
 }
 derives Colour (copy, destroy, make4{U8, U8, U8, U8})
@@ -49,8 +49,8 @@ fn black() Colour; return (0, 0, 0, 255)
 
 
 tuple Vertex {
-    position Vec2f
-    vertColour  Colour
+    position Vec2f,
+    vertColour  Colour,
     texCoord Vec2f
 }
 derives    Vertex (copy, destroy, make3{Vec2f, Colour, Vec2f})
@@ -72,8 +72,8 @@ inst destroy{Window} (w&)
 
 
 enum Event {
-    closed
-    mouseMove(I64, I64)
+    closed,
+    mouseMove(I64, I64),
 }
 derives Event (copy, destroy)
 

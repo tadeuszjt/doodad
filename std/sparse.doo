@@ -9,7 +9,7 @@ derives{T} Key{T} (destroy)
 
 
 tuple{T} Sparse {
-    values T.Table
+    values T.Table,
     empty  T.Key.Table
 }
 
