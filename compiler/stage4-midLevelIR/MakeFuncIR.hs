@@ -73,7 +73,7 @@ makeFuncIR (TopInst _ [] funcType args retty inst) = do
         (refType, typ, symbol) <- case param of
             S.Param _ symbol (Apply Type.Slice typ) -> return (IR.Slice, typ, symbol)
             S.Param _ symbol typ    -> return (Value, typ, symbol)
-            S.RefParam _ symbol typ -> return (Ref, typ, symbol)
+            S.RefParam _ symbol typ -> return (IR.Ref, typ, symbol)
 
         id <- generateId
         define symbol id
@@ -83,7 +83,7 @@ makeFuncIR (TopInst _ [] funcType args retty inst) = do
     rettyIr <- case retty of
         S.Retty (Apply Type.Slice t) -> return (RettyIR IR.Slice t)
         S.RefRetty (Apply Type.Slice t) -> return (RettyIR IR.Slice t)
-        S.RefRetty t -> return (RettyIR Ref t)
+        S.RefRetty t -> return (RettyIR IR.Ref t)
         S.Retty t    -> return (RettyIR Value t)
 
     modify $ \s -> s { rettyIr = rettyIr }
@@ -153,9 +153,9 @@ makeStmt inst (S.Stmt stmtId) = do
             retty <- gets rettyIr
             case retty of
                 RettyIR Value (Apply Type.Slice _) -> fail "val to slice"
-                RettyIR Ref   (Apply Type.Slice _) -> fail "ref to slice"
+                RettyIR IR.Ref   (Apply Type.Slice _) -> fail "ref to slice"
                 RettyIR IR.Slice typ -> void $ appendStmt . Return =<< makeSlice inst expr
-                RettyIR Ref   typ -> void $ appendStmt . Return . ArgID =<< (makeRef inst) expr
+                RettyIR IR.Ref   typ -> void $ appendStmt . Return . ArgID =<< (makeRef inst) expr
                 RettyIR Value typ -> void $ appendStmt . Return =<< (makeVal inst) expr
                 x -> error (show x)
 
@@ -239,7 +239,7 @@ makeSlice inst (S.Expr exprId) = do
                 case arg of
                     ParamIR _ (Apply Type.Slice _) -> error "there"
                     ParamIR IR.Slice _ -> makeSlice inst expr
-                    ParamIR Ref _ -> ArgID <$> (makeRef inst) expr
+                    ParamIR IR.Ref _ -> ArgID <$> (makeRef inst) expr
                     ParamIR Value argType -> do
                         if symbolsCouldMatch funcSymbol (Sym ["builtin", "copy"]) then (makeVal inst) expr
                         else copy =<< (makeVal inst) expr
@@ -270,7 +270,7 @@ makeVal inst (S.Expr exprId) = do
             (typ, refType) <- getType (ArgID id)
             case refType of
                 Value -> return (ArgID id)
-                Ref   -> fmap ArgID $ appendSSA typ Value (MakeValueFromReference (ArgID id))
+                IR.Ref   -> fmap ArgID $ appendSSA typ Value (MakeValueFromReference (ArgID id))
                 x -> fail "here"
 
         S.Call _ (Type funcTypeId) exprs -> do
@@ -289,7 +289,7 @@ makeVal inst (S.Expr exprId) = do
                     ParamIR _ (Apply Type.Slice _) -> error "there"
 
                     ParamIR IR.Slice _ -> makeSlice inst expr
-                    ParamIR Ref _ -> ArgID <$> (makeRef inst) expr
+                    ParamIR IR.Ref _ -> ArgID <$> (makeRef inst) expr
                     ParamIR Value argType -> do
                         if symbolsCouldMatch funcSymbol (Sym ["builtin", "copy"]) then (makeVal inst) expr
                         else copy =<< (makeVal inst) expr
@@ -298,9 +298,9 @@ makeVal inst (S.Expr exprId) = do
                 RettyIR IR.Slice _ -> fail "slice return"
                 --RettyIR _ Tuple -> fmap ArgID $ appendSSA Tuple Const (Call funcType args)
                 RettyIR Value typ -> fmap ArgID $ appendSSA typ Value (Call funcType args)
-                RettyIR Ref typ -> do
+                RettyIR IR.Ref typ -> do
                     fmap ArgID $ appendSSA typ Value . MakeValueFromReference . ArgID =<<
-                        appendSSA typ Ref (Call funcType args)
+                        appendSSA typ IR.Ref (Call funcType args)
 
                 x -> error (show x)
 
@@ -322,9 +322,9 @@ makeRef inst (S.Expr exprId) = do
             --unless (typ == exprType) (fail $ "type mismatch: " ++ show typ ++ ", " ++ show exprType)
 
             case refType of
-                Value -> appendSSA typ Ref (MakeReferenceFromValue $ ArgID id)
+                Value -> appendSSA typ IR.Ref (MakeReferenceFromValue $ ArgID id)
 
-                Ref -> return id
+                IR.Ref -> return id
                     
                 x -> error (show x)
 
@@ -337,14 +337,14 @@ makeRef inst (S.Expr exprId) = do
             args <- forM (zip exprs (irArgs irHeader)) $ \(expr, arg) -> do
                 case arg of
                     ParamIR IR.Slice _ -> makeSlice inst expr
-                    ParamIR Ref   _ -> ArgID <$> (makeRef inst) expr
+                    ParamIR IR.Ref   _ -> ArgID <$> (makeRef inst) expr
                     ParamIR Value _ -> (makeVal inst) expr
 
             case irRetty irHeader of
-                RettyIR Ref typ -> appendSSA typ Ref (Call funcType args)
+                RettyIR IR.Ref typ -> appendSSA typ IR.Ref (Call funcType args)
                 RettyIR Value typ -> do
                     id <- appendSSA typ Value (Call funcType args)
-                    appendSSA typ Ref (MakeReferenceFromValue $ ArgID id)
+                    appendSSA typ IR.Ref (MakeReferenceFromValue $ ArgID id)
                 x -> error (show x)
 
         x -> error (show x)

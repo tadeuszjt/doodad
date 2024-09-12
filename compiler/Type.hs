@@ -24,6 +24,7 @@ data Type
     | Bool                   
     | Char                   
     | Sum
+    | Ref
     | Func
     | Slice
     | Tuple
@@ -49,6 +50,7 @@ instance Show Type where
         Tuple         -> "Tuple"
         Table         -> "Table"
         Sum           -> "Sum"
+        Ref           -> "Ref"
         Slice         -> "Slice"
         Func          -> "Func"
         Array         -> "Array"

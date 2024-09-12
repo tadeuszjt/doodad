@@ -53,7 +53,7 @@ getRefSubject :: FuncIR -> Arg -> DoM FuncIrCheckerState (Maybe ID)
 getRefSubject funcIr (ArgConst _ _) = return Nothing
 getRefSubject funcIr (ArgID argId) = case Map.lookup argId (irTypes funcIr) of
     Just (_, Value)    -> return Nothing
-    Just (_, Ref)      -> getArgSubject funcIr (ArgID argId)
+    Just (_, IR.Ref)      -> getArgSubject funcIr (ArgID argId)
     Just (_, IR.Slice) -> getArgSubject funcIr (ArgID argId)
 
 
@@ -69,7 +69,7 @@ getArgSubject funcIr (ArgID id) = case Map.lookup id (irTypes funcIr) of
             results <- fmap catMaybes $ forM args $ \arg -> case arg of
                 ArgConst _ _ -> return Nothing
                 ArgID argId -> case Map.lookup argId (irTypes funcIr) of
-                    Just (_, Ref) -> fmap Just $ getArgSubject funcIr (ArgID argId)
+                    Just (_, IR.Ref) -> fmap Just $ getArgSubject funcIr (ArgID argId)
                     Just (_, IR.Slice) -> fmap Just $ getArgSubject funcIr (ArgID argId)
                     Just (_, Value) -> return Nothing
             case results of
@@ -78,14 +78,14 @@ getArgSubject funcIr (ArgID id) = case Map.lookup id (irTypes funcIr) of
 
         x -> error (show x)
 
-    Just (_, Ref)   -> case Map.lookup id (irStmts funcIr) of
+    Just (_, IR.Ref)   -> case Map.lookup id (irStmts funcIr) of
         Nothing                                       -> return (Just id) -- an arg
         Just (SSA (MakeReferenceFromValue (ArgID i))) -> return (Just i)
         Just (SSA (Call _ args)) -> do
             results <- fmap catMaybes $ forM args $ \arg -> case arg of
                 ArgConst _ _ -> return Nothing
                 ArgID argId -> case Map.lookup argId (irTypes funcIr) of
-                    Just (_, Ref) -> fmap Just $ getArgSubject funcIr (ArgID argId)
+                    Just (_, IR.Ref) -> fmap Just $ getArgSubject funcIr (ArgID argId)
                     Just (_, IR.Slice) -> fmap Just $ getArgSubject funcIr (ArgID argId)
                     Just (_, Value) -> return Nothing
 
@@ -108,7 +108,7 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
             Nothing -> return ()
             Just argId -> case Map.lookup argId (irStmts funcIr) of
                 Nothing -> case Map.lookup argId (irTypes funcIr) of
-                    Just (_, Ref) -> return ()
+                    Just (_, IR.Ref) -> return ()
                     Just (_, IR.Slice) -> return ()
                     Just (_, Value) -> fail ("returning reference must be to reference argument")
                 Just x -> fail ("cannot return reference to stack variable")

@@ -156,11 +156,11 @@ destroy id = do
         [x] -> return x
 
     resm <- fmap fst $ runDoMExcept ast $ makeHeaderInstance (foldType [TypeDef destroySymbol, typ])
-    [ParamIR Ref argType] <- case resm of
+    [ParamIR IR.Ref argType] <- case resm of
         Nothing -> fail ("no destroy instance for: " ++ show typ)
         Just irHeader -> return (irArgs irHeader)
 
-    id1 <- appendSSA typ Ref (MakeReferenceFromValue $ ArgID id)
+    id1 <- appendSSA typ IR.Ref (MakeReferenceFromValue $ ArgID id)
     void $ appendSSA Tuple Value $
         Call (Apply (TypeDef destroySymbol) typ) [ArgID id1]
 

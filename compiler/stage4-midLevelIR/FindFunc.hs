@@ -101,7 +101,7 @@ makeHeaderInstance callType = do
                     args' <- forM (zip args argTypes) $ \(arg, t) -> case (arg, t) of
                         (RefParam pos _ _, Apply Type.Slice _)-> withPos pos $ fail "reference to slice"
                         (Param _ _ _, Apply Type.Slice typ) -> return (ParamIR IR.Slice typ)
-                        (RefParam _ _ _, _)                 -> return (ParamIR Ref t)
+                        (RefParam _ _ _, _)                 -> return (ParamIR IR.Ref t)
                         (Param _ _ _, _)                    -> return (ParamIR Value t)
                     retty' <- case (retty, retType) of
                         (Retty _,    Apply Type.Slice t) -> return (RettyIR IR.Slice t)
