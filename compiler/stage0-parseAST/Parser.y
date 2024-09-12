@@ -159,7 +159,7 @@ derivesDef : derives generics type_ '(' callTypes1 ')'
            { Derives (tokPos $1) $2 $3 $5 }
 
 
-funcGenerics : '{' Idents1 funDeps '}'  { (map (\s -> Symbol.Sym [s]) $2, $3) }
+funcGenerics : '{' Idents  funDeps '}'  { (map (\s -> Symbol.Sym [s]) $2, $3) }
              | {-empty-}                { ([], []) }
 
 funDeps : {-empty-}    { [] }
@@ -187,7 +187,8 @@ instRetty : {-empty-}  { False }
 
 
 arg : ident      { Param    (tokPos $1) (Sym [tokStr $1]) Tuple }
-    | ident '&'  { RefParam (tokPos $1) (Sym [tokStr $1]) Tuple }
+    -- | ident '&'  { RefParam (tokPos $1) (Sym [tokStr $1]) Tuple }
+    | ident '&'  { Param (tokPos $1) (Sym [tokStr $1]) (Apply Type.Ref Tuple) }
 
 args : {-empty-}       { [] }
      | args1           { $1 }
@@ -245,10 +246,8 @@ case : pattern scope                      { ($1, $2) }
 -- Misc ------------------------------------------------------------------------------------------
 
 Idents : {-empty-}                       { [] }
-       | Idents1                         { $1 }
-
-Idents1 : Ident                          { [tokStr $1] }
-        | Ident ',' Idents1              { (tokStr $1):($3) } 
+       | Ident                           { [tokStr $1] }
+       | Ident ',' Idents                { (tokStr $1) : $3 }
 
 idents1 : ident                          { [tokStr $1] }
         | ident ',' idents1              { (tokStr $1):$3 }
@@ -258,25 +257,18 @@ symbol : ident                           { (tokPos $1, Sym [tokStr $1]) }
        | ident '::' ident                { (tokPos $3, Sym [tokStr $1, tokStr $3]) }
        | Ident '::' ident                { (tokPos $1, Sym [tokStr $1, tokStr $3]) }
 
-symbols1 : symbol                        { [$1] }
-         | symbol ',' symbols1           { $1:$3}
-
 Symbol : Ident                           { (tokPos $1, Sym [tokStr $1]) }
        | ident '::' Ident                { (tokPos $3, Sym [tokStr $1, tokStr $3]) }
 
 
 param   : ident type_                    { Param (tokPos $1)    (Sym [tokStr $1]) $2 }
-        | ident '&' type_                { RefParam (tokPos $1) (Sym [tokStr $1]) $3 }
-        | ident '[' ']' type_            { Param (tokPos $2)    (Sym [tokStr $1]) (foldl Apply Type.Slice [$4]) }
-        | ident '&' '[' ']' type_        { RefParam (tokPos $2) (Sym [tokStr $1]) (foldl Apply Type.Slice [$5]) }
+        | ident '&' type_                { Param (tokPos $1) (Sym [tokStr $1]) (Apply Type.Ref $3) }
 params  : {- empty -}                    { [] }
-        | params1                        { $1 }
-params1 : param                          { [$1] }
-        | param ',' params1              { $1 : $3 }
-
+        | param                          { [$1] }
+        | param ',' params               { $1 : $3 }
 
 generics : {-empty-}                      { [] }
-         | '{' Idents1 '}'                { map (\s -> Symbol.Sym [s]) $2 }
+         | '{' Idents  '}'                { map (\s -> Symbol.Sym [s]) $2 }
 
 ---------------------------------------------------------------------------------------------------
 -- Patterns ---------------------------------------------------------------------------------------

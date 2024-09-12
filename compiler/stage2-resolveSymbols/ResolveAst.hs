@@ -196,6 +196,11 @@ defineGenerics generics = forM generics $ \(Sym str) -> do
 
 resolveParam :: Param -> DoM ResolveState Param
 resolveParam param = withPos param $ case param of
+    Param pos (Sym sym) (Apply Ref t) -> do
+        symbol <- genSymbol (SymResolved sym)
+        define symbol KeyVar symbol False
+        RefParam pos symbol <$> resolveType t
+
     Param pos (Sym sym) typ -> do
         symbol <- genSymbol (SymResolved sym)
         define symbol KeyVar symbol False
