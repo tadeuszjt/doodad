@@ -97,9 +97,9 @@ generateFunc funcType = do
             funcIr''' <- fmap (IrConst.funcIr . snd) $ runDoMExcept (IrConst.initFuncIrConstState ast) (IrConst.funcIrConst funcIr'')
             return funcIr'''
 
-        liftIO $ putStrLn (show n)
-        liftIO $ putStrLn $ show funcIrHeader
-        liftIO $ IR.prettyIR "" funcIr'
+        --liftIO $ putStrLn (show n)
+        --liftIO $ putStrLn $ show funcIrHeader
+        --liftIO $ IR.prettyIR "" funcIr'
 
         generatedSymbol <- CGenerate.genSymbol (SymResolved [typeCode funcType])
         --liftIO $ putStrLn $ "generating: " ++ prettySymbol generatedSymbol
