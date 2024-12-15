@@ -137,8 +137,7 @@ inst cpuMove (io&, board&)
 
     // choose random move
     let rand : rond::Rand
-    let i = rand.uniform(0, empty.len)
-    let (row, col) = empty[i]
+    let (row, col) = empty[rand.uniform(0, empty.len)]
     board[row][col] = cross()
 
 

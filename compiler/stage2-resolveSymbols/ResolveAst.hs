@@ -4,7 +4,6 @@ module ResolveAst where
 import Prelude hiding (mod)
 
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 import Control.Monad.State
 import Control.Monad.Identity
 import Data.Maybe

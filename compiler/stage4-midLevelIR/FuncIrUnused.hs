@@ -4,18 +4,12 @@ module FuncIrUnused where
 import Control.Monad.Identity
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Control.Monad
 import Control.Monad.State
 --import Control.Monad.IO.Class
-import Data.Maybe
 
 import IR hiding (withCurrentId)
 import Monad
 import ASTResolved
-import Symbol
-import Type
-import FindFunc
-import qualified AST as S
 
 
 data FuncIrUnusedState = FuncIrUnusedState

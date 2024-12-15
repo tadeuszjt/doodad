@@ -2,9 +2,7 @@
 module FuncIrConst where
 
 import Control.Monad.Identity
-import qualified Data.Set as Set
 import qualified Data.Map as Map
-import Control.Monad
 import Control.Monad.State
 --import Control.Monad.IO.Class
 import Data.Maybe
@@ -12,13 +10,7 @@ import Data.Maybe
 import IR
 import Monad
 import ASTResolved
-import Symbol
 import Type
-import FindFunc
-import qualified AST as S
-import qualified MakeFuncIR as IR
-import qualified FuncIrDestroy
-import qualified FuncIrUnused as IR
 
 
 

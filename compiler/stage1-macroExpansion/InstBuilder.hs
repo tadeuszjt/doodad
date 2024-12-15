@@ -1,7 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 module InstBuilder where
 
-import Data.Maybe
 import qualified Data.Map as Map
 import Control.Monad.State
 import Control.Monad.Identity

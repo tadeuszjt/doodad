@@ -5,7 +5,6 @@ import Control.Monad.Identity
 import qualified Data.Map as Map
 import Control.Monad.State
 import Data.Maybe
-import Data.Char
 
 import Monad
 import ASTResolved

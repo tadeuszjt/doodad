@@ -7,8 +7,6 @@ import Data.List
 import Data.Maybe
 
 import Type
-import qualified AST as S
-import Monad
 import Symbol
 import Error
 

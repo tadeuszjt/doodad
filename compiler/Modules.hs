@@ -19,9 +19,7 @@ import qualified Data.Set as Set
 import qualified AST as S
 import qualified Parser as P
 import Monad
-import Error
 import Args
-import AST
 import ASTResolved
 import CPretty as C
 import CGenerate as C
@@ -30,8 +28,6 @@ import Compile as C
 import qualified ResolveAst
 import qualified CombineAsts
 import Preprocess
-import Symbol
-import AstBuilder
 
 -- Modules are groups of .doo files with a module name header
 -- lang/lexer.doo: lexer module

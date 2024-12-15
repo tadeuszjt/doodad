@@ -9,7 +9,6 @@ import AST
 import ASTResolved
 import Type
 import Error
-import Symbol
 import IR
 import InstBuilder
 import AstBuilder
