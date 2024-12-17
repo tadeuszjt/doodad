@@ -53,3 +53,76 @@ inst{A, B, C} destroy{ Sum{A, B, C} } (sum&)
 
     ${ memset($sum, 0, sizeof(*$sum)); }
 
+
+inst{A, B, C, D} destroy{ Sum{A, B, C, D} } (sum&)
+    switch sum.builtinSumEnum
+        0; sum.0 .destroy
+        1; sum.1 .destroy
+        2; sum.2 .destroy
+        3; sum.3 .destroy
+
+    ${ memset($sum, 0, sizeof(*$sum)); }
+
+inst{A, B, C, D, E} destroy{ Sum{A, B, C, D, E} } (sum&)
+    switch sum.builtinSumEnum
+        0; sum.0 .destroy
+        1; sum.1 .destroy
+        2; sum.2 .destroy
+        3; sum.3 .destroy
+        4; sum.4 .destroy
+
+    ${ memset($sum, 0, sizeof(*$sum)); }
+
+
+inst{A, B, C, D, E, F} destroy{ Sum{A, B, C, D, E, F} } (sum&)
+    switch sum.builtinSumEnum
+        0; sum.0 .destroy
+        1; sum.1 .destroy
+        2; sum.2 .destroy
+        3; sum.3 .destroy
+        4; sum.4 .destroy
+        5; sum.5 .destroy
+
+    ${ memset($sum, 0, sizeof(*$sum)); }
+
+
+inst{A, B, C, D, E, F, G} destroy{ Sum{A, B, C, D, E, F, G} } (sum&)
+    switch sum.builtinSumEnum
+        0; sum.0 .destroy
+        1; sum.1 .destroy
+        2; sum.2 .destroy
+        3; sum.3 .destroy
+        4; sum.4 .destroy
+        5; sum.5 .destroy
+        6; sum.6 .destroy
+
+    ${ memset($sum, 0, sizeof(*$sum)); }
+
+
+inst{A, B, C, D, E, F, G, H} destroy{ Sum{A, B, C, D, E, F, G, H} } (sum&)
+    switch sum.builtinSumEnum
+        0; sum.0 .destroy
+        1; sum.1 .destroy
+        2; sum.2 .destroy
+        3; sum.3 .destroy
+        4; sum.4 .destroy
+        5; sum.5 .destroy
+        6; sum.6 .destroy
+        7; sum.7 .destroy
+
+    ${ memset($sum, 0, sizeof(*$sum)); }
+
+
+inst{A, B, C, D, E, F, G, H, I} destroy{ Sum{A, B, C, D, E, F, G, H, I} } (sum&)
+    switch sum.builtinSumEnum
+        0; sum.0 .destroy
+        1; sum.1 .destroy
+        2; sum.2 .destroy
+        3; sum.3 .destroy
+        4; sum.4 .destroy
+        5; sum.5 .destroy
+        6; sum.6 .destroy
+        7; sum.7 .destroy
+        8; sum.8 .destroy
+
+    ${ memset($sum, 0, sizeof(*$sum)); }

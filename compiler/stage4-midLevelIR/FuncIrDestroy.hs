@@ -13,6 +13,7 @@ import ASTResolved
 import Symbol
 import Type
 import FindFunc
+import Error
 
 
 
@@ -153,6 +154,7 @@ destroy id = do
         [x] -> return x
 
     resm <- fmap fst $ runDoMExcept ast $ makeHeaderInstance (foldType [TypeDef destroySymbol, typ])
+    -- TODO get textPos here
     [ParamIR IR.Ref argType] <- case resm of
         Nothing -> fail ("no destroy instance for: " ++ show typ)
         Just irHeader -> return (irArgs irHeader)

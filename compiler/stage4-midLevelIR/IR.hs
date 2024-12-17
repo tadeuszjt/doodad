@@ -152,9 +152,11 @@ addType id typ refType = do
     unless (isNothing resm) (fail $ "id already typed: " ++ show id)
     liftFuncIrState $ modify $ \s -> s { irTypes = Map.insert id (typ, refType) (irTypes s) }
 
+
 addTextPos :: MonadFuncIR m => ID -> TextPos -> m ()
 addTextPos id pos = do
     liftFuncIrState $ modify $ \s -> s { irTextPos = Map.insert id pos (irTextPos s) }
+
 
 addStmt :: MonadFuncIR m => ID -> Stmt -> m ()
 addStmt id stmt = do

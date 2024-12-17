@@ -23,27 +23,27 @@ import builtin/destroy
 
 
 tuple Blob {
-    sprite   Quad
-    position Vec2f
-    velocity Vec2f
+    sprite   Quad,
+    position Vec2f,
+    velocity Vec2f,
     blobColour   Colour
 }
-derives Blob (store)
+derives Blob (copy)
 derives Blob (builtin::destroy)
 derives{P} Blob (print::print{P})
 
 
 fn vec2f(rand &Rand, rect Rectf) Vec2f
     return (
-        rand.uniform(rect.min.x, rect.max.x)
+        rand.uniform(rect.min.x, rect.max.x),
         rand.uniform(rect.min.y, rect.max.y)
     )
 
 fn colour(rand &Rand) Colour
     return (
-        convert(rand.uniform(0, 255))
-        convert(rand.uniform(0, 255))
-        convert(rand.uniform(0, 255))
+        convert(rand.uniform(0, 255)),
+        convert(rand.uniform(0, 255)),
+        convert(rand.uniform(0, 255)),
         255
     )
 
@@ -64,7 +64,7 @@ fn main(io Io, rand Rand, w Window)
     w.create(640, 480, "graphics test")
 
     let texture : Texture
-    data blobs Blob.Table
+    let blobs : Blob.Table
 
     for (0, 100)
         let blob:Blob

@@ -165,10 +165,6 @@ buildModule isMain args modPath = do
             _  -> fail ("multiple matching module files found in path: " ++ absoluteModPath)
 
         ast_ <- parse args file
-        ast <- preprocess ast_
-
-
-        --when (isMain && printAst args) $ liftIO (S.prettyAST ast)
 
         -- read imports and compile imported modules first
         imports <- fmap (Set.toList . Set.fromList) $
@@ -176,6 +172,7 @@ buildModule isMain args modPath = do
                 path' <- getCanonicalModPath path
                 return (stmt, path')
 
+        ast <- preprocess ast_
         mapM_ (buildModule False args) (map snd imports)
 
         -- compile this module
@@ -191,17 +188,7 @@ buildModule isMain args modPath = do
         when (verbose args) $ liftIO $ putStrLn "resolving symbols..."
         (astResolved', supply) <- ResolveAst.resolveAst ast astImports
 
-        --when (isMain && printAstResolved args) $ liftIO (prettyAST astResolved')
-
         astFinal <- CombineAsts.combineAsts astResolved' supply astImports
-        --liftIO $ prettyAST astResolved'
-        
-        -- infer ast types
-        --when (verbose args) $ liftIO $ putStrLn "inferring types..."
-
-        --(astFinal) <- withErrorPrefix "infer: " $
-        --    infer astCombined' (printAstAnnotated args) (verbose args)
-
         when (isMain && printAstFinal args ) $ liftIO (prettyASTResolved astFinal)
 
         -- build C ast from final ast

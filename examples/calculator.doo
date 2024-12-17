@@ -1,0 +1,307 @@
+module calculator
+
+import builtin/all
+import std/io
+import std/print
+
+// Parsing mode: LALR1_BY_SLR(1).
+// 
+// Grammar:
+// 
+//      0. $accept -> E
+//     -----------------
+//      1. E -> E '+' T
+//      2.    | E '-' T
+//      3.    | T
+//      4. T -> T '*' D
+//      5.    | D
+//      6. D -> D '/' F
+//      7.    | F
+//      8. F -> NUMBER
+//      9.    | '(' E ')'
+// 
+// LALR1_BY_SLR(1) parsing table:
+// 
+// ┌────┬─────┬─────┬─────┬─────┬─────┬─────┬────────┬─────┬────┬────┬────┬────┐
+// │    │ '+' │ '-' │ '*' │ '/' │ '(' │ ')' │ NUMBER │ $   │ E  │ T  │ D  │ F  │
+// ├────┼─────┼─────┼─────┼─────┼─────┼─────┼────────┼─────┼────┼────┼────┼────┤
+// │ 0  │     │     │     │     │ s6  │     │ s5     │     │ 1  │ 2  │ 3  │ 4  │
+// │ 1  │ s7  │ s8  │     │     │     │     │        │ acc │    │    │    │    │
+// │ 2  │ r3  │ r3  │ s10 │     │     │ r3  │        │ r3  │    │    │    │    │
+// │ 3  │ r5  │ r5  │ r5  │ s12 │     │ r5  │        │ r5  │    │    │    │    │
+// │ 4  │ r7  │ r7  │ r7  │ r7  │     │ r7  │        │ r7  │    │    │    │    │
+// │ 5  │ r8  │ r8  │ r8  │ r8  │     │ r8  │        │ r8  │    │    │    │    │
+// │ 6  │     │     │     │     │ s6  │     │ s5     │     │ 14 │ 2  │ 3  │ 4  │
+// │ 7  │     │     │     │     │ s6  │     │ s5     │     │    │ 9  │ 3  │ 4  │
+// │ 8  │     │     │     │     │ s6  │     │ s5     │     │    │ 16 │ 3  │ 4  │
+// │ 9  │ r1  │ r1  │ s10 │     │     │ r1  │        │ r1  │    │    │    │    │
+// │ 10 │     │     │     │     │ s6  │     │ s5     │     │    │    │ 11 │ 4  │
+// │ 11 │ r4  │ r4  │ r4  │ s12 │     │ r4  │        │ r4  │    │    │    │    │
+// │ 12 │     │     │     │     │ s6  │     │ s5     │     │    │    │    │ 13 │
+// │ 13 │ r6  │ r6  │ r6  │ r6  │     │ r6  │        │ r6  │    │    │    │    │
+// │ 14 │ s7  │ s8  │     │     │     │ s15 │        │     │    │    │    │    │
+// │ 15 │ r9  │ r9  │ r9  │ r9  │     │ r9  │        │ r9  │    │    │    │    │
+// │ 16 │ r2  │ r2  │ s10 │     │     │ r2  │        │ r2  │    │    │    │    │
+// └────┴─────┴─────┴─────┴─────┴─────┴─────┴────────┴─────┴────┴────┴────┴────┘
+
+enum Cell {
+    accept(),
+    shift(I64),
+    reduce(I64),
+    goto(I64),
+    empty(),
+}
+derives Cell (builtin::destroy, builtin::copy)
+
+
+inst{P} print{P, Cell} (p&, cell)
+    switch cell
+        accept(); p.print("accept")
+        shift(n)
+            p.print("shift(")
+            p.print(n)
+            p.print(")")
+        reduce(n)
+            p.print("reduce(")
+            p.print(n)
+            p.print(")")
+        goto(n)
+            p.print("goto(")
+            p.print(n)
+            p.print(")")
+        empty(); p.print("empty")
+
+inst{P} printLn{P, Cell} (p&, cell)
+    p.print(cell)
+    p.print('\n')
+
+
+enum Item {
+    tokInt(I64),
+    tokSym(Char),
+    tokEnd(),
+    state(I64),
+    e_(I64),
+    e(I64),
+    t(I64),
+    d(I64),
+    f(I64),
+}
+derives Item (destroy, copy)
+
+fn lookupCell(state I64, item Item) Cell
+    let array = [
+        [empty(), empty()  , empty()  , empty()  , shift(6), empty()  , shift(5), empty()  , goto(1) , goto(2) , goto(3) , goto(4) ],
+        [shift(7), shift(8) , empty()  , empty()  , empty() , empty()  , empty() , accept() , empty() , empty() , empty() , empty() ],
+        [reduce(3), reduce(3), shift(10), empty()  , empty() , reduce(3), empty() , reduce(3), empty() , empty() , empty() , empty() ],
+        [reduce(5), reduce(5), reduce(5), shift(12), empty() , reduce(5), empty() , reduce(5), empty() , empty() , empty() , empty() ],
+        [reduce(7), reduce(7), reduce(7), reduce(7), empty() , reduce(7), empty() , reduce(7), empty() , empty() , empty() , empty() ],
+        [reduce(8), reduce(8), reduce(8), reduce(8), empty() , reduce(8), empty() , reduce(8), empty() , empty() , empty() , empty() ],
+        [empty()  , empty()  , empty()  , empty()  , shift(6), empty()  , shift(5), empty()  , goto(14), goto(2) , goto(3) , goto(4) ],
+        [empty()  , empty()  , empty()  , empty()  , shift(6), empty()  , shift(5), empty()  , empty() , goto(9) , goto(3) , goto(4) ],
+        [empty()  , empty()  , empty()  , empty()  , shift(6), empty()  , shift(5), empty()  , empty() , goto(16), goto(3) , goto(4) ],
+        [reduce(1), reduce(1), shift(10), empty()  , empty() , reduce(1), empty() , reduce(1), empty() , empty() , empty() , empty() ],
+        [empty()  , empty()  , empty()  , empty()  , shift(6), empty()  , shift(5), empty()  , empty() , empty() , goto(11), goto(4) ],
+        [reduce(4), reduce(4), reduce(4), shift(12), empty() , reduce(4), empty() , reduce(4), empty() , empty() , empty() , empty() ],
+        [empty()  , empty()  , empty()  , empty()  , shift(6), empty()  , shift(5), empty()  , empty() , empty() , empty() , goto(13)],
+        [reduce(6), reduce(6), reduce(6), reduce(6), empty() , reduce(6), empty() , reduce(6), empty() , empty() , empty() , empty() ],
+        [shift(7) , shift(8) , empty()  , empty()  , empty() , shift(15), empty() , empty()  , empty() , empty() , empty() , empty() ],
+        [reduce(9), reduce(9), reduce(9), reduce(9), empty() , reduce(9), empty() , reduce(9), empty() , empty() , empty() , empty() ],
+        [reduce(2), reduce(2), shift(10), empty()  , empty() , reduce(2), empty() , reduce(2), empty() , empty() , empty() , empty() ]
+    ] : Array{17, Array{12, Cell}}
+
+    let col = 0
+    switch item:Item
+        tokSym('+'); col = 0
+        tokSym('-'); col = 1
+        tokSym('*'); col = 2
+        tokSym('/'); col = 3
+        tokSym('('); col = 4
+        tokSym(')'); col = 5
+        tokInt(n)  ; col = 6
+        tokEnd()   ; col = 7
+        e(_)       ; col = 8
+        t(_)       ; col = 9
+        d(_)       ; col = 10
+        f(_)       ; col = 11
+
+    return array[state][col]
+
+
+//fn {stack [Item]} reduce(production i64)
+//    fn {stack [Item]} getItem() Item
+//        let State(_) = stack.pop()
+//        return stack.pop()
+//
+//    switch production
+//        1 // E -> E '+' T
+//            let T(n1)       = stack.getItem()
+//            let TokSym('+') = stack.getItem()
+//            let E(n2)       = stack.getItem()
+//            stack += [E(n2 + n1)]
+//
+//        2 // E -> E '-' T
+//            let T(n1)       = stack.getItem()
+//            let TokSym('-') = stack.getItem()
+//            let E(n2)       = stack.getItem()
+//            stack += [E(n2 - n1)]
+//
+//        3 // E -> T
+//            let T(n1)       = stack.getItem()
+//            stack += [E(n1)]
+//
+//        4 // T -> T '*' D
+//            let D(n1)       = stack.getItem()
+//            let TokSym('*') = stack.getItem()
+//            let T(n2)       = stack.getItem()
+//            stack += [T(n2 * n1)]
+//
+//        5 // T -> D
+//            let D(n1)       = stack.getItem()
+//            stack += [T(n1)]
+//
+//        6 // D -> D '/' F
+//            let F(n1)       = stack.getItem()
+//            let TokSym('/') = stack.getItem()
+//            let D(n2)       = stack.getItem()
+//            stack += [D(n2 / n1)]
+//
+//        7 // D -> F
+//            let F(n1)       = stack.getItem()
+//            stack += [D(n1)]
+//
+//        8 // F -> NUMBER
+//            let TokInt(n)   = stack.getItem()
+//            stack += [F(n)]
+//
+//        9 // F -> '(' E ')'
+//            let TokSym(')') = stack.getItem()
+//            let E(n)        = stack.getItem()
+//            let TokSym('(') = stack.getItem()
+//            stack += [F(n)]
+
+
+//fn {io Io, stack [Item]} printStack()
+//    for stack -> item:Item
+//        switch item
+//            TokSym(c); io.putStrLn("sym: " + string(c))
+//            TokInt(n); io.putStrLn("int: " + string(n))
+//            E(n); io.putStrLn("E(" + string(n) + ")")
+//            F(n); io.putStrLn("F(" + string(n) + ")")
+//            D(n); io.putStrLn("D(" + string(n) + ")")
+//            T(n); io.putStrLn("T(" + string(n) + ")")
+//            State(n); io.putStrLn("state: " + string(n))
+
+
+//fn isRule(item Item) Bool
+//    switch item
+//        e_(_); return true
+//        e(_); return true
+//        t(_); return true
+//        d(_); return true
+//        f(_); return true
+//        _; return false
+
+
+fn main(io Io)
+    io.stdout.printLn("calculator4")
+
+    let line : Table{Char}
+    line.print("10 + 2 - 3 - 3")
+
+    let tokens : Table{Item}
+
+//    if !tokens.lexString(line)
+//        assert(false)
+//
+//    data stack [Item]
+//    stack += [State(0)]
+//    let tokenCursor = 0
+//
+//    for [0..100]
+//        let token = tokens.at(tokenCursor)
+//        let item = token
+//        let state = 0
+//
+//        // if top of stack is a state, lookup token
+//        // else get state and item from stack
+//        switch stack[len(stack) - 1]
+//            State(s)
+//                state = s
+//                item = token
+//            x | isRule(x)
+//                item = x
+//                let State(s) = stack[len(stack) - 2]
+//                state = s
+//
+//
+//        switch lookupCell(state, item)
+//            Shift(state) // Push token onto stack, increase tokenCursor, push next state
+//                io.putStrLn("-- shifting: " + string(state))
+//                stack += [tokens[tokenCursor], State(state)]
+//                tokenCursor = tokenCursor + 1
+//
+//            Reduce(production) // pop state, replace RHS of production with LHS
+//                io.putStrLn("-- reducing " + string(production))
+//                stack.reduce(production)
+//
+//            Goto(state) // push next state
+//                io.putStrLn("-- goto " + string(state))
+//                stack += [State(state)]
+//
+//            Accept()
+//                io.putStrLn("-- accept")
+//                let TokEnd() = token
+//                return
+//
+//        {io, stack}.printStack()
+//
+//
+//
+
+enum LexResult {
+//    lexSuccess(Item, I64),
+    lexFail()
+}
+
+//type LexResult (LexFail () | LexSuccess(Item, i64))
+//
+//fn {tokens [Item]} at(idx i64) Item
+//    if idx == len(tokens); return TokEnd()
+//    else if idx < len(tokens); return tokens[idx]
+//    let true = false
+//    return TokEnd()
+//
+//fn {s string} at(idx i64) (null | char)
+//    if idx >= 0 && idx < len(s)
+//        return conv(s[idx])
+//    return null
+//
+//fn lexInt(s string, idx i64) LexResult
+//    if s.at(idx) -> *char(c) | isDigit(c)
+//        let n = 0
+//        while s.at(idx) -> *char(c) | isDigit(c)
+//            n = n*10 + i64(c - '0')
+//            idx = idx + 1
+//
+//        return LexSuccess(TokInt(n), idx)
+//    return LexFail()
+//
+//fn lexSym(s string, idx i64) LexResult
+//    if s.at(idx) -> *char(c) | c == '+' || c == '-' || c == '*' || c == '/' || c == '(' || c == ')'
+//        return LexSuccess(TokSym(c), idx + 1)
+//    return LexFail()
+//
+//fn lex(s string, idx i64) LexResult
+//    while s.at(idx) -> *char(c) | isSpace(c); idx = idx + 1
+//    if lexInt(s, idx) -> LexSuccess(a, b); return LexSuccess(a, b)
+//    if lexSym(s, idx) -> LexSuccess(a, b); return LexSuccess(a, b)
+//    return LexFail()
+//
+//fn {tokens [Item]} lexString(s string) bool
+//    let idx = 0
+//    while lex(s, idx) -> LexSuccess(token, end)
+//        idx = end
+//        tokens += [token]
+//    return idx == len(s)
+

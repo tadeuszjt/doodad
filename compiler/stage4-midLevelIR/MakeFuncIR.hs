@@ -113,7 +113,8 @@ makeStmt inst (S.Stmt stmtId) = do
                 id' <- look symbol
                 return (s, id')
             uses <- mapM look (map snd strMap)
-            void $ appendStmt (EmbedC strMap' str)
+            id <- appendStmt (EmbedC strMap' str)
+            addTextPos id (textPos statement)
 
         S.Let _ (S.Pattern patId) (Just expr) Nothing -> do
             let Just (S.PatIdent _ symbol) = Map.lookup patId (patterns inst)
@@ -130,10 +131,12 @@ makeStmt inst (S.Stmt stmtId) = do
                             void $ define symbol id
 
 
-        S.Let _ (S.Pattern patId) Nothing Nothing -> do
+        S.Let pos (S.Pattern patId) Nothing Nothing -> do
             let Just (S.PatIdent _ symbol) = Map.lookup patId (patterns inst)
             let Just typ                   = Map.lookup patId (types inst)
-            define symbol =<< appendSSA typ Value (InitVar Nothing)
+            id <- appendSSA typ Value (InitVar Nothing)
+            addTextPos id pos
+            define symbol id
 
         S.Assign _ symbol expr@(S.Expr ei) -> do
             let Just typeOfExpr = Map.lookup ei (types inst)
@@ -161,8 +164,9 @@ makeStmt inst (S.Stmt stmtId) = do
         S.Return _ Nothing     -> void $ appendStmt $ Return (ArgConst Tuple (ConstTuple []))-- void $ appendStmt ReturnVoid
         S.ExprStmt expr        -> void ((makeVal inst) expr)
 
-        S.While _ expr (S.Stmt stmtId) -> do
+        S.While pos expr (S.Stmt stmtId) -> do
             id <- appendStmt $ Loop []
+            addTextPos id pos
             withCurrentID id $ do
                 cnd <- (makeVal inst) expr
 
@@ -178,12 +182,13 @@ makeStmt inst (S.Stmt stmtId) = do
                 mapM_ (makeStmt inst) stmts
 
 
-        S.If _ expr (S.Stmt trueId) mfalse -> do
+        S.If pos expr (S.Stmt trueId) mfalse -> do
             arg <- (makeVal inst) expr
 
             trueBlkId <- generateId
             falseBlkId <- generateId
-            appendStmt (If arg trueBlkId falseBlkId)
+            id <- appendStmt (If arg trueBlkId falseBlkId)
+            addTextPos id pos
             addStmt trueBlkId (Block [])
             addStmt falseBlkId (Block [])
 
