@@ -165,7 +165,6 @@ addStmt id stmt = do
     liftFuncIrState $ modify $ \s -> s { irStmts = Map.insert id stmt (irStmts s) }
 
 
-
 getType :: MonadFuncIR m => Arg -> m (Type, RefType)
 getType arg = case arg of
     ArgConst typ _ -> return (typ, Const)

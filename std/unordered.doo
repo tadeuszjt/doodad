@@ -48,10 +48,6 @@ inst{T} index{ Unordered{T}, T } (u&, idx) -> &
 
 
 inst{T} at{ T.Key, T, Unordered{T} } (u&, key) -> &
-//    ${
-//        printf("at{T.Key, T, Unordered{T}}, u.ptr:%p, key:%d\n", $u.ptr, $key);
-//    }
-
     let index = u.indices[key.pretend:sparse::Key{I64}]
     return &u.values[index]
 

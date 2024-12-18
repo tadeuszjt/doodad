@@ -420,6 +420,7 @@ buildStmt statement = withPos statement $ case statement of
                     ]
 
                 trueBlkId <- newStmt (Block [])
+                -- TODO it doesn't break after successful case?
                 withCurId trueBlkId (mapM_ buildStmt stmts)
                 appendStmt $ If pos match (Stmt trueBlkId) Nothing
 

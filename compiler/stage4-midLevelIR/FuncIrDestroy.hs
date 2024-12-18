@@ -37,30 +37,33 @@ instance MonadFuncIR (DoM FuncIrDestroyState) where
         modify $ \s -> s { funcIr = irFunc' }
         return a
 
+
+addFuncDestroy :: ASTResolved -> FuncIR -> DoM a FuncIR
+addFuncDestroy ast func = do
+    fmap (funcIr . snd) $ runDoMExcept state (processStmt func 0)
+    where
+        state = (initFuncIrDestroyState ast) { funcIr = initFuncIr
+            { irTypes = irTypes func
+            , irIdSupply = irIdSupply func
+            , irTextPos = irTextPos func
+            }}
+
+
 pushStack :: DoM FuncIrDestroyState ()
 pushStack = do
     modify $ \s -> s { destroyStack = (Set.empty : (destroyStack s)) }
 
+
 popStack :: DoM FuncIrDestroyState ()
 popStack = do
     modify $ \s -> s { destroyStack = tail (destroyStack s) }
+
 
 addDestroy :: ID -> DoM FuncIrDestroyState ()
 addDestroy id = do
     set <- gets $ head . destroyStack
     when (Set.member id set) (fail "id already in destroy stack")
     modify $ \s -> s { destroyStack = (Set.insert id set) : (tail $ destroyStack s) }
-
-
-addFuncDestroy :: FuncIR -> DoM FuncIrDestroyState ()
-addFuncDestroy func = do
-    -- copy types from old map
-    liftFuncIrState $ modify $ \s -> s { irTypes = irTypes func }
-
-    -- generate new ids from here
-    liftFuncIrState $ modify $ \s -> s { irIdSupply = irIdSupply func }
-
-    processStmt func 0
 
 
 processStmt :: FuncIR -> ID -> DoM FuncIrDestroyState ()

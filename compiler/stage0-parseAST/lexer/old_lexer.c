@@ -72,8 +72,8 @@ Io Io_init(FILE *fpIn, FILE *fpOut) {
     Io io = {0};
     io.fpIn = fpIn;
     io.fpOut = fpOut;
-    io.currentLine = 0;
-    io.currentColumn = 0;
+    io.currentLine = 1;
+    io.currentColumn = 1;
     io.rewindCount = 0;
     io.ring = IoCharRing_init();
     return io;
@@ -371,12 +371,19 @@ bool lexFloating(Io *io) {
         return false;
     }
 
+
     int postfixLen = 0;
     for (;; postfixLen++) {
         if (!isDigit(Io_getChar(io).c)) {
             Io_rewind(io, 1);
             break;
         }
+    }
+
+    // prevent parse error for 'tuple.0.func'
+    if (postfixLen == 0 && isLetter(Io_getChar(io).c)) {
+        Io_rewind(io, 2 + prefixLen + postfixLen);
+        return false;
     }
 
     Io_rewind(io, prefixLen + 1 + postfixLen);
@@ -748,16 +755,16 @@ void lexFile(const char *filenameIn, const char *filenameOut) {
     int bracketLevelCount = 0;
 
     for (;;) {
-        if (lexFloating(&io)) {
+        if (lexComment(&io)) {
+        } else if (lexNewline(&io, &indentStack, &bracketLevelCount)) {
+        } else if (lexStringLiteral(&io)) {
+        } else if (lexCEmbed(&io)) {
+        } else if (lexFloating(&io)) {
         } else if (lexInteger(&io)) {
         } else if (lexDoubleSymbol(&io)) {
         } else if (lexSymbol(&io, &bracketLevelCount)) {
-        } else if (lexStringLiteral(&io)) {
-        } else if (lexNewline(&io, &indentStack, &bracketLevelCount)) {
-        } else if (lexCEmbed(&io)) {
         } else if (lexCharLiteralEscaped(&io)) {
         } else if (lexCharLiteral(&io)) {
-        } else if (lexComment(&io)) {
         } else if (lexImport(&io)) {
         } else if (lexKeyword(&io)) {
         } else if (lexIdent(&io)) {

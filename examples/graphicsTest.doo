@@ -23,13 +23,12 @@ import builtin/destroy
 
 
 tuple Blob {
-    sprite   Quad,
-    position Vec2f,
-    velocity Vec2f,
-    blobColour   Colour
+    sprite     Quad,
+    position   Vec2f,
+    velocity   Vec2f,
+    blobColour Colour
 }
-derives Blob (copy)
-derives Blob (builtin::destroy)
+derives Blob (copy, builtin::destroy)
 derives{P} Blob (print::print{P})
 
 
@@ -49,14 +48,14 @@ fn colour(rand &Rand) Colour
 
 
 fn makeQuad(position Vec2f, colour Colour) Quad
-    let quad
-    quad[0] = (position + (-10.0, -10.0), colour, (0.0, 0.0))
-    quad[1] = (position + (10.0, -10.0),  colour, (0.0, 0.0))
-    quad[2] = (position + (10.0, 10.0),   colour, (0.0, 0.0))
-    quad[3] = (position + (-10.0, -10.0), colour, (0.0, 0.0))
-    quad[4] = (position + (10.0, 10.0),   colour, (0.0, 0.0))
-    quad[5] = (position + (-10.0, 10.0),  colour, (0.0, 0.0))
-    return quad
+    return [
+        (position + (-10.0, -10.0), colour, (0.0, 0.0)),
+        (position + (10.0, -10.0),  colour, (0.0, 0.0)),
+        (position + (10.0, 10.0),   colour, (0.0, 0.0)),
+        (position + (-10.0, -10.0), colour, (0.0, 0.0)),
+        (position + (10.0, 10.0),   colour, (0.0, 0.0)),
+        (position + (-10.0, 10.0),  colour, (0.0, 0.0))
+    ]
 
 
 fn main(io Io, rand Rand, w Window)

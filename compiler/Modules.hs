@@ -165,6 +165,7 @@ buildModule isMain args modPath = do
             _  -> fail ("multiple matching module files found in path: " ++ absoluteModPath)
 
         ast_ <- parse args file
+        when (printAst args) $ liftIO (S.prettyAST ast_)
 
         -- read imports and compile imported modules first
         imports <- fmap (Set.toList . Set.fromList) $

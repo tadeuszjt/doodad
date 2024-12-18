@@ -7,21 +7,18 @@ type{T} Key I64
 derives{T} Key{T} (destroy)
 
 
-
 tuple{T} Sparse {
     values T.Table,
     empty  T.Key.Table
 }
 
-
-derives{T} Key{T} (store)
 derives{T} Sparse{T} (destroy)
 
 
 inst{T} container::len{ T.Sparse } (s&)
     return s.values.len - s.empty.len
 
-inst{T, K, V} container::at{ T.Key, V, Sparse{V} } (s&, key) -> &
+inst{T, K, V} container::at{ T.Key, V, V.Sparse } (s&, key) -> &
     return s.values.at( key.pretend:I64 )
 
 

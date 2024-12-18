@@ -3,6 +3,8 @@ module calculator
 import builtin/all
 import std/io
 import std/print
+import std/option
+import std/char
 
 // Parsing mode: LALR1_BY_SLR(1).
 // 
@@ -71,11 +73,6 @@ inst{P} print{P, Cell} (p&, cell)
             p.print(")")
         empty(); p.print("empty")
 
-inst{P} printLn{P, Cell} (p&, cell)
-    p.print(cell)
-    p.print('\n')
-
-
 enum Item {
     tokInt(I64),
     tokSym(Char),
@@ -88,6 +85,43 @@ enum Item {
     f(I64),
 }
 derives Item (destroy, copy)
+
+inst{P} print{P, Item} (p&, item)
+    switch item
+        tokInt(n)
+            p.print("tokInt(")
+            p.print(n)
+            p.print(")")
+        tokSym(c)
+            p.print("tokSym(")
+            p.print(c)
+            p.print(")")
+        tokEnd()
+            p.print("tokEnd()")
+        state(n)
+            p.print("state(")
+            p.print(n)
+            p.print(")")
+        e_(n)
+            p.print("e_(")
+            p.print(n)
+            p.print(")")
+        e(n)
+            p.print("e(")
+            p.print(n)
+            p.print(")")
+        t(n)
+            p.print("t(")
+            p.print(n)
+            p.print(")")
+        d(n)
+            p.print("d(")
+            p.print(n)
+            p.print(")")
+        f(n)
+            p.print("f(")
+            p.print(n)
+            p.print(")")
 
 fn lookupCell(state I64, item Item) Cell
     let array = [
@@ -124,184 +158,193 @@ fn lookupCell(state I64, item Item) Cell
         t(_)       ; col = 9
         d(_)       ; col = 10
         f(_)       ; col = 11
+        _; assert(false)
+            
 
     return array[state][col]
 
 
-//fn {stack [Item]} reduce(production i64)
-//    fn {stack [Item]} getItem() Item
-//        let State(_) = stack.pop()
-//        return stack.pop()
-//
-//    switch production
-//        1 // E -> E '+' T
-//            let T(n1)       = stack.getItem()
-//            let TokSym('+') = stack.getItem()
-//            let E(n2)       = stack.getItem()
-//            stack += [E(n2 + n1)]
-//
-//        2 // E -> E '-' T
-//            let T(n1)       = stack.getItem()
-//            let TokSym('-') = stack.getItem()
-//            let E(n2)       = stack.getItem()
-//            stack += [E(n2 - n1)]
-//
-//        3 // E -> T
-//            let T(n1)       = stack.getItem()
-//            stack += [E(n1)]
-//
-//        4 // T -> T '*' D
-//            let D(n1)       = stack.getItem()
-//            let TokSym('*') = stack.getItem()
-//            let T(n2)       = stack.getItem()
-//            stack += [T(n2 * n1)]
-//
-//        5 // T -> D
-//            let D(n1)       = stack.getItem()
-//            stack += [T(n1)]
-//
-//        6 // D -> D '/' F
-//            let F(n1)       = stack.getItem()
-//            let TokSym('/') = stack.getItem()
-//            let D(n2)       = stack.getItem()
-//            stack += [D(n2 / n1)]
-//
-//        7 // D -> F
-//            let F(n1)       = stack.getItem()
-//            stack += [D(n1)]
-//
-//        8 // F -> NUMBER
-//            let TokInt(n)   = stack.getItem()
-//            stack += [F(n)]
-//
-//        9 // F -> '(' E ')'
-//            let TokSym(')') = stack.getItem()
-//            let E(n)        = stack.getItem()
-//            let TokSym('(') = stack.getItem()
-//            stack += [F(n)]
+
+fn isRule(item Item) Bool
+    switch item
+        e_(_); return true
+        e(_); return true
+        t(_); return true
+        d(_); return true
+        f(_); return true
+        _; return false
 
 
-//fn {io Io, stack [Item]} printStack()
-//    for stack -> item:Item
-//        switch item
-//            TokSym(c); io.putStrLn("sym: " + string(c))
-//            TokInt(n); io.putStrLn("int: " + string(n))
-//            E(n); io.putStrLn("E(" + string(n) + ")")
-//            F(n); io.putStrLn("F(" + string(n) + ")")
-//            D(n); io.putStrLn("D(" + string(n) + ")")
-//            T(n); io.putStrLn("T(" + string(n) + ")")
-//            State(n); io.putStrLn("state: " + string(n))
+fn getItem(stack &Item.Table) Item
+    let state(_) = stack.pop
+    return stack.pop
 
 
-//fn isRule(item Item) Bool
-//    switch item
-//        e_(_); return true
-//        e(_); return true
-//        t(_); return true
-//        d(_); return true
-//        f(_); return true
-//        _; return false
+fn reduceStack(stack &Item.Table, production I64)
+    switch production
+        1 // E -> E '+' T
+            let t(n1)       = stack.getItem()
+            let tokSym('+') = stack.getItem()
+            let e(n2)       = stack.getItem()
+            stack.push(e(n2 + n1))
+
+        2 // E -> E '-' T
+            let t(n1)       = stack.getItem()
+            let tokSym('-') = stack.getItem()
+            let e(n2)       = stack.getItem()
+            stack.push(e(n2 - n1))
+
+        3 // E -> T
+            let t(n1)       = stack.getItem()
+            stack.push(e(n1))
+
+        4 // T -> T '*' D
+            let d(n1)       = stack.getItem()
+            let tokSym('*') = stack.getItem()
+            let t(n2)       = stack.getItem()
+            stack.push(t(n2 * n1))
+
+        5 // T -> D
+            let d(n1)       = stack.getItem()
+            stack.push(t(n1))
+
+        6 // D -> D '/' F
+            let f(n1)       = stack.getItem()
+            let tokSym('/') = stack.getItem()
+            let d(n2)       = stack.getItem()
+            stack.push(d(n2 / n1))
+
+        7 // D -> F
+            let f(n1)       = stack.getItem()
+            stack.push(d(n1))
+
+        8 // F -> NUMBER
+            let tokInt(n)   = stack.getItem()
+            stack.push(f(n))
+
+        9 // F -> '(' E ')'
+            let tokSym(')') = stack.getItem()
+            let e(n)        = stack.getItem()
+            let tokSym('(') = stack.getItem()
+            stack.push(f(n))
 
 
 fn main(io Io)
     io.stdout.printLn("calculator4")
 
     let line : Table{Char}
-    line.print("10 + 2 - 3 - 3")
+    line.print("10")
 
     let tokens : Table{Item}
 
-//    if !tokens.lexString(line)
-//        assert(false)
-//
-//    data stack [Item]
-//    stack += [State(0)]
-//    let tokenCursor = 0
-//
-//    for [0..100]
-//        let token = tokens.at(tokenCursor)
-//        let item = token
-//        let state = 0
-//
-//        // if top of stack is a state, lookup token
-//        // else get state and item from stack
-//        switch stack[len(stack) - 1]
-//            State(s)
-//                state = s
-//                item = token
-//            x | isRule(x)
-//                item = x
-//                let State(s) = stack[len(stack) - 2]
-//                state = s
-//
-//
-//        switch lookupCell(state, item)
-//            Shift(state) // Push token onto stack, increase tokenCursor, push next state
-//                io.putStrLn("-- shifting: " + string(state))
-//                stack += [tokens[tokenCursor], State(state)]
-//                tokenCursor = tokenCursor + 1
-//
-//            Reduce(production) // pop state, replace RHS of production with LHS
-//                io.putStrLn("-- reducing " + string(production))
-//                stack.reduce(production)
-//
-//            Goto(state) // push next state
-//                io.putStrLn("-- goto " + string(state))
-//                stack += [State(state)]
-//
-//            Accept()
-//                io.putStrLn("-- accept")
-//                let TokEnd() = token
-//                return
-//
-//        {io, stack}.printStack()
-//
-//
-//
+    tokens = line.lexTokens
+    io.stdout.printLn(tokens)
 
-enum LexResult {
-//    lexSuccess(Item, I64),
-    lexFail()
-}
+    let stack : Item.Table
 
-//type LexResult (LexFail () | LexSuccess(Item, i64))
-//
-//fn {tokens [Item]} at(idx i64) Item
-//    if idx == len(tokens); return TokEnd()
-//    else if idx < len(tokens); return tokens[idx]
-//    let true = false
-//    return TokEnd()
-//
-//fn {s string} at(idx i64) (null | char)
-//    if idx >= 0 && idx < len(s)
-//        return conv(s[idx])
-//    return null
-//
-//fn lexInt(s string, idx i64) LexResult
-//    if s.at(idx) -> *char(c) | isDigit(c)
-//        let n = 0
-//        while s.at(idx) -> *char(c) | isDigit(c)
-//            n = n*10 + i64(c - '0')
-//            idx = idx + 1
-//
-//        return LexSuccess(TokInt(n), idx)
-//    return LexFail()
-//
-//fn lexSym(s string, idx i64) LexResult
-//    if s.at(idx) -> *char(c) | c == '+' || c == '-' || c == '*' || c == '/' || c == '(' || c == ')'
-//        return LexSuccess(TokSym(c), idx + 1)
-//    return LexFail()
-//
-//fn lex(s string, idx i64) LexResult
-//    while s.at(idx) -> *char(c) | isSpace(c); idx = idx + 1
-//    if lexInt(s, idx) -> LexSuccess(a, b); return LexSuccess(a, b)
-//    if lexSym(s, idx) -> LexSuccess(a, b); return LexSuccess(a, b)
-//    return LexFail()
-//
-//fn {tokens [Item]} lexString(s string) bool
-//    let idx = 0
-//    while lex(s, idx) -> LexSuccess(token, end)
-//        idx = end
-//        tokens += [token]
-//    return idx == len(s)
+    stack.push(state(0))
+
+
+    let loop = true
+    let tokIdx = 0
+    while loop
+        io.stdout.printLn("looping")
+        io.stdout.printLn(stack[stack.len - 1])
+
+        let item = tokens[tokIdx]
+        let st = 0
+
+        // TODO switch statements are broken.
+        switch stack[stack.len - 1]
+            state(s)
+                st = s
+                item = tokens[tokIdx]
+                io.stdout.printLn("here?")
+
+            x | isRule(x)
+                item = x
+                let state(s) = stack[stack.len - 2]
+                st = s
+            _
+                io.stdout.printLn("wrong thing on stack")
+                assert(false)
+
+        io.stdout.print("looking up: ")
+        io.stdout.printLn( (st, item) )
+
+        switch lookupCell(st, item)
+            shift(s) // Push token onto stack, increase tokenIdx, push next state
+                io.stdout.printLn("-- shifting")
+                stack.push(tokens[tokIdx])
+                stack.push(state(s))
+                tokIdx = tokIdx + 1
+
+            reduce(production) // pop state, replace RHS of production with LHS
+                io.stdout.printLn("-- reducing ")
+                stack.reduceStack(production)
+
+            goto(s) // push next state
+                io.stdout.printLn("-- goto ")
+                stack.push(state(s))
+
+            accept()
+                io.stdout.printLn("-- accept")
+                let tokEnd() = tokens[tokIdx]
+                loop = false
+
+            _
+                io.stdout.printLn("what")
+                loop = false
+
+    io.stdout.printLn(stack)
+
+
+fn atm(str &Char.Table, idx I64) Char.Option
+    if idx >= 0 && idx < str.len
+        return some(str[idx])
+    return none()
+
+
+fn lexInt(str &Char.Table, idx I64) (Item, I64).Option
+    if str.atm(idx) -> some(c) | isDigit(c)
+
+        let n : I64 = 0
+        while str.atm(idx) -> some(c) | isDigit(c)
+            n = n * 10 + (c - '0').convert
+            idx = idx + 1
+
+        return some( (tokInt(n), idx) )
+    
+    else
+        return none()
+
+
+fn lexSym(str &Char.Table, idx I64) (Item, I64).Option
+    if str.atm(idx) -> some(c) | c == '+' || c == '-' || c == '*' || c == '/' || c == '(' || c == ')'
+        return some( (tokSym(c), idx + 1) )
+    return none()
+
+
+fn lex(str &Char.Table, idx I64) (Item, I64).Option
+    while str.atm(idx) -> some(c) | c.isSpace
+        idx = idx + 1
+
+    if str.lexInt(idx) -> some(x)
+        return some(x)
+    if str.lexSym(idx) -> some(x)
+        return some(x)
+    return none()
+
+
+fn lexTokens(str &Char.Table) Item.Table
+    let items : Item.Table
+
+    let idx = 0
+    while str.lex(idx) -> some( (item, nextIdx) )
+        idx = nextIdx
+        items.push(item)
+
+    if idx == str.len
+        return items
+    return []
 

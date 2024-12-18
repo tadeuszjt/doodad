@@ -4,7 +4,10 @@ import builtin/all
 
 
 func{P, T} print(P, T)
-func{P, T} printLn(P, T)
+
+fn{P, T} printLn(p &P, t T)
+    p.print(t)
+    p.print('\n')
 
 
 inst print{ Char.Table, Char } (t&, c)
@@ -14,34 +17,6 @@ inst print{ Char.Table, Char } (t&, c)
 inst{T} print{ T, Char.Slice } (t&, s)
     for s -> c
         t.print(c)
-
-
-inst{P} printLn{ P, Char.Slice } (p&, s)
-    p.print(s)
-    p.print('\n')
-
-inst{P} printLn{ P, I64 } (p&, n)
-    p.print(n)
-    p.print('\n')
-
-inst{T} print{ T, U8 }  (p&, n); p.print(convert(n) : I64)
-inst{T} print{ T, I32 } (p&, n); p.print(convert(n) : I64)
-
-
-inst{P} print{P, F64} (p&, f)
-    let len = 0
-    let array : Array{64, Char}
-    ${
-        char str[64] = {0};
-        sprintf(str, "%g", $f);
-        for (int i = 0; str[i] != '\0'; i++) {
-            $array.arr[i] = str[i];
-            $len++;
-        }
-    }
-
-    for (0, len) -> i
-        p.print(array[i])
 
 
 inst{T} print{ T, I64 } (t&, n)
@@ -62,23 +37,30 @@ inst{T} print{ T, I64 } (t&, n)
         t.print(digits[digits.len - 1 - idx])
 
 
-inst{T} print{ T, F32 } (p&, n)
+inst{T} print{ T, U8 }  (p&, n); p.print(convert(n) : I64)
+inst{T} print{ T, I32 } (p&, n); p.print(convert(n) : I64)
+
+
+inst{P} print{P, F64} (p&, n)
+    let len = 0
     let str : Array{ 32, Char } 
-    ${ sprintf( $str.arr, "%g", $n ); }
-    for str -> c
-        p.print(c)
+    ${ $len = sprintf( $str.arr, "%g", $n ); }
+    assert(len <= str.len)
+
+    for (0, len) -> i
+        p.print(str[i])
 
 
-inst{T} print{ T, Bool } (t&, b)
+inst{P} print{P, F32} (p&, n)
+    p.print(n.convert : F64)
+
+
+inst{P} print{P, Bool} (p&, b)
     if b
-        t.print("true")
+        p.print("true")
     else
-        t.print("false")
+        p.print("false")
 
-
-inst{T, G} printLn{T, G.Table} (t&, g&)
-    t.print(g)
-    t.print('\n')
 
 inst{T, G} print{ T, G.Table } (t&, g&)
     t.print('[')
@@ -89,11 +71,6 @@ inst{T, G} print{ T, G.Table } (t&, g&)
             t.print(", ")
 
     t.print(']')
-
-
-inst{P, S, T} printLn{P, Array{S, T}} (p&, array)
-    p.print(array)
-    p.print('\n')
 
 
 inst{P, S, T} print{ P, Array{S, T} } (p&, array)
@@ -107,9 +84,6 @@ inst{P, S, T} print{ P, Array{S, T} } (p&, array)
     p.print(']')
 
 
-inst{P, A, B} printLn{P, Tuple{A, B}} (p&, t)
-    p.print(t)
-    p.print('\n')
 inst{P, A, B} print{ P, Tuple{A, B} } (a&, b)
     a.print('(')
     a.print( b.builtinField{0, A, Tuple{A, B}} )
@@ -118,9 +92,6 @@ inst{P, A, B} print{ P, Tuple{A, B} } (a&, b)
     a.print(')')
 
 
-inst{P, A, B, C} printLn{P, Tuple{A, B, C}} (p&, t)
-    p.print(t)
-    p.print('\n')
 inst{P, A, B, C} print{ P, Tuple{A, B, C} } (a&, b)
     a.print('(')
     a.print( b.0 )

@@ -320,6 +320,14 @@ prettyStmt pre stmt = case stmt of
 
         putStrLn "}"
 
+    Enum pos generics symbol fields -> do
+        putStrLn $ pre ++ "enum" ++ genericsStr generics ++ " " ++ prettySymbol symbol ++ " {"
+
+        forM_ fields $ \(fieldSymbol, fieldTypes) -> do
+            putStrLn $ pre ++ "\t" ++ prettySymbol fieldSymbol ++ tupStrs (map show fieldTypes)
+        
+        putStrLn "}"
+
     x  -> error (show x)
 
     where

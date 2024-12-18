@@ -81,4 +81,4 @@ printError err = case err of
             unless (l < 2) $ putStrLn (srcLines !! (l-2))
             unless (l < 1) $ putStrLn (srcLines !! (l-1))
             --when   (l == 0) $ putStrLn (srcLines !! 0)
-            putStrLn (replicate c '-' ++ "^")
+            putStrLn (replicate (c-1) '-' ++ "^")

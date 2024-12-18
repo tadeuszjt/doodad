@@ -1,6 +1,7 @@
 module option
 
 import builtin/all
+import std/print
 
 enum{T} Option {
     none,
@@ -10,3 +11,12 @@ enum{T} Option {
 derives{T} T.Option (copy)
 derives{T} T.Option (equal)
 derives{T} T.Option (destroy)
+
+
+inst{P, T} print::print{P, T.Option} (p &, option)
+    switch option
+        none(); p.print("none()")
+        some(x)
+            p.print("some(")
+            p.print(x)
+            p.print(')')

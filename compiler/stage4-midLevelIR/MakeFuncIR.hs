@@ -162,7 +162,7 @@ makeStmt inst (S.Stmt stmtId) = do
                 x -> error (show x)
 
         S.Return _ Nothing     -> void $ appendStmt $ Return (ArgConst Tuple (ConstTuple []))-- void $ appendStmt ReturnVoid
-        S.ExprStmt expr        -> void ((makeVal inst) expr)
+        S.ExprStmt expr        -> void $ makeVal inst expr
 
         S.While pos expr (S.Stmt stmtId) -> do
             id <- appendStmt $ Loop []

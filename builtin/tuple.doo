@@ -111,26 +111,26 @@ inst{A, B} convert{Tuple{A, A, A}, Tuple{B, B, B}} (a)
 
 
 inst{A} destroy{ Tuple{A} } (tup&)
-    tup.0 .destroy
+    tup.0.destroy
 
 inst{A, B} destroy{ Tuple{A, B} } (tup&)
-    tup.0 .destroy
-    tup.1 .destroy
+    tup.0.destroy
+    tup.1.destroy
 
 inst{A, B, C} destroy{ Tuple{A, B, C} } (tup&)
-    tup.0 .destroy
-    tup.1 .destroy
-    tup.2 .destroy
+    tup.0.destroy
+    tup.1.destroy
+    tup.2.destroy
 
 inst{A, B, C, D} destroy{ Tuple{A, B, C, D} } (tup&)
-    tup.0 .destroy
-    tup.1 .destroy
-    tup.2 .destroy
-    tup.3 .destroy
+    tup.0.destroy
+    tup.1.destroy
+    tup.2.destroy
+    tup.3.destroy
 
 inst{A, B, C, D, E} destroy{Tuple{A, B, C, D, E}} (t&)
-    t.0 .destroy
-    t.1 .destroy
-    t.2 .destroy
-    t.3 .destroy
-    t.4 .destroy
+    t.0.destroy
+    t.1.destroy
+    t.2.destroy
+    t.3.destroy
+    t.4.destroy

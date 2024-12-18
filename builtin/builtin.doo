@@ -74,7 +74,6 @@ inst copy{Bool} (a); return a
 inst copy{Char} (a); return a
 
 
-
 // misc
 fn{T}       builtinStore(a &T, b T); ${ assert(false); }
 fn{I, G, T} builtinField(t &T) &G;   ${ assert(false); }

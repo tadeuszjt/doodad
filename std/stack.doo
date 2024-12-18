@@ -21,8 +21,7 @@ fn{S, T} push(s &Stack{S, T}, elem T)
 
 fn{S, T} pop(s &Stack{S, T}) T
     assert(s.length > 0)
-    let elem = s.array[s.length - 1]
     s.length = s.length - 1
-    return elem
+    return s.array[s.length]
 
 

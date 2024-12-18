@@ -21,7 +21,7 @@ type Mat4 Array{4, Array{4, F64}}
 
 
 derives Vec2 (copy, destroy, add, subtract, multiply, make2{F64, F64})
-derives{P} Vec2 (print{P}, printLn{P})
+derives{P} Vec2 (print{P})
 derives{T} Vec2 (convert{Tuple{T, T}})
 
 
@@ -30,16 +30,6 @@ derives Mat3 (copy, destroy, add, subtract, len, at{I64, Array{3, F64}})
 derives Mat4 (copy, destroy, add, subtract, at{I64, Array{4, F64}}, len)
 
 func{T} transpose(T) T
-
-
-inst{P} printLn{P, Mat3} (p&, m)
-    for (0, m.len) -> row
-        p.printLn(m[row])
-
-
-inst{P} printLn{P, Mat4} (p&, m)
-    for (0, m.len) -> row
-        p.printLn(m[row])
 
 
 inst multiply{Mat3} (a, b)

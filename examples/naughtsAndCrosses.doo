@@ -23,7 +23,7 @@ enum Input {
 }
 derives Input (copy, builtin::destroy)
 
-type Board Array{3, Array{3, Square}}
+type Board Square.Array{3}.Array{3}
 derives Board (copy, destroy, len, forEnd, forAt{Array{3, Square}}, at{I64, Array{3, Square}})
 
 
@@ -33,7 +33,7 @@ inst{P} print{ P, Square } (p&, square)
         naught(); p.print('O')
         cross(); p.print('X')
 
-inst{P} printLn{ P, Board } (p&, board)
+fn{P} printBoard(p& P, board Board)
     for board -> row
         p.print(row)
         p.print('\n')
@@ -145,7 +145,7 @@ fn main(io Io)
     io.stdout.printLn("naughts and crosses")
 
     let board : Board
-    io.stdout.printLn(board)
+    io.stdout.printBoard(board)
 
     while winner(board).isEmpty
         let moved = false
@@ -172,4 +172,4 @@ fn main(io Io)
                 _; io.stdout.print("something")
 
         io.cpuMove(&board)
-        io.stdout.printLn(board)
+        io.stdout.printBoard(board)

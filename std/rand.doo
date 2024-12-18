@@ -9,7 +9,7 @@ link m
 
 type Rand I64
 
-derives Rand (store, destroy)
+derives Rand (destroy)
 
 func{T} uniform(Rand, T, T) T
 
