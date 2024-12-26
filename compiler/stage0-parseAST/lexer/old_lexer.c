@@ -5,7 +5,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-#define MAX_INDENT_LENGTH (256)
+#define MAX_INDENT_LENGTH (1024)
 #define MAX_KEYWORD_LENGTH (128)
 
 /* ---------------IO----------------------- */

@@ -88,14 +88,14 @@ generateFunc funcType = do
 
         void $ runDoMExcept (IrChecker.initFuncIrCheckerState ast) (IrChecker.funcIrChecker funcIr')
 
-        funcIr'' <- fmap fst $ runDoMExcept () $ IR.addFuncDestroy ast funcIr'
-        funcIr''' <- fmap (IrInline.funcIr . snd) $ runDoMExcept (IrInline.initFuncIrInlineState ast) (IrInline.funcIrInline funcIr'')
+        --funcIr'' <- fmap fst $ runDoMExcept () $ IR.addFuncDestroy ast funcIr'
+        funcIr''' <- fmap (IrInline.funcIr . snd) $ runDoMExcept (IrInline.initFuncIrInlineState ast) (IrInline.funcIrInline funcIr')
 
         ((funcIr, n), _) <- runDoMExcept () $ runDoMUntilSameResult funcIr''' $ \funcIr -> do
-            funcIr' <- fmap (IrUnused.funcIr . snd) $ runDoMExcept (IrUnused.initFuncIrUnusedState ast) (IrUnused.funcIrUnused funcIr)
-            funcIr'' <- fmap (IrInline.funcIr . snd) $ runDoMExcept (IrInline.initFuncIrInlineState ast) (IrInline.funcIrInline funcIr')
-            funcIr''' <- fmap (IrConst.funcIr . snd) $ runDoMExcept (IrConst.initFuncIrConstState ast) (IrConst.funcIrConst funcIr'')
-            return funcIr'''
+            --funcIr' <- fmap (IrUnused.funcIr . snd) $ runDoMExcept (IrUnused.initFuncIrUnusedState ast) (IrUnused.funcIrUnused funcIr)
+            --funcIr'' <- fmap (IrInline.funcIr . snd) $ runDoMExcept (IrInline.initFuncIrInlineState ast) (IrInline.funcIrInline funcIr')
+            --funcIr''' <- fmap (IrConst.funcIr . snd) $ runDoMExcept (IrConst.initFuncIrConstState ast) (IrConst.funcIrConst funcIr'')
+            return funcIr
 
         --liftIO $ putStrLn (show n)
         --liftIO $ putStrLn $ show funcIrHeader
@@ -183,7 +183,20 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
         elseId <- appendElem (C.Else [])
         withCurID ifId $ generateStmt funcIr trueBlkId
         withCurID elseId $ generateStmt funcIr falseBlkId
-        
+
+    IR.Switch cases -> do
+        switchId <- appendElem $ C.For Nothing (Just $ C.Bool True) Nothing []
+        void $ withCurID switchId $ do
+            forM_ cases $ \(preBlkId, cnd, postBlkId) -> do
+                generateStmt funcIr preBlkId
+                val <- generateArg cnd
+                ifId <- appendElem $ C.If val []
+                withCurID ifId $ do
+                    generateStmt funcIr postBlkId
+                    appendElem $ C.Break
+            appendElem $ C.Break
+
+
     IR.SSA operation -> do
         let Just (ssaTyp, ssaRefTyp) = Map.lookup id (IR.irTypes funcIr)
         case operation of

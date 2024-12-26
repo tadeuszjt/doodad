@@ -3,6 +3,7 @@ module InferTypes where
 
 import Data.Maybe
 import Data.List
+import Data.Char
 import Control.Monad
 import Control.Monad.State
 import qualified Data.Map as Map
@@ -73,16 +74,6 @@ look symbol = do
     resm <- gets $ Map.lookup symbol . symbolTable
     unless (isJust resm) (fail $ "undefined symbol: " ++ prettySymbol symbol)
     return (fromJust resm)
-
-
-typeOfExpr :: InstBuilderState -> Expr -> Type
-typeOfExpr state (Expr id) = (types state) Map.! id
-
-typeOfPat :: InstBuilderState -> Pattern -> Type
-typeOfPat state (Pattern id) = (types state) Map.! id
-
-typeOfType :: InstBuilderState -> Type -> Type
-typeOfType state (Type id) = (types state) Map.! id
 
 
 constraint :: Type -> Type -> DoM CollectState ()
@@ -175,6 +166,13 @@ collectDefault params state = do
             _ -> return ()
             
 
+getSymbol :: String -> DoM CollectState Symbol
+getSymbol str = do
+    xs <- gets $ filter (symbolsCouldMatch (Sym [str])) . Map.keys . typeDefsAll . astResolved
+    case xs of
+        [x] -> return x
+    
+
 
 collect :: Type -> [Param] -> InstBuilderState -> DoM CollectState ()
 collect retty params state = do
@@ -186,7 +184,8 @@ collect retty params state = do
     forM_ (Map.toList $ patterns state) $ \(id, pattern) -> withPos pattern $
         let Just patType = Map.lookup id (types state) in case pattern of
             PatIdent _ symbol -> define symbol patType
-            x -> error (show x)
+            _ -> return ()
+
     forM_ (Map.toList $ statements state) $ \(id, statement) -> case statement of
         Assign _ symbol expr -> define symbol (typeOfExpr state expr)
         _ -> return ()
@@ -213,12 +212,47 @@ collect retty params state = do
                 let Just callType = Map.lookup tid (types state)
                 let exprTypes = map (typeOfExpr state) exprs
                 collectCall exprType exprTypes callType
+
+            Match _ expr pat -> do
+                constraint exprType Type.Bool
+                constraint (typeOfExpr state expr) (typeOfPat state pat)
         
             x -> error (show x)
 
     forM_ (Map.toList $ patterns state) $ \(id, pattern) -> withPos pattern $
         let Just patType = Map.lookup id (types state) in case pattern of
             PatIdent _ symbol -> constraint patType =<< look symbol
+            PatLiteral expr -> constraint patType (typeOfExpr state expr)
+
+            PatGuarded _ pat expr -> do
+                constraint (typeOfExpr state expr) (Type.Bool)
+                constraint patType (typeOfPat state pat)
+
+            PatField _ str pats -> do
+                symbol <- getSymbol $  "from" ++ toUpper (head str) : tail str
+
+                case pats of
+                    [] -> return ()
+                    [pat] -> do
+                        case patType of
+                            Type _ -> return ()
+                            _ -> do
+                                let (TypeDef _, generics) = unfoldType patType
+                                let fieldType = typeOfPat state pat
+                                collectCall fieldType [patType] (foldType (TypeDef symbol : generics))
+
+                    pats -> do
+                        let (TypeDef _, ts) = unfoldType patType
+                        fail "todo multiple args"
+
+            PatTuple _ pats -> do
+                forM_ (zip pats [0..]) $ \(pat@(Pattern pid), i) -> do
+                    let Just pType = Map.lookup pid (types state)
+                    symbol <- getSymbol "tuplePattern"
+                    collectCall pType [patType] $ foldType [TypeDef symbol, pType, Size (length pats), Size i, patType]
+
+            PatIgnore _ -> return ()
+
             x -> error (show x)
     
     forM_ (Map.toList $ statements state) $ \(id, statement) -> case statement of
@@ -232,6 +266,7 @@ collect retty params state = do
         Assign _ symbol expr -> constraint (typeOfExpr state expr) =<< look symbol
         If _ expr _ _ -> constraint (typeOfExpr state expr) Type.Bool
         While _ expr _ -> constraint (typeOfExpr state expr) Type.Bool
+        Switch _ expr cases -> forM_ cases $ \(pat, _) -> constraint (typeOfPat state pat) (typeOfExpr state expr)
         x -> error (show x)
 
 

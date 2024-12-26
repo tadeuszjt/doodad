@@ -86,13 +86,13 @@ fn getPlayerInput(io &Io) Input
 
     let (row, col, idx) = (0, 0, 0)
 
-    if line.read(idx) -> some(n, num)
+    if line.read(idx) -> some( (n, num) )
         row = n
         idx = idx + num
     else
         return error()
 
-    if line.read(idx) -> some(n, num)
+    if line.read(idx) -> some( (n, num) )
         col = n
         idx = idx + num
     else
@@ -155,13 +155,13 @@ fn main(io Io)
                 error()
                     io.stdout.printLn("parse error")
 
-                move(row, col) | row < 0 || row > (board.len - 1)
+                move((row, col)) | row < 0 || row > (board.len - 1)
                     io.stdout.printLn("row not in range")
 
-                move(row, col) | col < 0 || col > (board.len - 1)
+                move((row, col)) | col < 0 || col > (board.len - 1)
                     io.stdout.printLn("col not in range")
 
-                move(row, col)
+                move((row, col) : (I64, I64) )
                     io.stdout.print("moving: ")
                     io.stdout.print(row)
                     io.stdout.print(", ")

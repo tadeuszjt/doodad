@@ -77,14 +77,12 @@ fn main(io Io, rand Rand, w Window)
     m[1][1] = 1
     m[2][2] = 1
 
-
     while w.isOpen()
         let prevNs = time::getTimestampNs()
 
         while w.pollEvent() -> some(event)
             switch event
                 closed(); w.close()
-                //none();
                 _;
 
         for (0, blobs.len) -> i
@@ -94,7 +92,7 @@ fn main(io Io, rand Rand, w Window)
 
         let (width, height) = w.getSize()
         w.setViewFromRect(((0.0, 0.0), (convert(width), convert(height))))
-        w.clearWindow(black())
+        w.clearWindow(white())
 
         w.drawQuads(blobs.sprite, &texture, m)
         w.display()

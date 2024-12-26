@@ -21,7 +21,6 @@ preprocess ast = do
     where
         preprocess' :: DoM BuildState ()
         preprocess' = do
-            --stmts' <- mapM (mapStmtM preprocessMapper) (astStmts ast)
             forM_ (astStmts ast) $ \stmt -> case stmt of
                     Function _ _ _ _ _ -> addTopStmt (TopStmt stmt)
                     Derives _ _ _ _     -> addTopStmt (TopStmt stmt)
@@ -175,175 +174,14 @@ buildTopStatement statement = case statement of
                     [t] -> t
                     ts  -> foldl Apply Tuple ts
 
-            -- feature{N, T, G} field0(A) B
-            let (n, t, g) = (Sym ["N"], Sym ["T"], Sym ["G"])
-            addTopStmt $ TopStmt $ Function pos [n, g, t] [(n, g), (t, n)] name (foldType [Type.Func, TypeDef g, TypeDef t])
+            -- feature{Ts..} fromCase(sumType) fieldType
+            addTopStmt $ TopStmt $ Function pos generics [] name (foldType [Type.Func, fieldType, sumType])
 
             -- instance{A, B}  field0{0, MyType{A, B}, MyType.0} (a&) -> &
-            let acq = foldl Apply (TypeDef name) [Size (fromIntegral i), fieldType, sumType]
+            let acq = foldl Apply (TypeDef name) (map TypeDef generics)
             inst' <- buildInst $ appendStmt $ Return pos . Just $
                 field fieldType i (Ident pos $ Sym ["x"])
             addTopStmt $ TopInst pos generics acq [Param pos (Sym ["x"]) (Apply Ref Tuple)] (RefRetty Tuple) inst'
-
-    x -> error (show x)
-
-
-buildPattern :: ID -> Pattern -> Expr -> DoM BuildState Expr
-buildPattern defBlkId pattern expr = do
-    withPos pattern $ case pattern of
-        PatIgnore pos -> return (AST.Bool pos True)
-
-        PatIdent pos symbol -> do
-            withCurId defBlkId $
-                appendStmt $ Let pos (PatIdent pos symbol) Nothing Nothing
-            appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin",  "builtinStore"])
-                [ Reference pos (Ident pos symbol)
-                , expr
-                ]
-            return (AST.Bool pos True)
-
-        PatLiteral literal -> do
-            return $ Call (textPos pattern) (TypeDef $ Sym ["compare", "equal"]) [literal, expr]
-
-        PatAnnotated pat patTyp -> case pat of
-            PatLiteral literal -> do
-                return $ Call (textPos pattern) (TypeDef $ Sym ["compare", "equal"]) [AExpr patTyp literal, expr]
-
-            PatIdent pos symbol -> do
-                withCurId defBlkId $
-                    appendStmt $ Let pos (PatIdent pos symbol) Nothing Nothing
-                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin",  "builtinStore"])
-                    [ Reference pos (Ident pos symbol)
-                    , expr
-                    ]
-                return (AST.Bool pos True)
-
-            x -> error (show x)
-
-
-        PatGuarded pos pat guardExpr -> do
-            match <- buildPattern defBlkId pat expr
-            patMatch <- freshSym "patMatch"
-            appendStmt $ Assign pos patMatch match
-
-            ifBlkId <- newStmt (Block [])
-            withCurId ifBlkId $ do
-                guard <- buildCondition defBlkId guardExpr
-                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "builtinStore"])
-                    [ Reference pos (Ident pos patMatch)
-                    , guard
-                    ]
-
-            appendStmt $ If pos (Ident pos patMatch) (Stmt ifBlkId) Nothing
-            return (Ident pos patMatch)
-
-
-        PatTuple pos pats -> do
-            symbol <- freshSym "tupleCopy"
-            appendStmt (Assign pos symbol expr)
-
-            matchSym <- freshSym "tupleMatch"
-            appendStmt $ Assign pos matchSym (AST.Bool pos True)
-
-            forM_ (zip pats [0..]) $ \(pat, i) -> do
-                ifBlkId <- newStmt (Block [])
-                withCurId ifBlkId $ do
-                    let callType = foldType [ TypeDef (Sym ["tuple", "tuplePattern"]), Type 0, Size (length pats), Size i, Type 0]
-                    match <- buildPattern defBlkId pat $ Call pos callType [Reference pos $ Ident pos symbol]
-                    appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "builtinStore"])
-                        [ Reference pos (Ident pos matchSym)
-                        , match
-                        ]
-
-                appendStmt $ If pos (Ident pos matchSym) (Stmt ifBlkId) Nothing
-
-            return (Ident pos matchSym)
-
-
-        PatField pos symbol pats -> do
-            --let Sym [str] = symbol
-            let Sym xs = symbol
-            let isSymbol   = Sym $ init xs ++ [ "is" ++ [toUpper $ head $ last xs] ++ (tail $ last xs) ]
-            let fromSymbol = Sym $ init xs ++ [ "from" ++ [toUpper $ head $ last xs] ++ (tail $ last xs) ]
-
-
-
-            exprCopy <- freshSym "exprCopy"
-            appendStmt (Assign pos exprCopy expr)
-
-            enumMatch <- freshSym "enumMatch"
-            appendStmt $ Assign pos enumMatch $ Call pos (TypeDef isSymbol)
-                [ Reference pos (Ident pos exprCopy)
-                ]
-
-            blkId <- newStmt (Block [])
-            withCurId blkId $ do
-                caseCopy <- freshSym "caseCopy"
-                case pats of
-                    [] -> return ()
-                    _  -> void $ appendStmt $ Assign pos caseCopy $
-                        Call pos (TypeDef fromSymbol) [ Reference pos (Ident pos exprCopy) ]
-
-                match <- case pats of
-                    []    -> return (AST.Bool pos True)
-                    [pat] -> buildPattern defBlkId pat (Ident pos caseCopy)
-                    pats  -> buildPattern defBlkId (PatTuple pos pats) (Ident pos caseCopy)
-
-                void $ appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "builtinStore"])
-                    [ Reference pos (Ident pos enumMatch)
-                    , match
-                    ]
-
-            appendStmt $ If pos (Ident pos enumMatch) (Stmt blkId) Nothing
-
-            return (Ident pos enumMatch)
-                        
-
-        PatSlice pos pats -> do
-            exprCopy <- freshSym "exprCopy"
-            appendStmt (Assign pos exprCopy expr)
-
-            match <- freshSym "match"
-            appendStmt $ Assign pos match $ Call pos (TypeDef $ Sym ["builtin", "builtinEqual"])
-                [ Call pos (TypeDef $ Sym ["Pattern", "sliceLen"]) [Reference pos (Ident pos exprCopy)]
-                , AST.Int pos (fromIntegral $ length pats)
-                ]
-
-
-            forM_ (zip pats [0..]) $ \(pat, i) -> do
-                ifBlkId <- newStmt (Block [])
-                withCurId ifBlkId $ do
-                    patMatch <- buildPattern defBlkId pat $ Call pos (TypeDef $ Sym ["Pattern", "sliceAt"])
-                        [ Reference pos (Ident pos exprCopy)
-                        , AST.Int pos (fromIntegral i)
-                        ]
-
-                    appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "builtinStore"])
-                        [ Reference pos (Ident pos match)
-                        , patMatch
-                        ]
-
-                appendStmt $ If pos (Ident pos match) (Stmt ifBlkId) Nothing
-
-            return (Ident pos match)
-                
-
-        x -> error (show x)
-
-
-buildCondition :: ID -> Expr -> DoM BuildState Expr
-buildCondition defBlkId expression = withPos expression $ case expression of
-    Call pos _ _       -> return $ AExpr Type.Bool expression
-    Match pos expr pat -> buildPattern defBlkId pat expr
-    AST.Bool _ _       -> return expression
-    Ident pos _        -> return $ AExpr Type.Bool expression
-
-    AExpr exprType expr -> do
-        check (exprType == Type.Bool) "condition type must be bool"
-        buildCondition defBlkId expr
-
-    Reference pos expr -> return $ AExpr Type.Bool expression
-        
 
     x -> error (show x)
 
@@ -375,56 +213,22 @@ buildStmt statement = withPos statement $ case statement of
         id <- appendStmt (Block [])
         withCurId id (mapM_ buildStmt stmts)
 
-    Let pos (PatIdent _ _) mexpr Nothing -> case mexpr of
-        Nothing -> void $ appendStmt statement
-        Just expr -> void $ appendStmt statement
-
     Let pos pat mexpr Nothing -> do
-        case mexpr of
-            Just expr -> do
-                curId <- getCurId
-                boolExpr <- buildPattern curId pat expr
-                void $ appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["assert"]) [boolExpr]
-
-            Nothing -> do
-                void $ appendStmt (Let pos pat Nothing Nothing)
+        void $ appendStmt (Let pos pat mexpr Nothing)
 
     If pos expr blk mblk -> do
         id <- appendStmt (Block [])
         withCurId id $ do -- new scope for if condition
-            cnd <- buildCondition id expr
-
             trueId <- buildBlock blk
             falseId <- traverse buildBlock mblk
-            void $ appendStmt $ If pos cnd (Stmt trueId) (fmap Stmt falseId)
+            void $ appendStmt $ If pos expr (Stmt trueId) (fmap Stmt falseId)
 
     Switch pos expr cases -> do
-        copySym <- freshSym "expr"
-        appendStmt (Assign pos copySym expr)
-
-        caseSyms <- replicateM (length cases) (freshSym "caseMatch")
-
-        forM_ (zip cases [0..]) $ \((pat, Block stmts), i) -> do
-            appendStmt $ Assign pos (caseSyms !! i) (AST.Bool pos False)
-
-            lastCaseFailed <- case i of
-                0 -> return (AST.Bool pos True)
-                _ -> return $ Call pos (TypeDef $ Sym ["builtin", "builtinNot"]) [Ident pos $ caseSyms !! (i - 1)]
-
-            blkId <- newStmt (Block [])
-            withCurId blkId $ do
-                match <- buildPattern blkId pat (Ident pos copySym)
-                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "builtinStore"])
-                    [ Reference pos (Ident pos $ caseSyms !! i)
-                    , match
-                    ]
-
-                trueBlkId <- newStmt (Block [])
-                -- TODO it doesn't break after successful case?
-                withCurId trueBlkId (mapM_ buildStmt stmts)
-                appendStmt $ If pos match (Stmt trueBlkId) Nothing
-
-            appendStmt $ If pos lastCaseFailed (Stmt blkId) Nothing
+        cases' <- forM cases $ \(pat, Block stmts) -> do
+            id <- newStmt (Block [])
+            withCurId id (mapM_ buildStmt stmts)
+            return (pat, Stmt id)
+        void $ appendStmt (Switch pos expr cases')
 
     For pos expr mpat (Block stmts) -> do
         exprCopy <- freshSym "exprCopy"
@@ -440,12 +244,12 @@ buildStmt statement = withPos statement $ case statement of
         blkId <- newStmt (Block [])
         withCurId blkId $ do
             match <- case mpat of
-                Just pat -> buildPattern blkId pat $ 
-                    Call pos (TypeDef $ Sym ["for", "forAt"])
-                        [ Reference pos (Ident pos exprCopy)
-                        , (Ident pos idx)
-                        ]
                 Nothing -> return (AST.Bool pos True)
+                Just pat -> return $ AST.Match pos
+                    (Call pos (TypeDef $ Sym ["for", "forAt"])
+                        [ Reference pos (Ident pos exprCopy)
+                        , Ident pos idx ])
+                    pat
 
             trueBlkId <- newStmt (Block [])
             withCurId trueBlkId $ do
@@ -471,8 +275,6 @@ buildStmt statement = withPos statement $ case statement of
         appendStmt $ Assign pos loop (AST.Bool pos True)
         id <- newStmt (Block [])
         withCurId id $ do
-            cnd <- buildCondition id expr
-
             trueBlkId <- newStmt (Block [])
             falseBlkId <- newStmt (Block [])
 
@@ -483,17 +285,8 @@ buildStmt statement = withPos statement $ case statement of
                     , AST.Bool pos False
                     ]
 
-            appendStmt $ If pos cnd (Stmt trueBlkId) (Just $ Stmt falseBlkId)
+            appendStmt $ If pos expr (Stmt trueBlkId) (Just $ Stmt falseBlkId)
 
         void $ appendStmt $ While pos (Ident pos loop) (Stmt id)
 
     x -> error (show x)
-
-
---preprocessMapper :: Elem -> DoM s Elem
---preprocessMapper element = case element of
---    ElemStmt (Let pos pattern mexpr (Just blk)) -> do
---        return $ ElemStmt $ Block [Let pos pattern mexpr Nothing, blk]
---
---    _ -> return element
---

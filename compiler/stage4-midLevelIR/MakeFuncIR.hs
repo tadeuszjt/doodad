@@ -5,6 +5,7 @@ import Control.Monad.Identity
 import qualified Data.Map as Map
 import Control.Monad.State
 import Data.Maybe
+import Data.Char
 
 import Monad
 import ASTResolved
@@ -56,12 +57,13 @@ look symbol = do
     return (fromJust resm)
 
 
-withCurrentID :: ID -> (DoM FuncIRState a) -> DoM FuncIRState ()
+withCurrentID :: ID -> (DoM FuncIRState a) -> DoM FuncIRState a
 withCurrentID id f = do
     oldId <- liftFuncIrState (gets irCurrentId)
     liftFuncIrState $ modify $ \s -> s { irCurrentId = id }
-    void f
+    a <- f
     liftFuncIrState $ modify $ \s -> s { irCurrentId = oldId }
+    return a
 
 
 makeFuncIR :: TopStmt -> DoM FuncIRState (FuncIrHeader, FuncIR)
@@ -116,20 +118,10 @@ makeStmt inst (S.Stmt stmtId) = do
             id <- appendStmt (EmbedC strMap' str)
             addTextPos id (textPos statement)
 
-        S.Let _ (S.Pattern patId) (Just expr) Nothing -> do
-            let Just (S.PatIdent _ symbol) = Map.lookup patId (patterns inst)
-            let Just typ                   = Map.lookup patId (types inst)
-            val <- (makeVal inst) expr
-            case val of
-                ArgConst _ _ -> define symbol =<< appendSSA typ Value (InitVar $ Just val)
-                ArgID argId -> do
-                    resm <- liftFuncIrState $ gets (Map.lookup argId . irStmts)
-                    case resm of
-                        Just (SSA (Call _ _)) -> do define symbol argId
-                        _ -> do
-                            (ArgID id) <- copy (ArgID argId)
-                            void $ define symbol id
-
+        S.Let _ pattern (Just expr) Nothing -> do
+            curId <- getCurrentId
+            b <- makePattern curId inst pattern =<< makeVal inst expr
+            void $ call (Sym ["assert", "assert"]) [] [b]
 
         S.Let pos (S.Pattern patId) Nothing Nothing -> do
             let Just (S.PatIdent _ symbol) = Map.lookup patId (patterns inst)
@@ -139,8 +131,7 @@ makeStmt inst (S.Stmt stmtId) = do
             define symbol id
 
         S.Assign _ symbol expr@(S.Expr ei) -> do
-            let Just typeOfExpr = Map.lookup ei (types inst)
-            case typeOfExpr of
+            case typeOfExpr inst expr of
                 Apply Type.Slice t -> do
                     arg@(ArgID id) <- makeSlice inst expr
                     define symbol id
@@ -183,7 +174,8 @@ makeStmt inst (S.Stmt stmtId) = do
 
 
         S.If pos expr (S.Stmt trueId) mfalse -> do
-            arg <- (makeVal inst) expr
+            curId <- getCurrentId
+            arg <- makeCondition curId inst expr
 
             trueBlkId <- generateId
             falseBlkId <- generateId
@@ -200,9 +192,145 @@ makeStmt inst (S.Stmt stmtId) = do
                 Just (S.Stmt falseId) -> do
                     let Just (S.Block falseStmts) = Map.lookup falseId (statements inst)
                     withCurrentID falseBlkId $ mapM_ (makeStmt inst) falseStmts
+
+        S.Switch pos expr cases -> do
+            arg <- makeVal inst expr
+            cases' <- forM cases $ \(pat, stmt) -> do
+                preBlkId <- generateId
+                addStmt preBlkId (Block [])
+                b <- withCurrentID preBlkId (makePattern preBlkId inst pat arg)
+
+                blkId <- generateId
+                addStmt blkId (Block [])
+                withCurrentID blkId (makeStmt inst stmt)
+
+                return (preBlkId, b, blkId)
+
+            void $ appendStmt $ Switch cases'
+
             
 
         x -> error (show x)
+
+
+
+makeCondition :: ID -> InstBuilderState -> S.Expr -> DoM FuncIRState Arg
+makeCondition defBlkId inst (S.Expr exprId) = case expressions inst Map.! exprId of
+    S.Match _ (S.Expr id) pat -> do
+        makePattern defBlkId inst pat =<< case expressions inst Map.! id of
+            S.Match _ _ _ -> makeCondition defBlkId inst (S.Expr id)
+            _             -> makeVal inst (S.Expr id)
+
+    expr -> makeVal inst (S.Expr exprId)
+    
+
+
+makePattern :: ID -> InstBuilderState -> S.Pattern -> Arg -> DoM FuncIRState Arg
+makePattern defBlkId inst (S.Pattern patId) arg = case patterns inst Map.! patId of
+    S.PatIgnore _ -> return $ ArgConst Type.Bool (ConstBool True)
+
+    S.PatLiteral expr@(S.Expr exprId) -> do
+        expr' <- makeVal inst expr
+        let Just exprType = Map.lookup exprId (types inst)
+        call (Sym ["builtin", "builtinEqual"]) [exprType] [arg, expr']
+
+    S.PatField _ str pats -> do
+        let patType = typeOfPat inst (S.Pattern patId)
+        ref <- appendSSA patType IR.Ref (MakeReferenceFromValue arg)
+        isCase <- call (Sym ["is" ++ toUpper (head str) : tail str]) [patType] [ArgID ref]
+
+        case pats of
+            [] -> return isCase
+            [pat] -> do
+                trueBlkId <- generateId
+                falseBlkId <- generateId
+                addStmt trueBlkId (Block [])
+                addStmt falseBlkId (Block [])
+
+                match <- appendSSA Type.Bool Value $ InitVar $ Just $ ArgConst Type.Bool (ConstBool False)
+
+                ifId <- appendStmt (If isCase trueBlkId falseBlkId)
+
+                withCurrentID trueBlkId $ do
+                    let fieldType = typeOfPat inst pat
+
+                    let (TypeDef _, generics) = unfoldType patType
+                    fieldRef <- call (Sym ["from" ++ toUpper (head str) : tail str]) generics [ArgID ref]
+                    b <- makePattern defBlkId inst pat =<<
+                        copy . ArgID =<<
+                            appendSSA fieldType Value (MakeValueFromReference fieldRef)
+                    matchRef <- appendSSA Type.Bool IR.Ref (MakeReferenceFromValue $ ArgID match)
+                    call (Sym ["builtin", "store"]) [Type.Bool] [ArgID matchRef, b]
+
+                return (ArgID match)
+
+            _ -> fail "todo"
+
+    
+    S.PatIdent pos symbol -> do
+        let patType = typeOfPat inst (S.Pattern patId)
+        var <- withCurrentID defBlkId $
+            prependSSA patType Value (InitVar Nothing)
+        define symbol var
+
+        ref <- appendSSA patType IR.Ref (MakeReferenceFromValue $ ArgID var)
+        call (Sym ["builtin", "store"]) [patType] [ArgID ref, arg]
+        return $ ArgConst Bool (ConstBool True)
+
+    S.PatGuarded pos pat expr -> do
+        patMatch <- makePattern defBlkId inst pat arg
+        match <- appendSSA Type.Bool Value $ InitVar $ Just $ ArgConst Type.Bool (ConstBool False)
+
+        trueBlkId <- generateId
+        falseBlkId <- generateId
+        addStmt trueBlkId (Block [])
+        addStmt falseBlkId (Block [])
+        ifId <- appendStmt (If patMatch trueBlkId falseBlkId)
+
+        withCurrentID trueBlkId $ do
+            matchRef <- appendSSA Type.Bool IR.Ref (MakeReferenceFromValue $ ArgID match)
+            b <- makeCondition defBlkId inst expr
+            call (Sym ["builtin", "store"]) [Type.Bool] [ArgID matchRef, b]
+
+        return (ArgID match)
+
+
+    S.PatTuple pos pats -> do
+        match <- appendSSA Type.Bool Value $ InitVar $ Just $ ArgConst Type.Bool (ConstBool True)
+        matchRef <- appendSSA Type.Bool IR.Ref (MakeReferenceFromValue $ ArgID match)
+        loopId <- appendStmt (Loop [])
+
+        withCurrentID loopId $ do
+            forM_ (zip pats [0..]) $ \(pat@(S.Pattern fieldId), i) -> do
+
+                let Just patType   = Map.lookup patId (types inst)
+                let Just fieldType = Map.lookup fieldId (types inst)
+
+                ref <- appendSSA patType IR.Ref (MakeReferenceFromValue arg)
+                field <- call
+                    (Sym ["tuple", "tuplePattern"])
+                    [fieldType, Size (length pats), Size i, patType]
+                    [ArgID ref]
+
+                fieldVal <- appendSSA fieldType Value (MakeValueFromReference field)
+
+                b <- makePattern defBlkId inst pat =<< copy (ArgID fieldVal)
+
+                trueBlkId <- generateId
+                falseBlkId <- generateId
+                addStmt trueBlkId (Block [])
+                addStmt falseBlkId (Block [])
+
+                appendStmt (If b trueBlkId falseBlkId)
+                withCurrentID falseBlkId $ do
+                    call (Sym ["builtin", "store"]) [Type.Bool] [ArgID matchRef, ArgConst Type.Bool (ConstBool False)]
+                    appendStmt Break
+
+            appendStmt Break
+
+        return (ArgID match)
+
+    x -> error (show x)
 
 
 makeSlice :: InstBuilderState -> S.Expr -> DoM FuncIRState Arg
@@ -356,25 +484,39 @@ makeRef inst (S.Expr exprId) = do
 
 copy :: Arg -> DoM FuncIRState Arg
 copy arg = do
-    (t, refType) <- getType arg
-    case refType of
-        Const -> return ()
-        Value -> return ()
+    (t, _) <- getType arg
+    call (Sym ["builtin", "copy"]) [t] [arg]
+
+
+call :: Symbol -> [Type] -> [Arg] -> DoM FuncIRState Arg
+call symbol@(Sym _) funcTypeArgs args = do
+    ast <- gets astResolved
+
+    symbol' <- case filter (symbolsCouldMatch symbol) (Map.keys (typeDefsAll ast)) of
+        [] -> error "here"
+        [x] -> return x
+    let funcType = foldType (TypeDef symbol' : funcTypeArgs)
+
+    resm <- fmap fst $ runDoMExcept ast (makeHeaderInstance funcType)
+    irHeader <- case resm of
+        Nothing -> fail $ "no instance: " ++ show funcType
+        Just irHeader -> return irHeader
+
+    unless (length (irArgs irHeader) == length args) (error "arg length mismatch")
+    forM_ (zip args $ irArgs irHeader) $ \(arg, ParamIR paramType _) -> do
+        (t, refType) <- getType arg
+        case (refType, paramType) of
+            (Value, Value) -> return ()
+            (IR.Ref, IR.Ref) -> return ()
+            (Const, Value) -> return ()
+            (IR.Ref, Value) -> error (prettySymbol symbol')
+                
+
+            x -> fail (show x)
+
+    case irRetty irHeader of
+        RettyIR Value  t -> fmap ArgID $ appendSSA t Value (Call funcType args)
+        RettyIR IR.Ref t -> fmap ArgID $ appendSSA t IR.Ref (Call funcType args)
         x -> error (show x)
 
-    -- get copy feature symbol
-    ast <- gets astResolved
-    let xs = Map.keys $ Map.filterWithKey
-            (\k v -> symbolsCouldMatch k $ Sym ["copy"])
-            (typeDefsAll ast)
-    copySymbol <- case xs of
-        [] -> fail "builtin::copy undefined"
-        [x] -> return x
 
-
-    resm <- fmap fst $ runDoMExcept ast $ makeHeaderInstance (foldType [TypeDef copySymbol, t])
-    [ParamIR Value _] <- case resm of
-        Nothing -> fail ("no copy instance for: " ++ show t)
-        Just irHeader -> return (irArgs irHeader)
-
-    fmap ArgID $ appendSSA t Value $ Call (Apply (TypeDef copySymbol) t) [arg]

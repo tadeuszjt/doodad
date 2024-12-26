@@ -56,6 +56,7 @@ combineAsts astBuildState supply imports = fmap snd $
                 modify $ \s -> s { featuresAll = Map.insert symbol stmt (featuresAll s) }
                 modify $ \s -> s { typeDefsAll = Map.insert symbol (generics, funcType) (typeDefsAll s) }
 
+
             TopStmt (Derives pos generics typ features) -> do
                 forM_ features $ \feature -> do
                     let (TypeDef featureSymbol, _) = unfoldType feature
@@ -89,26 +90,27 @@ combineAsts astBuildState supply imports = fmap snd $
         forM_ symbols $ \(featureSymbol, symbol, instState) -> do
             (TopInst pos b acqTyp params e _) <- gets $ (Map.! symbol) . (Map.! featureSymbol) . instancesAll
 
+            -- annotate the call types with the number of t0s needed
             types' <- forM (types instState) $ \typ -> case unfoldType typ of
                 (TypeDef symbol, []) | isFuncSymbol symbol -> do
-                    Just (generics, _) <- Map.lookup symbol <$> getTypeDefs
+                    resm <- Map.lookup symbol <$> getTypeDefs
+                    generics <- case resm of
+                        Nothing -> do
+                            liftIO $ putStrLn $ show (types instState)
+                            error $ "no typedef for symbol: " ++ prettySymbol symbol
+                        Just (generics, _) -> return generics
+
                     return $ foldl Apply typ $ replicate (length generics) (Type 0)
                 _ -> return typ
 
-            let inst' = instState { types = types' }
-
             (Type.Func, retty : argTypes) <- unfoldType <$> baseTypeOf acqTyp
-
             unless (length argTypes == length params) $ withPos pos $
                 fail "invalid number of instance arguments"
             params' <- forM (zip params argTypes) $ \(param, argType) -> case param of
                 Param pos symbol typ -> return (Param pos symbol argType)
                 RefParam pos symbol typ -> return (RefParam pos symbol argType)
 
-            inst'' <- infer params' retty inst'
-
-            let stmt = TopInst pos b acqTyp params e inst''
-
+            stmt <- TopInst pos b acqTyp params e <$> infer params' retty (instState { types = types'})
             existing <- gets $ (Map.! featureSymbol) . instancesAll
             modify $ \s -> s { instancesAll = Map.insert featureSymbol (Map.insert symbol stmt existing) (instancesAll s) }
 

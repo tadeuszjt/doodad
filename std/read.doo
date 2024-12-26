@@ -9,7 +9,7 @@ func{R, T} read(R, I64) Tuple{T, I64}.Option
 
 
 inst read{ Char.Table, Char } (r&, idx)
-    if idx < 0 || idx > r.len
+    if idx < 0 || idx >= r.len
         return none()
     return some( (r[idx], 1) )
 
@@ -17,18 +17,19 @@ inst read{ Char.Table, Char } (r&, idx)
 inst{R} read{ R, I64 } (r&, start)
     let idx = start
 
-    while r.read(idx) -> some(c, n) | isSpace(c)
+
+    while r.read(idx) -> some( (c, n) ) | isSpace(c)
         idx = idx + n
 
     let isMinus = false
 
-    if r.read(idx) -> some('-', n)
+    if r.read(idx) -> some( ('-', n) )
         idx = idx + n
         isMinus = true
 
     let digits : Char.Table
 
-    while r.read(idx) -> some(c, n) | isDigit(c)
+    while r.read(idx) -> some( (c, n) ) | isDigit(c)
         idx = idx + n
         digits.push(c)
 

@@ -76,6 +76,7 @@ data Stmt
     | Break
     | Return Arg
     | EmbedC [(String, ID)] String
+    | Switch [ (ID, Arg, ID) ]
     | If Arg ID ID
     | SSA Operation
     deriving (Show, Eq)
@@ -190,6 +191,29 @@ appendStmt stmt = do
     return id
 
 
+prependStmt :: MonadFuncIR m => Stmt -> m ID
+prependStmt stmt = do
+    id <- generateId
+
+    curId <- liftFuncIrState $ (gets irCurrentId)
+    curStmt <- liftFuncIrState $ gets $ (Map.! curId) . irStmts
+    curStmt' <- case curStmt of
+        Block xs -> return (Block $ (id : xs))
+        Loop ids -> return (Loop $ (id : ids))
+        x -> error (show x)
+
+    liftFuncIrState $ modify $ \s -> s { irStmts = Map.insert curId curStmt' (irStmts s) }
+    addStmt id stmt
+    return id
+
+
+prependSSA :: MonadFuncIR m => Type -> RefType -> Operation -> m ID
+prependSSA typ refType op = do
+    id <- prependStmt (SSA op)
+    addType id typ refType
+    return id
+
+
 appendSSA :: MonadFuncIR m => Type -> RefType -> Operation -> m ID
 appendSSA typ refType op = do
     id <- appendStmt (SSA op)
@@ -210,6 +234,11 @@ appendStmtWithId id stmt = do
     addStmt id stmt
 
 
+getCurrentId :: MonadFuncIR m => m ID
+getCurrentId = do
+    liftFuncIrState $ gets irCurrentId
+
+
 prettyIR :: String -> FuncIR -> IO ()
 prettyIR pre funcIr = do
     --putStrLn $ pre ++ "fn (" ++ intercalate ", " (map show $ irArgs funcIr) ++ ") " ++ show (irRetty funcIr)
@@ -223,35 +252,43 @@ prettyIR pre funcIr = do
 
 
 prettyIrStmt :: String -> FuncIR -> ID -> IO ()
-prettyIrStmt pre funcIr id = do
-    putStr pre
-    case irStmts funcIr Map.! id of
-        Block ids -> do
-            putStrLn $ "block: "
-            forM_ ids $ \id -> prettyIrStmt (pre ++ "\t") funcIr id
+prettyIrStmt pre funcIr id = case irStmts funcIr Map.! id of
+    Block ids -> do
+        putStrLn $ pre ++ "block: "
+        forM_ ids $ \id -> prettyIrStmt (pre ++ "\t") funcIr id
 
-        EmbedC idMap str -> do
-            putStrLn $ "embedC " ++ intercalate ", " (map show idMap) ++ ": " ++ str
+    EmbedC idMap str -> do
+        putStrLn $ pre ++ "embedC " ++ intercalate ", " (map show idMap) ++ ": " ++ str
 
-        Return arg -> do
-            putStrLn $ "return " ++ show arg
+    Return arg -> do
+        putStrLn $ pre ++ "return " ++ show arg
 
-        Loop ids -> do
-            putStrLn $ "loop:"
-            mapM_ (prettyIrStmt (pre ++ "\t") funcIr) ids
+    Loop ids -> do
+        putStrLn $ pre ++ "loop:"
+        mapM_ (prettyIrStmt (pre ++ "\t") funcIr) ids
 
-        Break -> putStrLn "break"
+    Break -> putStrLn $ pre ++ "break"
 
-        If arg trueId falseId -> do
-            putStr $ "if " ++ show arg ++ ":"
-            prettyIrStmt pre funcIr trueId
-            putStr $ pre ++ "else:"
-            prettyIrStmt pre funcIr falseId
+    If arg trueId falseId -> do
+        putStr $ pre ++ "if " ++ show arg ++ ":"
+        prettyIrStmt pre funcIr trueId
+        putStr $ pre ++ "else:"
+        prettyIrStmt pre funcIr falseId
 
-        SSA operation -> do
-            let Just (typ, refType) = Map.lookup id (irTypes funcIr)
-            putStrLn $ "%" ++ show id ++ " " ++ show refType ++ " " ++ show typ ++ " = " ++ show operation
-            
-        x -> error (show x)
+    Switch cases -> do
+        putStrLn $ pre ++ "switch:"
+        forM_ cases $ \(preBlkId, cnd, postBlkId) -> do
+            putStr $ pre ++ "case:"
+            prettyIrStmt (pre) funcIr preBlkId
+            putStrLn $ pre ++ "cnd: " ++ show cnd
+            prettyIrStmt (pre ++ "\t") funcIr postBlkId
+
+
+
+    SSA operation -> do
+        let Just (typ, refType) = Map.lookup id (irTypes funcIr)
+        putStrLn $ pre ++ "%" ++ show id ++ " " ++ show refType ++ " " ++ show typ ++ " = " ++ show operation
+        
+    x -> error (show x)
 
 

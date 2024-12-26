@@ -175,7 +175,7 @@ fn drawQuads(w &Window, quads Slice{Quad}, texture &Texture, transform Mat3f)
     let ptr = w.windowPtr
     ${
         sfRenderStates states;
-        states.texture = (sfTexture*)$texturePtr;
+        states.texture = NULL; // (sfTexture*)$texturePtr;
         states.blendMode = sfBlendAlpha;
         states.transform = sfTransform_fromMatrix(
             $transform.arr[0].arr[0], $transform.arr[0].arr[1], $transform.arr[0].arr[2],
@@ -188,7 +188,8 @@ fn drawQuads(w &Window, quads Slice{Quad}, texture &Texture, transform Mat3f)
             (const sfVertex *)$quads.ptr,
             $quads.len * 6,
             sfTriangles,
-            &states
+            NULL
+            //&states
         );
     }
 

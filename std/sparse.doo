@@ -4,7 +4,7 @@ import builtin/all
 
 
 type{T} Key I64
-derives{T} Key{T} (destroy)
+derives{T} Key{T} (copy, destroy)
 
 
 tuple{T} Sparse {

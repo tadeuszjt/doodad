@@ -286,7 +286,7 @@ pattern  : '_'                           { PatIgnore (tokPos $1) }
          | pattern '|' expr              { PatGuarded (tokPos $2) $1 (AExpr Type.Bool $3) }
          | pattern '|' expr '->' pattern { PatGuarded (tokPos $2) $1 (Match (tokPos $4) $3 $5) }
          | pattern ':' type_             { PatAnnotated $1 $3 }
-         | symbol '(' patterns ')'       { PatField (tokPos $2) (snd $1) $3 }
+         | ident  '(' patterns ')'       { PatField (tokPos $2) (tokStr $1) $3 }
          | '[' patterns ']'              { PatSlice (tokPos $1) $2 } 
  
 ---------------------------------------------------------------------------------------------------

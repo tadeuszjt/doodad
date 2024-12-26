@@ -41,6 +41,17 @@ initInstBuilderState = InstBuilderState
     }
 
 
+typeOfPat :: InstBuilderState -> Pattern -> Type
+typeOfPat state (Pattern id) = (types state) Map.! id
+
+
+typeOfExpr :: InstBuilderState -> Expr -> Type
+typeOfExpr state (Expr id) = (types state) Map.! id
+
+
+typeOfType :: InstBuilderState -> Type -> Type
+typeOfType state (Type id) = (types state) Map.! id
+
 
 generateId :: MonadInstBuilder m => m ID
 generateId = liftInstBuilderState $ do

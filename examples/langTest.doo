@@ -1,19 +1,12 @@
 module langTest
 
-import builtin/builtin
-import builtin/arithmetic
-import builtin/compare
-import builtin/tuple
-import builtin/container
-import builtin/assert
+import builtin/all
 import std/sparse
-import builtin/for
 import std/print
+import std/unordered
 import std/io
 import std/option
-import std/unordered
-import builtin/convert
-
+import std/read
 
 fn testArithmetic()
     let x = 1 + 2
@@ -31,17 +24,49 @@ fn testIf()
     if x == 3
         let true = true
     else
-        let false = true
+        assert(false)
+
+    if x -> 3 | x -> y
+        let 3 = y
+
+    if x -> y | y -> z | z == 3
+        assert(true)
+
+    if x -> y | y -> z | z == 4
+        assert(false)
+
+
+fn testFor()
+    let table : Char.Table
+    for (0, 5) -> i
+        table.push('a' + i.convert)
+
+    let 5 = table.len
+
+    let table2 : Char.Table
+
+    for table -> c | c != 'd'
+        table2.push(c)
+
+    let 3 = table2.len
 
 
 fn testSwitch()
     let x = 0
     switch 10
-        x | x == 0; let true = false
+        x | x == 0; assert(false)
         y | y == 10; x = 1
-        _; let true = false
+        _; assert(false)
 
     let 1 = x
+
+    switch 3
+        3
+            assert(true)
+        x
+            assert(false)
+        _
+            assert(false)
 
 
 fn testTuple()
@@ -52,86 +77,53 @@ fn testTuple()
     let (3, 4, 5) = (1, 2, 3) + (2, 2, 2)
 
 
-//fn testFnWithRef()
-//    fn f(a &I64)
-//        a = a + 1
-//    let x = 1
-//    f(&x)
-//    let 2 = x
-//
-//    fn g(a &I64) &I64
-//        a = a + 1
-//        return &a
-//    let y = 34
-//    g(&y)
-//    let 35 = y
-//    g(&y) = 0
-//    let 0 = y
-//
-//    fn h(a &(I64, I64))
-//        a = (1, 2)
-//    let z = (0, 0)
-//    h(&z)
-//    let (1, 2) = z
+type Person (I64, Bool)
+derives Person (copy, destroy, make2{I64, Bool}, tuplePattern{I64, 2, 0}, tuplePattern{Bool, 2, 1})
 
+fn person(n I64, b Bool) Person
+    return (n, b)
 
-//type Person (I64, Bool)
-//derives Person (destroy)
-//fn testTable()
-//    data table I64.Table
-//
-//    let 0 = table.len
-//    table.push(1)
-//    table.push(2)
-//    table.push(3)
-//
-//    let 3 = table.len
-//
-//    let 1 = table.at(0)
-//
-//    let x = table.at(1)
-//    let 2 = table.at(1)
-//    builtin::builtinTableAt(&table, 1) = 3
-//    let 3 = builtin::builtinTableAt(&table, 1)
-//
-//    let 3 = table.pop
-//    let 3 = table.pop
-//    let 1 = table.pop
-//    let 0 = table.len
-//
-//    //derives Person (store::store)
-//    inst store{ Person } (a&, b)
-//        a.0 = b.0
-//        a.1 = b.1
-//
-//    inst first{ Person, I64 } (p&) -> &; return &p.0
-//    inst second{ Person, Bool } (p&) -> &; return &p.1
-//
-//    fn person(a I64, b Bool) Person
-//        let p : Person
-//        p.first = a
-//        p.second = b
-//        return p
-//
-//    data t2 Person.Table
-//
-//    t2.push( person(1, true) )
-//    t2.push( person(2, false) : Person )
-//
-//    let 2 = t2.len
-//
-//    t2.at(1) = person(3, true)
-//    let (3, true) = t2.pop
-//
-//    data m3 I64.Table.Table
-//    let 0 = m3.len
-//    m3.grow
-//    m3[0].grow
-//    let 1 = m3[0].len
+fn testTable()
+    let table : I64.Table
+
+    let 0 = table.len
+    table.push(1)
+    table.push(2)
+    table.push(3)
+
+    let 3 = table.len
+
+    let 1 = table.at(0)
+
+    let x = table.at(1)
+    let 2 = table.at(1)
+    builtin::builtinTableAt(&table, 1) = 3
+    let 3 = builtin::builtinTableAt(&table, 1)
+
+    let 3 = table.pop
+    let 3 = table.pop
+    let 1 = table.pop
+    let 0 = table.len
+
+    let t2 : Person.Table
+
+    t2.push( person(1, true) )
+    t2.push( person(2, false) : Person )
+
+    let 2 = t2.len
+
+    t2.at(1) = person(3, true)
+    let (3, true) = t2.pop
+
+    let m3 : I64.Table.Table
+    let 0 = m3.len
+    m3.grow
+    m3[0].grow
+    let 1 = m3[0].len
 
 
 fn testSparse()
-    data s1 I64.Sparse
+    let s1 : I64.Sparse
 
     let 0 = s1.len
     let k1 = s1.sparse::insertZero
@@ -161,8 +153,22 @@ fn testSparse()
     let 1 = s1.at(k1)
 
 
+fn testRead()
+    let str : Char.Table = ['1', ' ', '1']
+
+    let some( ('1', 1) ) = str.read(0)
+    let some( (' ', 1) ) = str.read(1) : (Char, I64).Option
+    let some( ('1', 1) ) = str.read(2)
+    let none()           = str.read(3) : (Char, I64).Option
+
+    let some( (1, 1) ) = str.read(0)
+    let some( (1, 2) ) = str.read(1)
+    let some( (1, 1) ) = str.read(2)
+    let none()         = str.read(3) : (I64, I64).Option
+    
+
 fn testPrint()
-    data str Char.Table
+    let str : Char.Table
 
     str.print('b')
 
@@ -173,26 +179,28 @@ fn testPrint()
 
     let 5 = str.len
 
-    data tupStr Char.Table
+    let tupStr : Char.Table
 
     tupStr.print( (0, true) )
 
     ${ printf("%s\n", $tupStr.r0); }
 
-    data table Tuple{I64, Bool}.Table
+    let table : Tuple{I64, Bool}.Table
 
     table.push( (10, true) )
     table.push( (2, false) )
     table.push( (38-243, true) )
     table.push( (0, true) )
 
-    data io Io
-    io.stdout.print( &table )
-    io.stdout.print('\n')
+    tupStr.destroy
+
+    tupStr.print(table)
+
+    ${ printf("%s\n", $tupStr.r0); }
 
 
 fn testUnordered()
-    data u1 I64.Unordered
+    let u1 : I64.Unordered
 
     let 0  = u1.len
     let k1 = u1.unordered::insert(1)
@@ -215,7 +223,7 @@ fn testUnordered()
     let 2 = u1.at(k2)
     let 3 = u1.at(k3)
 
-    data u2 I64.Table.Unordered
+    let u2 : I64.Table.Unordered
 
     let 0 = u2.len
 
@@ -230,7 +238,7 @@ fn testUnordered()
     let 2 = u2[key0].len
     let 0 = u2[key1].len
 
-    data io Io
+    let io : Io
     io.stdout.print( &u2 )
     io.stdout.print('\n')
 
@@ -239,8 +247,9 @@ fn testUnordered()
 fn testOption()
     let o : I64.Option
     switch o
-        none(); let true = true
-        some(); let false = true
+        none(); assert(true)
+        some(x); assert(false)
+        _; assert(false)
     let false = o.isSome()
 
     o = some(3)
@@ -248,10 +257,12 @@ fn testOption()
 
     switch o
         x | x.isNone()
-            let false = true
+            assert(false)
 
         some(3); let true = true
-        _; ${ puts("didn't work"); }
+        _
+            ${ puts("didn't work"); }
+            assert(false)
 
     let true = o.isSome()
 
@@ -268,6 +279,23 @@ fn testOption()
     let false = o1 == o2
     o2 = none()
     let true = o1 == o2
+
+    let x = some( [1, 2, 3] : I64.Table )
+    let 3 = x.fromSome.len
+    let 2 = x.fromSome[1]
+
+    switch x
+        none(); assert(false)
+        some(z)
+            assert(true)
+            let 3 = z.len
+        _; assert(false)
+
+
+    let y = some(34)
+    switch y
+        some(z); let 34 = z
+        _; assert(false)
 
 
 //fn testTree()
@@ -313,72 +341,57 @@ fn testOption()
 //    let false = m.contains(0)
 //
 //
-//fn testIo(io &Io)
-//    io.stdout.push("success", '\n', (1, true):(I64, Bool), " ")
-//
-//    data table Tuple{I64, I64}.Table
-//
-//    for (0, 10) -> i
-//        table.push((i * 2, i * 3))
-//
-//    io.stdout.push(&table)
-//    return
-//
-//
-//fn testArrayPattern()
-//    data t1 I64.Table
-//    t1.push(1, 2, 3)
-//
-//    let [1, x, 3] = t1
-//    let 2 = x
-//
-//    if t1 -> [_, _]
-//        let true = false
-//
-//    data t2 Char.Table
-//    t2.push("abc")
-//
-//    let ['a', 'b', y] = t2
-//    let 'c' = y
-//
-//    let ['a', 'b', 'c'] = "abc"
-//    let ['a', 'b', 'c'] = t2.slice(0, t2.len)
-//
-//
-//fn testArrayExpr()
-//    data t1 Tuple{I64, Bool}.Table
-//    t1 = [
-//        (1, true)
-//        (2, false)
-//        (3, true)
-//    ]
-//
-//    let 1 = t1[0].0
-//    let false = t1[1].1
-//
-//    t1 = [
-//        (4, false)
-//        (5, false)
-//    ]
-//
-//    let 2 = t1.len
-//    let 5 = t1[1].0
-//
-//
+fn testArrayPattern()
+    let t1 : I64.Table = [1, 2, 3]
+
+    //let [1, x, 3] = t1
+    //let 2 = x
+
+    //if t1 -> [_, _]
+    //    let true = false
+
+    //let t2 : Char.Table
+    //t2.push("abc")
+
+    //let ['a', 'b', y] = t2
+    //let 'c' = y
+
+    //let ['a', 'b', 'c'] = "abc"
+    //let ['a', 'b', 'c'] = t2.slice(0, t2.len)
+
+
+fn testArrayExpr()
+    let t1 : Tuple{I64, Bool}.Table = [
+        (1, true),
+        (2, false),
+        (3, true)
+    ]
+
+    let 1 = t1[0].0
+    let false = t1[1].1
+
+    t1 = [
+        (4, false),
+        (5, false)
+    ]
+
+    let 2 = t1.len
+    let 5 = t1[1].0
+
+
 enum Enum {
-    one
-    two
-    three
+    one,
+    two,
+    three,
 }
+derives Enum (copy, destroy)
 enum Enum2 {
-    en2One(I64)
-    en2Two(I64, I64)
+    en2One(I64),
+    en2Two(I64, I64),
 }
+derives Enum2 (copy, destroy)
 
-derives Enum (destroy)
-derives Enum2 (destroy)
 fn testEnum()
-
     let e : Enum
 
     switch e
@@ -395,16 +408,15 @@ fn testEnum()
 
     let true = en2Two(1, 2).isEn2Two
     let false = en2Two(1, 2).isEn2One
-    //let 1 = en2Two(1, 2). 1 . 0
+    //let 1 = en2Two(1, 2).1 .0
 
 
 tuple{T} MyTuple {
-    myOne I64
+    myOne I64,
     myTwo T
 }
 derives{T} MyTuple{T} (destroy)
 fn testMacroTuple()
-
     let t : Bool.MyTuple
     t.myOne = 23
 
@@ -424,20 +436,13 @@ fn testArrayAt()
     let 3 = array[2]
 
 fn testFunctionalDependency()
-    data table Tuple{I64, Bool}.Table
+    let table : Tuple{I64, Bool}.Table
     table.grow
     let x = table[0]
 
 
 type MyTup Tuple{Bool, U8}
-derives MyTup (store)
-derives MyTup (destroy)
-
-inst make2{ Bool, U8, MyTup } (a, b)
-    let myTup
-    myTup.0 = a
-    myTup.1 = b
-    return myTup
+derives MyTup (copy, destroy, make2{Bool, U8})
 
 fn testMake2()
     let tup = make2(1, true):Tuple{I64, Bool}
@@ -446,7 +451,7 @@ fn testMake2()
 
 
 fn testTableRows()
-    data table (I32, (Bool, I64)).Table
+    let table : (I32, (Bool, I64)).Table
 
     table.push( (1, (true, 11)) )
     table.push( (2, (false , 12)) )
@@ -464,27 +469,25 @@ fn main()
     testArithmetic()
     testFloats()
     testIf()
+    testFor()
     testSwitch()
     testTuple()
-//    testFnWithRef()
-//    testTable()
-//    testSparse()
-//    testPrint()
-////    testSumType()
-//    testArrayAt()
-//    testOption()
-//    testUnordered()
+    testTable()
+    testSparse()
+    testPrint()
+    testRead()
+    testUnordered()
+    testArrayAt()
+    testOption()
 ////    testTree()
 ////    testMap()
-////    testArrayPattern()
-////    testArrayExpr()
-//    testEnum()
-//    testMacroTuple()
-//    testFunctionalDependency()
-//    testMake2()
-//    testTableRows()
+    testArrayPattern()
+    testArrayExpr()
+    testEnum()
+    testMacroTuple()
+    testFunctionalDependency()
+    testMake2()
+    testTableRows()
 
-//    data io Io
-//    testIo(&io)
     ${ puts("langTest success"); }
     return

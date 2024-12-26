@@ -66,6 +66,7 @@ inst{T} store{T} (a&, b)
 
 // args
 func{T} copy(T) T
+inst copy{I32} (a); return a
 inst copy{I64} (a); return a
 inst copy{F64} (a); return a
 inst copy{F32} (a); return a

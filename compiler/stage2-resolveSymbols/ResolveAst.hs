@@ -324,7 +324,7 @@ resolveStmt instState (Stmt id) = do
             void $ appendStmt $ EmbedC pos strMap str
 
         Let pos pattern mexpr Nothing -> do
-            pattern' <- resolvePattern pattern
+            pattern' <- resolvePattern instState pattern
             mexpr'   <- traverse (resolveExpr instState) mexpr
             void $ appendStmt $ Let pos pattern' mexpr' Nothing
 
@@ -352,23 +352,47 @@ resolveStmt instState (Stmt id) = do
             popSymbolTable
             void $ appendStmt $ While pos expr' (Stmt id)
 
+        Switch pos expr cases -> do
+            pushSymbolTable
+            expr' <- resolveExpr instState expr
+            cases' <- forM cases $ \(pat, stmt) -> do
+                pushSymbolTable
+                pat' <- resolvePattern instState pat
+                id <- resolveBlock instState stmt
+                popSymbolTable
+                return (pat', Stmt id)
+            popSymbolTable
+            void $ appendStmt $ Switch pos expr' cases'
+
         x -> error (show x)
 
 
-resolvePattern :: Pattern -> DoM ResolveState Pattern
-resolvePattern pattern = withPos pattern $ fmap Pattern $ case pattern of
+resolvePattern :: InstBuilderState -> Pattern -> DoM ResolveState Pattern
+resolvePattern instState pattern = withPos pattern $ fmap Pattern $ case pattern of
     PatAnnotated pat typ -> do
-        Pattern id <- resolvePattern pat
+        Pattern id <- resolvePattern instState pat
         newType id =<< resolveType typ
         return id
 
-    PatIdent pos (Sym str) -> do
-        symbol <- genSymbol (SymResolved str)
-        define symbol KeyVar symbol False
-        id <- newPattern (PatIdent pos symbol)
-        newType id (Type 0)
+    _ -> do
+        id <- newPattern =<< case pattern of
+            PatIgnore pos         -> return (PatIgnore pos)
+            PatTuple pos pats     -> PatTuple pos <$> mapM (resolvePattern instState) pats
+            PatLiteral expr       -> PatLiteral <$> resolveExpr instState expr
+            PatField pos str pats -> PatField pos str <$> mapM (resolvePattern instState) pats
 
-    x -> error (show x)
+            PatGuarded pos pat expr -> do
+                pat' <- resolvePattern instState pat
+                PatGuarded pos pat' <$> resolveExpr instState expr
+
+            PatIdent pos (Sym str) -> do
+                symbol <- genSymbol (SymResolved str)
+                define symbol KeyVar symbol False
+                return (PatIdent pos symbol)
+
+            x -> error (show x)
+
+        newType id (Type 0)
 
 
 resolveExpr :: InstBuilderState -> Expr -> DoM ResolveState Expr
@@ -411,8 +435,7 @@ resolveExpr state expression = withPos expression $ do
 
         Match pos expr pat -> do
             expr' <- (resolveExpr state) expr
-            pat' <- resolvePattern pat
-            id <- newExpr (Match pos expr' pat')
+            id <- newExpr . Match pos expr' =<< resolvePattern state pat
             newType id (Type 0)
 
         AST.String pos s -> do

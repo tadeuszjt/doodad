@@ -164,7 +164,6 @@ fn lookupCell(state I64, item Item) Cell
     return array[state][col]
 
 
-
 fn isRule(item Item) Bool
     switch item
         e_(_); return true
@@ -254,9 +253,8 @@ fn main(io Io)
         let item = tokens[tokIdx]
         let st = 0
 
-        // TODO switch statements are broken.
         switch stack[stack.len - 1]
-            state(s)
+            state(s : I64)
                 st = s
                 item = tokens[tokIdx]
                 io.stdout.printLn("here?")
