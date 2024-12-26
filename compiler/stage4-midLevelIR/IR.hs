@@ -77,7 +77,7 @@ data Stmt
     | Return Arg
     | EmbedC [(String, ID)] String
     | Switch [ (ID, Arg, ID) ]
-    | If Arg ID ID
+    | If Arg [ID]
     | SSA Operation
     deriving (Show, Eq)
 
@@ -184,6 +184,7 @@ appendStmt stmt = do
     curStmt' <- case curStmt of
         Block xs -> return (Block $ xs ++ [id])
         Loop ids -> return (Loop $ ids ++ [id])
+        If arg ids -> return (If arg $ ids ++ [id])
         x -> error (show x)
 
     liftFuncIrState $ modify $ \s -> s { irStmts = Map.insert curId curStmt' (irStmts s) }
@@ -200,6 +201,7 @@ prependStmt stmt = do
     curStmt' <- case curStmt of
         Block xs -> return (Block $ (id : xs))
         Loop ids -> return (Loop $ (id : ids))
+        If arg ids -> return (If arg $ (id : ids))
         x -> error (show x)
 
     liftFuncIrState $ modify $ \s -> s { irStmts = Map.insert curId curStmt' (irStmts s) }
@@ -228,6 +230,7 @@ appendStmtWithId id stmt = do
     curStmt' <- case curStmt of
         Block xs -> return (Block $ xs ++ [id])
         Loop ids -> return (Loop $ ids ++ [id])
+        If arg ids -> return (If arg $ ids ++ [id])
         x -> error (show x)
 
     liftFuncIrState $ modify $ \s -> s { irStmts = Map.insert curId curStmt' (irStmts s) }
@@ -269,11 +272,9 @@ prettyIrStmt pre funcIr id = case irStmts funcIr Map.! id of
 
     Break -> putStrLn $ pre ++ "break"
 
-    If arg trueId falseId -> do
+    If arg ids -> do
         putStr $ pre ++ "if " ++ show arg ++ ":"
-        prettyIrStmt pre funcIr trueId
-        putStr $ pre ++ "else:"
-        prettyIrStmt pre funcIr falseId
+        forM_ ids $ \id -> prettyIrStmt (pre ++ "\t") funcIr id
 
     Switch cases -> do
         putStrLn $ pre ++ "switch:"

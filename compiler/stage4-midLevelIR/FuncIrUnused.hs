@@ -63,7 +63,7 @@ funcIrUnused func = do
     forM_ (Map.toList $ irStmts func) $ \(id, stmt) -> case stmt of
         Block _ -> addUsed id
         Loop _  -> addUsed id
-        If arg _ _ -> do
+        If arg _ -> do
             addUsed id
             case arg of
                 ArgID argId -> addUsed argId
@@ -140,23 +140,15 @@ processStmt funcIr id = do
             withCurrentId id $ do
                 mapM_ (processStmt funcIr) ids
 
-        If (ArgConst _ (ConstBool True)) trueBlkId falseBlkId -> do
-            let Just (Block trueIds) = Map.lookup trueBlkId (irStmts funcIr)
-            mapM_ (processStmt funcIr) trueIds
+        If (ArgConst _ (ConstBool True)) ids -> do
+            mapM_ (processStmt funcIr) ids
             
-        If (ArgConst _ (ConstBool False)) trueBlkId falseBlkId -> do
-            let Just (Block falseIds) = Map.lookup falseBlkId (irStmts funcIr)
-            mapM_ (processStmt funcIr) falseIds
+        If (ArgConst _ (ConstBool False)) _ -> do
+            return ()
 
-        If cnd trueBlkId falseBlkId -> do
-            void $ appendStmtWithId id (If cnd trueBlkId falseBlkId)
-            addStmt trueBlkId (Block [])
-            addStmt falseBlkId (Block [])
-
-            let Just (Block trueIds) = Map.lookup trueBlkId (irStmts funcIr)
-            let Just (Block falseIds) = Map.lookup falseBlkId (irStmts funcIr)
-            withCurrentId trueBlkId $ mapM_ (processStmt funcIr) trueIds
-            withCurrentId falseBlkId $ mapM_ (processStmt funcIr) falseIds
+        If cnd ids -> do
+            appendStmtWithId id (If cnd [])
+            withCurrentId id $ mapM_ (processStmt funcIr) ids
 
         Break -> do
             modify $ \s -> s { hasReturned = True }

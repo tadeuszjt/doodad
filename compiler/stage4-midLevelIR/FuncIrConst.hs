@@ -88,15 +88,10 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
         void $ appendStmtWithId id (Loop [])
         withCurrentId id $ mapM_ (processStmt funcIr) ids
 
-    If arg trueBlkId falseBlkId -> do
+    If arg ids -> do
         arg' <- processArg arg
-        void $ appendStmtWithId id (If arg' trueBlkId falseBlkId)
-        addStmt trueBlkId (Block [])
-        addStmt falseBlkId (Block [])
-        let Just (Block trueIds) = Map.lookup trueBlkId (irStmts funcIr)
-        let Just (Block falseIds) = Map.lookup falseBlkId (irStmts funcIr)
-        withCurrentId trueBlkId $ mapM_ (processStmt funcIr) trueIds
-        withCurrentId falseBlkId $ mapM_ (processStmt funcIr) falseIds
+        appendStmtWithId id (If arg' [])
+        withCurrentId id $ mapM_ (processStmt funcIr) ids
 
     Break        -> void $ appendStmtWithId id stmt
 

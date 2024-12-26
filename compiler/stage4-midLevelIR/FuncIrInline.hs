@@ -79,16 +79,10 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
         void $ appendStmtWithId id (Loop [])
         withCurrentId id $ mapM_ (processStmt funcIr) ids
 
-    If arg trueBlkId falseBlkId -> do
+    If arg ids -> do
         arg' <- processArg arg
-        void $ appendStmtWithId id (If arg' trueBlkId falseBlkId)
-        addStmt trueBlkId (Block [])
-        addStmt falseBlkId (Block [])
-
-        let Just (Block trueIds) = Map.lookup trueBlkId (irStmts funcIr)
-        let Just (Block falseIds) = Map.lookup falseBlkId (irStmts funcIr)
-        withCurrentId trueBlkId $ mapM_ (processStmt funcIr) trueIds
-        withCurrentId falseBlkId $ mapM_ (processStmt funcIr) falseIds
+        void $ appendStmtWithId id (If arg' [])
+        withCurrentId id $ mapM_ (processStmt funcIr) ids
 
     Switch cases -> do
         cases' <- forM cases $ \(preBlkId, cnd, postBlkId) -> do
@@ -168,19 +162,10 @@ processInline callIr stmtId = let Just stmt = Map.lookup stmtId (irStmts callIr)
         blkId <- appendStmt (Block [])
         withCurrentId blkId $ last <$> mapM (processInline callIr) ids
 
-    If arg trueBlkId falseBlkId -> do
+    If arg ids -> do
         arg' <- processArg arg
-
-        trueBlkId' <- generateId
-        falseBlkId' <- generateId
-        appendStmt (If arg' trueBlkId' falseBlkId')
-        addStmt trueBlkId' (Block [])
-        addStmt falseBlkId' (Block [])
-
-        let Just (Block trueIds) = Map.lookup trueBlkId (irStmts callIr)
-        let Just (Block falseIds) = Map.lookup falseBlkId (irStmts callIr)
-        withCurrentId trueBlkId' $ mapM_ (processInline callIr) trueIds
-        withCurrentId falseBlkId' $ mapM_ (processInline callIr) falseIds
+        ifId <- appendStmt (If arg' [])
+        withCurrentId ifId $ mapM_ (processInline callIr) ids
         return undefined
 
     EmbedC idMap str -> do

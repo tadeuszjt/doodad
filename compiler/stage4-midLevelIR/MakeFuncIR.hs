@@ -161,13 +161,10 @@ makeStmt inst (S.Stmt stmtId) = do
             withCurrentID id $ do
                 cnd <- (makeVal inst) expr
 
-                trueBlkId <- generateId
-                falseBlkId <- generateId
-                appendStmt (If cnd trueBlkId falseBlkId)
-                addStmt trueBlkId (Block [])
-                addStmt falseBlkId (Block [])
-                withCurrentID falseBlkId $ do
-                    appendStmt Break
+                not <- call (Sym ["boolean", "not"]) [Type.Bool] [cnd]
+
+                ifId <- appendStmt (If not [])
+                withCurrentID ifId (appendStmt Break)
 
                 let Just (S.Block stmts) = Map.lookup stmtId (statements inst)
                 mapM_ (makeStmt inst) stmts
@@ -177,21 +174,23 @@ makeStmt inst (S.Stmt stmtId) = do
             curId <- getCurrentId
             arg <- makeCondition curId inst expr
 
-            trueBlkId <- generateId
-            falseBlkId <- generateId
-            id <- appendStmt (If arg trueBlkId falseBlkId)
-            addTextPos id pos
-            addStmt trueBlkId (Block [])
-            addStmt falseBlkId (Block [])
+            loopId <- appendStmt (Loop [])
+            void $ withCurrentID loopId $ do
+                -- make if
+                ifId <- appendStmt (If arg [])
+                let Just (S.Block trueStmts) = Map.lookup trueId (statements inst)
+                withCurrentID ifId $ do
+                    mapM_ (makeStmt inst) trueStmts
+                    appendStmt Break
 
-            let Just (S.Block trueStmts) = Map.lookup trueId (statements inst)
-            withCurrentID trueBlkId (mapM_ (makeStmt inst) trueStmts)
+                case mfalse of
+                    Nothing -> return ()
+                    Just (S.Stmt falseId) -> do
+                        let Just (S.Block falseStmts) = Map.lookup falseId (statements inst)
+                        mapM_ (makeStmt inst) falseStmts
 
-            case mfalse of
-                Nothing -> return ()
-                Just (S.Stmt falseId) -> do
-                    let Just (S.Block falseStmts) = Map.lookup falseId (statements inst)
-                    withCurrentID falseBlkId $ mapM_ (makeStmt inst) falseStmts
+                appendStmt Break
+
 
         S.Switch pos expr cases -> do
             arg <- makeVal inst expr
@@ -242,16 +241,9 @@ makePattern defBlkId inst (S.Pattern patId) arg = case patterns inst Map.! patId
         case pats of
             [] -> return isCase
             [pat] -> do
-                trueBlkId <- generateId
-                falseBlkId <- generateId
-                addStmt trueBlkId (Block [])
-                addStmt falseBlkId (Block [])
-
                 match <- appendSSA Type.Bool Value $ InitVar $ Just $ ArgConst Type.Bool (ConstBool False)
-
-                ifId <- appendStmt (If isCase trueBlkId falseBlkId)
-
-                withCurrentID trueBlkId $ do
+                ifId <- appendStmt (If isCase [])
+                withCurrentID ifId $ do
                     let fieldType = typeOfPat inst pat
 
                     let (TypeDef _, generics) = unfoldType patType
@@ -281,13 +273,8 @@ makePattern defBlkId inst (S.Pattern patId) arg = case patterns inst Map.! patId
         patMatch <- makePattern defBlkId inst pat arg
         match <- appendSSA Type.Bool Value $ InitVar $ Just $ ArgConst Type.Bool (ConstBool False)
 
-        trueBlkId <- generateId
-        falseBlkId <- generateId
-        addStmt trueBlkId (Block [])
-        addStmt falseBlkId (Block [])
-        ifId <- appendStmt (If patMatch trueBlkId falseBlkId)
-
-        withCurrentID trueBlkId $ do
+        ifId <- appendStmt (If patMatch [])
+        withCurrentID ifId $ do
             matchRef <- appendSSA Type.Bool IR.Ref (MakeReferenceFromValue $ ArgID match)
             b <- makeCondition defBlkId inst expr
             call (Sym ["builtin", "store"]) [Type.Bool] [ArgID matchRef, b]
@@ -315,14 +302,10 @@ makePattern defBlkId inst (S.Pattern patId) arg = case patterns inst Map.! patId
                 fieldVal <- appendSSA fieldType Value (MakeValueFromReference field)
 
                 b <- makePattern defBlkId inst pat =<< copy (ArgID fieldVal)
+                not <- call (Sym ["boolean", "not"]) [Type.Bool] [b]
 
-                trueBlkId <- generateId
-                falseBlkId <- generateId
-                addStmt trueBlkId (Block [])
-                addStmt falseBlkId (Block [])
-
-                appendStmt (If b trueBlkId falseBlkId)
-                withCurrentID falseBlkId $ do
+                ifId <- appendStmt (If not [])
+                withCurrentID ifId $ do
                     call (Sym ["builtin", "store"]) [Type.Bool] [ArgID matchRef, ArgConst Type.Bool (ConstBool False)]
                     appendStmt Break
 

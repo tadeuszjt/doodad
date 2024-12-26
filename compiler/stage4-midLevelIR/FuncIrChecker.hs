@@ -92,6 +92,7 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
     EmbedC strMap _ -> return ()
     Block ids ->  withCurrentId id $ mapM_ (processStmt funcIr) ids
     Loop ids ->  withCurrentId id $ mapM_ (processStmt funcIr) ids
+    If arg ids -> withCurrentId id $ mapM_ (processStmt funcIr) ids
     Break        -> return ()
 
     Switch cases -> forM_ cases $ \(pre, cnd, post) -> do
@@ -108,12 +109,6 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
                     Just (_, IR.Slice) -> return ()
                     Just (_, Value) -> fail ("returning reference must be to reference argument")
                 Just x -> fail ("cannot return reference to stack variable")
-
-    If arg trueBlkId falseBlkId -> do
-        let Just (Block trueIds) = Map.lookup trueBlkId (irStmts funcIr)
-        let Just (Block falseIds) = Map.lookup falseBlkId (irStmts funcIr)
-        withCurrentId trueBlkId $ mapM_ (processStmt funcIr) trueIds
-        withCurrentId falseBlkId $ mapM_ (processStmt funcIr) falseIds
 
     SSA (InitVar ma) -> return ()
     SSA (MakeReferenceFromValue (ArgID i)) -> return ()

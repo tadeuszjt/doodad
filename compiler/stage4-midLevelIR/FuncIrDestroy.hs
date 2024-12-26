@@ -89,22 +89,10 @@ processStmt funcIr id = let stmt = irStmts funcIr Map.! id in case stmt of
             forM_ set $ \idToDestroy -> destroy idToDestroy
             popStack
 
-    If cnd trueBlkId falseBlkId -> do
-        void $ appendStmtWithId id (If cnd trueBlkId falseBlkId)
-        addStmt trueBlkId (Block [])
-        addStmt falseBlkId (Block [])
+    If cnd ids -> do
+        appendStmtWithId id (If cnd [])
 
-        withCurrentId trueBlkId $ do
-            let Block ids = irStmts funcIr Map.! trueBlkId
-            pushStack
-            mapM_ (processStmt funcIr) ids
-            -- destroy
-            set <- Set.toList <$> gets (head . destroyStack)
-            forM_ set $ \idToDestroy -> destroy idToDestroy
-            popStack
-
-        withCurrentId falseBlkId $ do
-            let Block ids = irStmts funcIr Map.! falseBlkId
+        withCurrentId id $ do
             pushStack
             mapM_ (processStmt funcIr) ids
             -- destroy

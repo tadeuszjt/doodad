@@ -177,12 +177,10 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
         forId <- appendElem $ C.For Nothing Nothing Nothing []
         withCurID forId $ mapM_ (generateStmt funcIr) ids
 
-    IR.If arg trueBlkId falseBlkId -> do
+    IR.If arg ids -> do
         val <- generateArg arg
         ifId <- appendElem (C.If val [])
-        elseId <- appendElem (C.Else [])
-        withCurID ifId $ generateStmt funcIr trueBlkId
-        withCurID elseId $ generateStmt funcIr falseBlkId
+        withCurID ifId $ mapM_ (generateStmt funcIr) ids
 
     IR.Switch cases -> do
         switchId <- appendElem $ C.For Nothing (Just $ C.Bool True) Nothing []
