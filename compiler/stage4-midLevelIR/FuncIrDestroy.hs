@@ -100,29 +100,6 @@ processStmt funcIr id = let stmt = irStmts funcIr Map.! id in case stmt of
             forM_ set $ \idToDestroy -> destroy idToDestroy
             popStack
 
-    Switch cases -> do
-        cases' <- forM cases $ \(preBlkId, cnd, postBlkId) -> do
-            addStmt preBlkId (Block [])
-            addStmt postBlkId (Block [])
-
-            withCurrentId preBlkId $ do
-                let Block ids = irStmts funcIr Map.! preBlkId
-                pushStack
-                mapM_ (processStmt funcIr) ids
-                mapM_ destroy . Set.toList =<< gets (head . destroyStack)
-                popStack
-
-            withCurrentId postBlkId $ do
-                let Block ids = irStmts funcIr Map.! postBlkId
-                pushStack
-                mapM_ (processStmt funcIr) ids
-                mapM_ destroy . Set.toList =<< gets (head . destroyStack)
-                popStack
-            
-            return (preBlkId, cnd, postBlkId)
-
-        appendStmtWithId id (Switch cases')
-
     Break -> do
         --TODO Bug - need to clean from all block levels created in last loop
         set <- Set.toList <$> gets (head . destroyStack)

@@ -191,23 +191,22 @@ makeStmt inst (S.Stmt stmtId) = do
 
                 appendStmt Break
 
-
         S.Switch pos expr cases -> do
             arg <- makeVal inst expr
-            cases' <- forM cases $ \(pat, stmt) -> do
-                preBlkId <- generateId
-                addStmt preBlkId (Block [])
-                b <- withCurrentID preBlkId (makePattern preBlkId inst pat arg)
 
-                blkId <- generateId
-                addStmt blkId (Block [])
-                withCurrentID blkId (makeStmt inst stmt)
+            loopId <- appendStmt (Loop [])
+            void $ withCurrentID loopId $ do
+                forM_ cases $ \(pat, stmt) -> do
+                    b <- makePattern loopId inst pat arg
 
-                return (preBlkId, b, blkId)
+                    ifId <- appendStmt (If b [])
+                    withCurrentID ifId $ do
+                        makeStmt inst stmt
+                        appendStmt Break
 
-            void $ appendStmt $ Switch cases'
+                call (Sym ["assert", "assert"]) [] [ArgConst Type.Bool (ConstBool False)]
+                appendStmt Break
 
-            
 
         x -> error (show x)
 

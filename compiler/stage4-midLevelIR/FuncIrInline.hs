@@ -84,24 +84,6 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
         void $ appendStmtWithId id (If arg' [])
         withCurrentId id $ mapM_ (processStmt funcIr) ids
 
-    Switch cases -> do
-        cases' <- forM cases $ \(preBlkId, cnd, postBlkId) -> do
-            arg' <- processArg cnd
-
-            let Just (Block preIds) = Map.lookup preBlkId (irStmts funcIr)
-            let Just (Block postIds) = Map.lookup postBlkId (irStmts funcIr)
-
-            addStmt preBlkId (Block [])
-            addStmt postBlkId (Block [])
-
-            withCurrentId preBlkId $ mapM_ (processStmt funcIr) preIds
-            withCurrentId postBlkId $ mapM_ (processStmt funcIr) postIds
-
-            return (preBlkId, arg', postBlkId)
-
-        void $ appendStmtWithId id (Switch cases')
-
-
     Break      -> void $ appendStmtWithId id stmt
     Return arg -> void $ appendStmtWithId id . Return =<< processArg arg
 

@@ -69,12 +69,6 @@ funcIrUnused func = do
                 ArgID argId -> addUsed argId
                 _           -> return ()
 
-        Switch cases -> do
-            addUsed id
-            forM_ cases $ \(_, cnd, _) -> case cnd of
-                ArgID argId -> addUsed argId
-                _           -> return ()
-
         Break  -> addUsed id
 
         EmbedC strMap _ -> do
@@ -119,21 +113,6 @@ processStmt funcIr id = do
             unless (id == 0) $ appendStmtWithId id (Block [])
             withCurrentId id $ do
                 mapM_ (processStmt funcIr) ids
-
-        Switch cases -> do
-            forM_ cases $ \(preBlkId, cnd, postBlkId) -> do
-                addStmt preBlkId (Block [])
-                addStmt postBlkId (Block [])
-
-                let Just (Block preIds) = Map.lookup preBlkId (irStmts funcIr)
-                let Just (Block postIds) = Map.lookup postBlkId (irStmts funcIr)
-
-                withCurrentId preBlkId $ mapM_ (processStmt funcIr) preIds
-                withCurrentId postBlkId $ mapM_ (processStmt funcIr) postIds
-
-            appendStmtWithId id (Switch cases)
-
-
 
         Loop ids -> do
             void $ appendStmtWithId id (Loop [])

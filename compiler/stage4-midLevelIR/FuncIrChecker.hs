@@ -95,10 +95,6 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
     If arg ids -> withCurrentId id $ mapM_ (processStmt funcIr) ids
     Break        -> return ()
 
-    Switch cases -> forM_ cases $ \(pre, cnd, post) -> do
-        processStmt funcIr pre
-        processStmt funcIr post
-
     Return arg -> do -- check is arg ref
         resm <- getRefSubject funcIr arg
         case resm of

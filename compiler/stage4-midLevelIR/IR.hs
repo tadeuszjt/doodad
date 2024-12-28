@@ -73,11 +73,10 @@ instance Show Operation where
 data Stmt
     = Block [ID]
     | Loop [ID]
+    | If Arg [ID]
     | Break
     | Return Arg
     | EmbedC [(String, ID)] String
-    | Switch [ (ID, Arg, ID) ]
-    | If Arg [ID]
     | SSA Operation
     deriving (Show, Eq)
 
@@ -273,18 +272,8 @@ prettyIrStmt pre funcIr id = case irStmts funcIr Map.! id of
     Break -> putStrLn $ pre ++ "break"
 
     If arg ids -> do
-        putStr $ pre ++ "if " ++ show arg ++ ":"
+        putStrLn $ pre ++ "if " ++ show arg ++ ":"
         forM_ ids $ \id -> prettyIrStmt (pre ++ "\t") funcIr id
-
-    Switch cases -> do
-        putStrLn $ pre ++ "switch:"
-        forM_ cases $ \(preBlkId, cnd, postBlkId) -> do
-            putStr $ pre ++ "case:"
-            prettyIrStmt (pre) funcIr preBlkId
-            putStrLn $ pre ++ "cnd: " ++ show cnd
-            prettyIrStmt (pre ++ "\t") funcIr postBlkId
-
-
 
     SSA operation -> do
         let Just (typ, refType) = Map.lookup id (irTypes funcIr)
