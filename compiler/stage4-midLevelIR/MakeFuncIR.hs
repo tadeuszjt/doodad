@@ -337,33 +337,40 @@ makeSlice inst (S.Expr exprId) = do
             let Apply Type.Slice t = exprType
             fmap ArgID $ appendSSA t IR.Slice . MakeSlice =<< mapM copy =<< mapM (makeVal inst) exprs
 
-
         S.Call pos (Type funcTypeId) exprs -> do
-            let Just funcType           = Map.lookup funcTypeId (types inst)
-            let (TypeDef funcSymbol, _) = unfoldType funcType
+            arg <- makeCall inst (S.Call pos (Type funcTypeId) exprs)
+            (t, IR.Slice) <- getType arg
+            return arg
+
+        x -> error (show x)
 
 
-            ast <- gets astResolved
-            resm <- fmap fst $ runDoMExcept ast (makeHeaderInstance funcType)
-            irHeader <- case resm of
-                Just x -> return x
-                Nothing -> fail ("no instance for: " ++ show funcType)
-            unless (length exprs == length (irArgs irHeader)) (error "arg length mismatch")
+makeCall :: InstBuilderState -> S.Expr -> DoM FuncIRState Arg
+makeCall inst (S.Call pos (Type funcTypeId) exprs) = do
+    let Just funcType           = Map.lookup funcTypeId (types inst)
+    let (TypeDef funcSymbol, _) = unfoldType funcType
 
-            args <- forM (zip exprs (irArgs irHeader)) $ \(expr, arg) -> do
-                case arg of
-                    ParamIR _ (Apply Type.Slice _) -> error "there"
-                    ParamIR IR.Slice _ -> makeSlice inst expr
-                    ParamIR IR.Ref _ -> ArgID <$> (makeRef inst) expr
-                    ParamIR Value argType -> do
-                        if symbolsCouldMatch funcSymbol (Sym ["builtin", "copy"]) then (makeVal inst) expr
-                        else copy =<< (makeVal inst) expr
+    ast <- gets astResolved
+    resm <- fmap fst $ runDoMExcept ast (makeHeaderInstance funcType)
+    irHeader <- case resm of
+        Just x -> return x
+        Nothing -> fail ("no instance for: " ++ show funcType)
+    unless (length exprs == length (irArgs irHeader)) (error "arg length mismatch")
 
-            case irRetty irHeader of
-                RettyIR IR.Slice t -> fmap ArgID $ appendSSA t IR.Slice (Call funcType args)
-                x -> withPos pos $ fail (show $ irRetty irHeader)
+    args <- forM (zip exprs (irArgs irHeader)) $ \(expr, arg) -> do
+        case arg of
+            ParamIR _ (Apply Type.Slice _) -> error "there"
 
+            ParamIR IR.Slice _ -> makeSlice inst expr
+            ParamIR IR.Ref _ -> ArgID <$> (makeRef inst) expr
+            ParamIR Value argType -> do
+                if symbolsCouldMatch funcSymbol (Sym ["builtin", "copy"]) then (makeVal inst) expr
+                else copy =<< (makeVal inst) expr
 
+    case irRetty irHeader of
+        RettyIR Value typ -> fmap ArgID $ appendSSA typ Value (Call funcType args)
+        RettyIR IR.Ref typ -> fmap ArgID $ appendSSA typ IR.Ref (Call funcType args)
+        RettyIR IR.Slice typ -> fmap ArgID $ appendSSA typ IR.Slice (Call funcType args)
         x -> error (show x)
 
 
@@ -388,36 +395,12 @@ makeVal inst (S.Expr exprId) = do
                 IR.Ref   -> fmap ArgID $ appendSSA typ Value (MakeValueFromReference (ArgID id))
                 x -> fail "here"
 
-        S.Call _ (Type funcTypeId) exprs -> do
-            let Just funcType           = Map.lookup funcTypeId (types inst)
-            let (TypeDef funcSymbol, _) = unfoldType funcType
-
-            ast <- gets astResolved
-            resm <- fmap fst $ runDoMExcept ast (makeHeaderInstance funcType)
-            irHeader <- case resm of
-                Just x -> return x
-                Nothing -> fail ("no instance for: " ++ show funcType)
-            unless (length exprs == length (irArgs irHeader)) (error "arg length mismatch")
-
-            args <- forM (zip exprs (irArgs irHeader)) $ \(expr, arg) -> do
-                case arg of
-                    ParamIR _ (Apply Type.Slice _) -> error "there"
-
-                    ParamIR IR.Slice _ -> makeSlice inst expr
-                    ParamIR IR.Ref _ -> ArgID <$> (makeRef inst) expr
-                    ParamIR Value argType -> do
-                        if symbolsCouldMatch funcSymbol (Sym ["builtin", "copy"]) then (makeVal inst) expr
-                        else copy =<< (makeVal inst) expr
-
-            case irRetty irHeader of
-                RettyIR IR.Slice _ -> fail "slice return"
-                --RettyIR _ Tuple -> fmap ArgID $ appendSSA Tuple Const (Call funcType args)
-                RettyIR Value typ -> fmap ArgID $ appendSSA typ Value (Call funcType args)
-                RettyIR IR.Ref typ -> do
-                    fmap ArgID $ appendSSA typ Value . MakeValueFromReference . ArgID =<<
-                        appendSSA typ IR.Ref (Call funcType args)
-
-                x -> error (show x)
+        S.Call pos (Type funcTypeId) exprs -> do
+            arg <- makeCall inst (S.Call pos (Type funcTypeId) exprs)
+            (t, refType) <- getType arg
+            case refType of
+                Value -> return arg
+                IR.Ref -> fmap ArgID (appendSSA t Value $ MakeValueFromReference arg)
 
         x -> error (show x)
 
@@ -429,7 +412,7 @@ makeRef inst (S.Expr exprId) = do
     let Just exprType   = Map.lookup exprId (types inst)
 
     withPos expression $ case expression of
-        S.Reference _ expr -> (makeRef inst) expr
+        S.Reference _ expr -> makeRef inst expr
         S.Ident _ symbol -> do
             id <- look symbol
             (typ, refType) <- getType (ArgID id)
@@ -438,29 +421,15 @@ makeRef inst (S.Expr exprId) = do
 
             case refType of
                 Value -> appendSSA typ IR.Ref (MakeReferenceFromValue $ ArgID id)
-
                 IR.Ref -> return id
-                    
                 x -> error (show x)
 
-        S.Call _ (Type funcTypeId) exprs -> do
-            let Just funcType = Map.lookup funcTypeId (types inst)
-            ast <- gets astResolved
-            Just irHeader <- fmap fst $ runDoMExcept ast (makeHeaderInstance funcType)
-            unless (length exprs == length (irArgs irHeader)) (error "arg length mismatch")
-
-            args <- forM (zip exprs (irArgs irHeader)) $ \(expr, arg) -> do
-                case arg of
-                    ParamIR IR.Slice _ -> makeSlice inst expr
-                    ParamIR IR.Ref   _ -> ArgID <$> (makeRef inst) expr
-                    ParamIR Value _ -> (makeVal inst) expr
-
-            case irRetty irHeader of
-                RettyIR IR.Ref typ -> appendSSA typ IR.Ref (Call funcType args)
-                RettyIR Value typ -> do
-                    id <- appendSSA typ Value (Call funcType args)
-                    appendSSA typ IR.Ref (MakeReferenceFromValue $ ArgID id)
-                x -> error (show x)
+        S.Call pos (Type funcTypeId) exprs -> do
+            arg@(ArgID argId) <- makeCall inst (S.Call pos (Type funcTypeId) exprs)
+            (t, refType) <- getType arg
+            case refType of
+                IR.Ref -> return argId
+                Value  -> appendSSA t Value (MakeReferenceFromValue arg)
 
         x -> error (show x)
 
