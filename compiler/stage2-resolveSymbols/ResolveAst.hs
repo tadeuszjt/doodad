@@ -352,6 +352,14 @@ resolveStmt instState (Stmt id) = do
             popSymbolTable
             void $ appendStmt $ While pos expr' (Stmt id)
 
+        For pos expr mpat blk -> do
+            pushSymbolTable
+            expr' <- resolveExpr instState expr
+            mpat' <- traverse (resolvePattern instState) mpat
+            id <- resolveBlock instState blk
+            popSymbolTable
+            void $ appendStmt $ For pos expr' mpat' (Stmt id)
+
         Switch pos expr cases -> do
             pushSymbolTable
             expr' <- resolveExpr instState expr

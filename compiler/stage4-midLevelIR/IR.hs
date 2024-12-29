@@ -257,7 +257,7 @@ prettyIrStmt :: String -> FuncIR -> ID -> IO ()
 prettyIrStmt pre funcIr id = case irStmts funcIr Map.! id of
     Block ids -> do
         putStrLn $ pre ++ "block: "
-        forM_ ids $ \id -> prettyIrStmt (pre ++ "\t") funcIr id
+        forM_ ids $ prettyIrStmt (pre ++ "\t") funcIr
 
     EmbedC idMap str -> do
         putStrLn $ pre ++ "embedC " ++ intercalate ", " (map show idMap) ++ ": " ++ str
@@ -273,7 +273,7 @@ prettyIrStmt pre funcIr id = case irStmts funcIr Map.! id of
 
     If arg ids -> do
         putStrLn $ pre ++ "if " ++ show arg ++ ":"
-        forM_ ids $ \id -> prettyIrStmt (pre ++ "\t") funcIr id
+        forM_ ids $ prettyIrStmt (pre ++ "\t") funcIr
 
     SSA operation -> do
         let Just (typ, refType) = Map.lookup id (irTypes funcIr)

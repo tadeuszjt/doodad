@@ -267,6 +267,15 @@ collect retty params state = do
         If _ expr _ _ -> constraint (typeOfExpr state expr) Type.Bool
         While _ expr _ -> constraint (typeOfExpr state expr) Type.Bool
         Switch _ expr cases -> forM_ cases $ \(pat, _) -> constraint (typeOfPat state pat) (typeOfExpr state expr)
+        For _ expr mpat _ -> case mpat of
+            Nothing -> return ()
+            Just pat -> do
+                symbol <- getSymbol "forAt"
+                collectCall (typeOfPat state pat) [typeOfExpr state expr, I64] $
+                    foldType [TypeDef symbol, typeOfPat state pat, typeOfExpr state expr]
+                        
+                
+
         x -> error (show x)
 
 

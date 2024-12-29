@@ -231,25 +231,23 @@ fn reduceStack(stack &Item.Table, production I64)
 fn main(io Io)
     io.stdout.printLn("calculator4")
 
+    io.stdout.print("> ")
     let line : Table{Char}
-    line.print("10")
+    switch io.stdin.getLine()
+        some(l); line = l
+        none(); assert(false)
 
-    let tokens : Table{Item}
 
-    tokens = line.lexTokens
+    let tokens : Table{Item} = line.lexTokens
+    tokens.push(tokEnd())
+
     io.stdout.printLn(tokens)
 
-    let stack : Item.Table
-
-    stack.push(state(0))
-
+    let stack : Item.Table = [state(0)]
 
     let loop = true
     let tokIdx = 0
     while loop
-        io.stdout.printLn("looping")
-        io.stdout.printLn(stack[stack.len - 1])
-
         let item = tokens[tokIdx]
         let st = 0
 
@@ -257,18 +255,13 @@ fn main(io Io)
             state(s : I64)
                 st = s
                 item = tokens[tokIdx]
-                io.stdout.printLn("here?")
 
             x | isRule(x)
                 item = x
                 let state(s) = stack[stack.len - 2]
                 st = s
             _
-                io.stdout.printLn("wrong thing on stack")
                 assert(false)
-
-        io.stdout.print("looking up: ")
-        io.stdout.printLn( (st, item) )
 
         switch lookupCell(st, item)
             shift(s) // Push token onto stack, increase tokenIdx, push next state

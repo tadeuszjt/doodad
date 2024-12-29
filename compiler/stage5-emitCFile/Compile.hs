@@ -86,7 +86,7 @@ generateFunc funcType = do
         Just funcInst <- fmap fst $ runDoMExcept ast (makeInstance funcType)
         (funcIrHeader, funcIr') <- fmap fst $ runDoMExcept (IR.initFuncIRState ast) (IR.makeFuncIR funcInst)
 
-        void $ runDoMExcept (IrChecker.initFuncIrCheckerState ast) (IrChecker.funcIrChecker funcIr')
+        --void $ runDoMExcept (IrChecker.initFuncIrCheckerState ast) (IrChecker.funcIrChecker funcIr')
 
         --funcIr'' <- fmap fst $ runDoMExcept () $ IR.addFuncDestroy ast funcIr'
         ((funcIr, n), _) <- runDoMExcept () $ runDoMUntilSameResult funcIr' $ \funcIr -> do

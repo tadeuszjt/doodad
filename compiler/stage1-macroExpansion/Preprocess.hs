@@ -217,11 +217,9 @@ buildStmt statement = withPos statement $ case statement of
         void $ appendStmt (Let pos pat mexpr Nothing)
 
     If pos expr blk mblk -> do
-        id <- appendStmt (Block [])
-        withCurId id $ do -- new scope for if condition
-            trueId <- buildBlock blk
-            falseId <- traverse buildBlock mblk
-            void $ appendStmt $ If pos expr (Stmt trueId) (fmap Stmt falseId)
+        trueId <- buildBlock blk
+        falseId <- traverse buildBlock mblk
+        void $ appendStmt $ If pos expr (Stmt trueId) (fmap Stmt falseId)
 
     Switch pos expr cases -> do
         cases' <- forM cases $ \(pat, Block stmts) -> do
@@ -231,62 +229,13 @@ buildStmt statement = withPos statement $ case statement of
         void $ appendStmt (Switch pos expr cases')
 
     For pos expr mpat (Block stmts) -> do
-        exprCopy <- freshSym "exprCopy"
-        appendStmt (Assign pos exprCopy expr)
-
-        idx <- freshSym "idx"
-        appendStmt $ Let pos (PatIdent pos idx) Nothing Nothing
-        let whileCnd = Call pos (TypeDef $ Sym ["builtin", "builtinLessThan"])
-                [ (Ident pos idx)
-                , Call pos (TypeDef $ Sym ["for", "forEnd"]) [Reference pos $ Ident pos exprCopy]
-                ]
-
-        blkId <- newStmt (Block [])
-        withCurId blkId $ do
-            match <- case mpat of
-                Nothing -> return (AST.Bool pos True)
-                Just pat -> return $ AST.Match pos
-                    (Call pos (TypeDef $ Sym ["for", "forAt"])
-                        [ Reference pos (Ident pos exprCopy)
-                        , Ident pos idx ])
-                    pat
-
-            trueBlkId <- newStmt (Block [])
-            withCurId trueBlkId $ do
-                (mapM_ buildStmt stmts)
-                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "builtinStore"])
-                    [ Reference pos (Ident pos idx)
-                    , Call pos (TypeDef $ Sym ["builtin", "builtinAdd"]) [ (Ident pos idx) , AST.Int pos 1 ]
-                    ]
-
-            falseBlkId <- newStmt (Block [])
-            withCurId falseBlkId $ do
-                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "builtinStore"])
-                    [ Reference pos (Ident pos idx)
-                    , AST.Int pos 9999999 -- TODO
-                    ]
-
-            appendStmt $ If pos match (Stmt trueBlkId) (Just $ Stmt falseBlkId)
-
-        void $ appendStmt $ While pos whileCnd (Stmt blkId)
+        id <- newStmt (Block [])
+        withCurId id (mapM_ buildStmt stmts)
+        void $ appendStmt $ For pos expr mpat (Stmt id)
 
     While pos expr (Block stmts) -> do
-        loop <- freshSym "loop"
-        appendStmt $ Assign pos loop (AST.Bool pos True)
         id <- newStmt (Block [])
-        withCurId id $ do
-            trueBlkId <- newStmt (Block [])
-            falseBlkId <- newStmt (Block [])
-
-            withCurId trueBlkId (mapM buildStmt stmts)
-            withCurId falseBlkId $ do
-                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "builtinStore"])
-                    [ Reference pos (Ident pos loop)
-                    , AST.Bool pos False
-                    ]
-
-            appendStmt $ If pos expr (Stmt trueBlkId) (Just $ Stmt falseBlkId)
-
-        void $ appendStmt $ While pos (Ident pos loop) (Stmt id)
+        withCurId id (mapM buildStmt stmts)
+        void $ appendStmt $ While pos expr (Stmt id)
 
     x -> error (show x)
