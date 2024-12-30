@@ -42,6 +42,10 @@ instance MonadFuncIR (DoM FuncIRState) where
         modify $ \s -> s { irFunc = irFunc' }
         return a
 
+instance TypeDefs (DoM FuncIRState) where
+    getTypeDefs = do
+        gets (typeDefsAll . astResolved)
+
 
 define :: Symbol -> ID -> DoM FuncIRState ()
 define symbol id = do
@@ -67,6 +71,44 @@ withCurrentID id f = do
 
 
 makeFuncIR :: TopStmt -> DoM FuncIRState (FuncIrHeader, FuncIR)
+makeFuncIR (TopField pos [] funcType i) = withPos pos $ do
+    let (TypeDef funcSymbol, funcTypeArgs) = unfoldType funcType
+
+    (Func, retType : argTypes) <- unfoldType <$> baseTypeOf funcType
+    (Sum, ts)                  <- unfoldType <$> baseTypeOf retType
+
+    argIds <- forM argTypes $ \argType -> do
+        id <- generateId
+        addType id argType Value
+        return id
+
+    sum <- appendSSA retType Value (InitVar Nothing)
+    sumRef <- appendSSA retType IR.Ref (MakeReferenceFromValue $ ArgID sum)
+    call (Sym ["builtin", "builtinSumReset"]) [retType] [ArgID sumRef, ArgConst I64 (ConstInt $ fromIntegral i)]
+
+    field <- call (Sym ["builtin", "builtinField"]) [Size i, ts !! i, retType] [ArgID sumRef]
+    case argTypes of
+        [] -> return ()
+        [argType] -> do
+            void $ call (Sym ["builtin", "builtinStore"]) [argType] [field, ArgID $ head argIds]
+        xs -> do
+            let tupType = ts !! i
+            forM_ (zip xs [0..]) $ \(x, j) -> do
+                ref <- call (Sym ["builtin", "builtinField"]) [Size j, x, tupType] [field]
+                void $ call (Sym ["builtin", "builtinStore"]) [x] [ref, ArgID $ argIds !! j]
+
+    appendStmt (Return $ ArgID sum)
+
+    let funcIrHeader = FuncIrHeader
+            { irRetty = RettyIR Value retType
+            , irArgs  = map (ParamIR Value) argTypes
+            , irFuncSymbol = funcSymbol
+            }
+    state <- get
+    return (funcIrHeader, irFunc state)
+
+
+
 makeFuncIR (TopInst _ [] funcType args retty inst) = do
     let (TypeDef funcSymbol, _) = unfoldType funcType
 
@@ -280,32 +322,24 @@ makePattern defBlkId inst (S.Pattern patId) arg = case patterns inst Map.! patId
         let Just exprType = Map.lookup exprId (types inst)
         call (Sym ["builtin", "builtinEqual"]) [exprType] [arg, expr']
 
-    S.PatField _ str pats -> do
-        let patType = typeOfPat inst (S.Pattern patId)
-        ref <- appendSSA patType IR.Ref (MakeReferenceFromValue arg)
-        isCase <- call (Sym ["is" ++ toUpper (head str) : tail str]) [patType] [ArgID ref]
+    S.PatField _ symbol pat -> do
+        Just (_, i) <- gets (Map.lookup symbol . fieldsAll . astResolved)
 
-        case pats of
-            [] -> return isCase
-            [pat] -> do
-                match <- appendSSA Type.Bool Value $ InitVar $ Just $ ArgConst Type.Bool (ConstBool False)
-                ifId <- appendStmt (If isCase [])
-                withCurrentID ifId $ do
-                    let fieldType = typeOfPat inst pat
+        let typ = typeOfPat inst (S.Pattern patId)
 
-                    let (TypeDef _, generics) = unfoldType patType
-                    fieldRef <- call (Sym ["from" ++ toUpper (head str) : tail str]) generics [ArgID ref]
-                    b <- makePattern defBlkId inst pat =<<
-                        copy . ArgID =<<
-                            appendSSA fieldType Value (MakeValueFromReference fieldRef)
-                    matchRef <- appendSSA Type.Bool IR.Ref (MakeReferenceFromValue $ ArgID match)
-                    call (Sym ["builtin", "store"]) [Type.Bool] [ArgID matchRef, b]
+        en  <- call (Sym ["builtin", "builtinSumEnum"]) [typ] [arg]
+        match <- call (Sym ["builtin", "builtinEqual"])   [I64] [en, ArgConst I64 (ConstInt $ fromIntegral i)]
+        ifId <- appendStmt (If match [])
+        withCurrentID ifId $ do
+            ref <- appendSSA typ IR.Ref (MakeReferenceFromValue arg)
+            field <- call (Sym ["builtin", "builtinField"]) [Size i, typeOfPat inst pat, typ] [ArgID ref]
+            b <- makePattern defBlkId inst pat =<< deref field
+            matchRef <- appendSSA Type.Bool IR.Ref (MakeReferenceFromValue match)
+            call (Sym ["builtin", "store"]) [Type.Bool] [ArgID matchRef, b]
 
-                return (ArgID match)
+        return match
 
-            _ -> fail "todo"
 
-    
     S.PatIdent pos symbol -> do
         let patType = typeOfPat inst (S.Pattern patId)
         var <- withCurrentID defBlkId $
@@ -374,7 +408,10 @@ makeExpr inst (S.Expr exprId) = do
         S.Float _ f -> return $ ArgConst exprType (ConstFloat f)
         S.Reference _ expr -> makeExpr inst expr
         S.Ident _ symbol -> ArgID <$> look symbol
-        S.Call pos (Type funcTypeId) exprs -> makeCall inst (S.Call pos (Type funcTypeId) exprs)
+
+        S.Call pos typ exprs -> do
+            let (TypeDef funcSymbol, funcTypeArgs) = unfoldType (typeOfType inst typ)
+            call funcSymbol funcTypeArgs =<< mapM (makeExpr inst) exprs
 
         S.String _ str -> do
             let Apply Type.Slice typ = exprType
@@ -390,14 +427,6 @@ copy :: Arg -> DoM FuncIRState Arg
 copy arg = do
     (t, _) <- getType arg
     call (Sym ["builtin", "copy"]) [t] [arg]
-
-
-makeCall :: InstBuilderState -> S.Expr -> DoM FuncIRState Arg
-makeCall inst (S.Call pos (Type funcTypeId) exprs) = do
-    let Just funcType           = Map.lookup funcTypeId (types inst)
-    let (TypeDef funcSymbol, funcTypeArgs) = unfoldType funcType
-    args <- mapM (makeExpr inst) exprs
-    call funcSymbol funcTypeArgs args
 
 
 call :: Symbol -> [Type] -> [Arg] -> DoM FuncIRState Arg

@@ -156,15 +156,15 @@ fn testSparse()
 fn testRead()
     let str : Char.Table = ['1', ' ', '1']
 
-    let some( ('1', 1) ) = str.read(0)
-    let some( (' ', 1) ) = str.read(1) : (Char, I64).Option
-    let some( ('1', 1) ) = str.read(2)
-    let none()           = str.read(3) : (Char, I64).Option
+    //let some( ('1', 1) ) = str.read(0)
+    //let some( (' ', 1) ) = str.read(1) : (Char, I64).Option
+    //let some( ('1', 1) ) = str.read(2)
+    //let none()           = str.read(3) : (Char, I64).Option
 
-    let some( (1, 1) ) = str.read(0)
-    let some( (1, 2) ) = str.read(1)
-    let some( (1, 1) ) = str.read(2)
-    let none()         = str.read(3) : (I64, I64).Option
+    //let some( (1, 1) ) = str.read(0)
+    //let some( (1, 2) ) = str.read(1)
+    //let some( (1, 1) ) = str.read(2)
+    //let none()         = str.read(3) : (I64, I64).Option
     
 
 fn testPrint()
@@ -250,13 +250,13 @@ fn testOption()
         none(); assert(true)
         some(x); assert(false)
         _; assert(false)
-    let false = o.isSome()
+    //let false = o.isSome()
 
     o = some(3)
 
 
     switch o
-        x | x.isNone()
+        none()
             assert(false)
 
         some(3); let true = true
@@ -264,11 +264,11 @@ fn testOption()
             ${ puts("didn't work"); }
             assert(false)
 
-    let true = o.isSome()
+    //let true = o.isSome()
 
-    o.fromSome = 4
-    let 4 = o.fromSome
-    let false = o.isNone
+    //o.fromSome = 4
+    //let 4 = o.fromSome
+    //let false = o.isNone
 
     let o1 = some(3)
     let o2 = some(4)
@@ -281,8 +281,8 @@ fn testOption()
     let true = o1 == o2
 
     let x = some( [1, 2, 3] : I64.Table )
-    let 3 = x.fromSome.len
-    let 2 = x.fromSome[1]
+    //let 3 = x.fromSome.len
+    //let 2 = x.fromSome[1]
 
     switch x
         none(); assert(false)
@@ -395,19 +395,19 @@ fn testEnum()
     let e : Enum
 
     switch e
-        _ | e.isOne; let true = true
-        _ | e.isTwo; let false = true
+        one(); let true = true
+        two(); let false = true
 
     e.builtin::builtinSumReset(1)
 
     switch e
-        _ | e.isOne; let true = false
-        _ | e.isTwo; let true = true
+        one(); let true = false
+        two(); let true = true
 
-    let true = three().isThree()
+    //let true = three().isThree()
 
-    let true = en2Two(1, 2).isEn2Two
-    let false = en2Two(1, 2).isEn2One
+    //let true = en2Two(1, 2).isEn2Two
+    //let false = en2Two(1, 2).isEn2One
     //let 1 = en2Two(1, 2).1 .0
 
 

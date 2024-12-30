@@ -152,13 +152,11 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
             forM_ imports $ \(Import isExport isQualified path mName, imprt) -> do
                 forM_ (typeDefsTop imprt) $ \symbol -> do
                     let SymResolved [mod, name] = symbol
-
                     symbol' <- case mName of
                         Nothing -> return symbol
                         Just n  -> return $ SymResolved [n, name]
 
                     define symbol' KeyType symbol isQualified
-
 
             pushSymbolTable
 
@@ -174,11 +172,21 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
                     define symbol' KeyType symbol' False
                     return $ TopStmt (Function pos generics funDeps symbol' funcType)
 
+                TopStmt (Enum pos generics symbol fields) -> do
+                    symbol' <- genSymbol (SymResolved $ symStr symbol)
+                    define symbol' KeyType symbol' False
+
+                    fieldSymbols' <- forM fields $ \(fieldSymbol, _) -> do
+                        fieldSymbol' <- genSymbol (SymResolved $ symStr fieldSymbol)
+                        define fieldSymbol' KeyType fieldSymbol' False
+                        return fieldSymbol'
+
+                    return $ TopStmt $ Enum pos generics symbol' $ zip fieldSymbols' (map snd fields)
+
+
                 _ -> return stmt
 
-
             topStmts'' <- mapM resolveTopStmt topStmts'
-
 
             supply <- gets supply
 
@@ -284,6 +292,19 @@ resolveTopStmt statement = case statement of
         popSymbolTable
         return $ TopStmt (Derives pos generics' t1' ts')
 
+    TopStmt (Enum pos generics symbol fields) -> do
+        symbol' <- case symbol of
+            SymResolved _ -> return symbol
+
+        pushSymbolTable
+        generics' <- defineGenerics generics
+        fieldTypes' <- forM fields $ \(_, fieldTypes) -> mapM resolveType fieldTypes
+        popSymbolTable
+        fieldSymbols' <- forM fields $ \(fieldSymbol, _) -> case fieldSymbol of
+            SymResolved _ -> return fieldSymbol
+
+        return $ TopStmt $ Enum pos generics' symbol' (zip fieldSymbols' fieldTypes')
+
     TopStmt x -> error (show x)
 
 
@@ -387,7 +408,9 @@ resolvePattern instState pattern = withPos pattern $ fmap Pattern $ case pattern
             PatIgnore pos         -> return (PatIgnore pos)
             PatTuple pos pats     -> PatTuple pos <$> mapM (resolvePattern instState) pats
             PatLiteral expr       -> PatLiteral <$> resolveExpr instState expr
-            PatField pos str pats -> PatField pos str <$> mapM (resolvePattern instState) pats
+            PatField pos symbol pat -> do
+                symbol' <- look symbol KeyType
+                PatField pos symbol' <$> resolvePattern instState pat
 
             PatGuarded pos pat expr -> do
                 pat' <- resolvePattern instState pat

@@ -147,7 +147,7 @@ fn main(io Io)
     let board : Board
     io.stdout.printBoard(board)
 
-    while winner(board).isEmpty
+    while winner(board) -> empty()
         let moved = false
         while !moved
             switch io.getPlayerInput()

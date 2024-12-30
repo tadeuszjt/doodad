@@ -114,75 +114,7 @@ buildTopStatement statement = case statement of
 
 
     Enum pos generics symbol cases -> do
-        caseTypes <- forM cases $ \(symbol, ts) -> case ts of
-            [t] -> return t
-            ts -> return $ foldl Apply Tuple ts
-
-        let sumType = foldl Apply (TypeDef symbol) (map TypeDef generics)
-        void $ addTopStmt $ TopStmt $ Typedef pos generics symbol (foldl Apply Sum caseTypes)
-
-        -- write isCase0, isCase1 functions
-        forM_ (zip cases [0..]) $ \( (Sym [str], ts) , i) -> do
-            let name = Sym ["is" ++ (toUpper $ head str) : (tail str) ]
-            inst' <- buildInst $ appendStmt $ Return pos $ Just $
-                Call pos (TypeDef $ Sym ["builtin", "builtinEqual"])
-                    [ Call pos (TypeDef $ Sym ["builtin", "builtinSumEnum"]) [Reference pos $ Ident pos $ Sym ["en"]]
-                    , AST.Int pos i
-                    ]
-
-            -- feature{N, T, G} field0(A) B
-            let (t) = (Sym ["T"])
-            addTopStmt $ TopStmt $ Function pos [t] [] name $ foldType [Type.Func, Type.Bool, TypeDef t]
-            -- instance{A, B}  field0{0, MyType{A, B}, MyType.0} (a&) -> &
-            let acq = foldl Apply (TypeDef name) [sumType]
-            addTopStmt $ TopInst pos generics acq [Param pos (Sym ["en"]) (Apply Ref Tuple)] (Retty Tuple) inst'
-
-        -- write case0, case1 constructors
-        forM_ (zip cases [0..]) $ \( (Sym [str], ts) , i) -> do
-            let name = Sym [str]
-
-            inst' <- buildInst $ do
-                appendStmt $ Let pos (PatIdent pos $ Sym ["en"]) Nothing Nothing
-                appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["builtin", "builtinSumReset"])
-                    [ Reference pos (Ident pos $ Sym ["en"])
-                    , AST.Int pos i
-                    ]
-
-                case ts of
-                    [t] -> void $ appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["store"])
-                        [ Reference pos (field t i (Ident pos $ Sym ["en"]))
-                        , Ident pos (Sym ["a0"])
-                        ]
-                    ts -> forM_ (zip ts [0..]) $ \(t, j) -> do
-                        appendStmt $ ExprStmt $ Call pos (TypeDef $ Sym ["store"])
-                            [ Reference pos (field (ts !! j) (fromIntegral j) (field (foldType (Tuple : ts)) i (Ident pos $ Sym ["en"])))
-                            , Ident pos (Sym ["a" ++ show j])
-                            ]
-
-                appendStmt $ Return pos $ Just (Ident pos $ Sym ["en"])
-
-            args <- forM (zip ts [0..]) $ \(t, j) -> return $ Param pos (Sym ["a" ++ show j]) t
-            addTopStmt $ TopStmt $ Function pos generics [] name $ foldType (Type.Func: sumType :ts)
-            let acq = foldl Apply (TypeDef name) (map TypeDef generics)
-            addTopStmt $ TopInst pos generics acq args (Retty Tuple) inst'
-
-
-        -- write fromCase0, fromCase1 accessors
-        forM_ (zip cases [0..]) $ \( (Sym [str], ts) , i) -> do
-            let name = Sym ["from" ++ (toUpper $ head str) : (tail str) ]
-            let fieldType = case ts of
-                    [t] -> t
-                    ts  -> foldl Apply Tuple ts
-
-            -- feature{Ts..} fromCase(sumType) fieldType
-            addTopStmt $ TopStmt $ Function pos generics [] name (foldType [Type.Func, fieldType, sumType])
-
-            -- instance{A, B}  field0{0, MyType{A, B}, MyType.0} (a&) -> &
-            let acq = foldl Apply (TypeDef name) (map TypeDef generics)
-            inst' <- buildInst $ appendStmt $ Return pos . Just $
-                field fieldType i (Ident pos $ Sym ["x"])
-            addTopStmt $ TopInst pos generics acq [Param pos (Sym ["x"]) (Apply Ref Tuple)] (RefRetty Tuple) inst'
-
+        addTopStmt $ TopStmt $ Enum pos generics symbol cases
     x -> error (show x)
 
 

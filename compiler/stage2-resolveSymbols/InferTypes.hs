@@ -92,20 +92,18 @@ collectCall exprType exprTypes callType = do
     unless (length exprTypes == length argTypes)
         (fail $ "invalid function type arguments: " ++ show callType)
 
-    Just instances <- gets $ Map.lookup funcSymbol . instancesAll . astResolved
-    features <- gets $ featuresAll . astResolved
-
     -- These indices describe the type variables which are independent according to the 
     -- functional dependencies. If the independent variables fully describe the call type,
     -- it can be said that no other overlapping definition could conflict with it so we can
     -- type check.
-    let Function _ featureGenerics funDeps _ _ = features Map.! funcSymbol
+    Just (Function _ featureGenerics funDeps _ _) <- gets $ Map.lookup funcSymbol . featuresAll . astResolved
     unless (length callTypeArgs == length featureGenerics) (error "xs needs to be > 0")
     indices <- fmap catMaybes $ forM (zip featureGenerics [0..]) $ \(g, i) -> do
         case findIndex (g ==) (map snd funDeps) of
             Just _  -> return Nothing
             Nothing -> return (Just i) 
 
+    Just instances <- gets $ Map.lookup funcSymbol . instancesAll . astResolved
     fullAcqs <- fmap catMaybes $ forM (Map.elems $ instances) $ \stmt -> do
         appliedAcqType <- case stmt of
             TopInst _ generics acqType _ _ _ -> do
@@ -114,6 +112,10 @@ collectCall exprType exprTypes callType = do
 
             TopStmt (Derives pos generics argType [featureType]) -> do
                 let acqType = Apply featureType argType
+                let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
+                return (applyType genericsToVars acqType)
+
+            TopField _ generics acqType i -> do
                 let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
                 return (applyType genericsToVars acqType)
 
@@ -171,6 +173,7 @@ getSymbol str = do
     xs <- gets $ filter (symbolsCouldMatch (Sym [str])) . Map.keys . typeDefsAll . astResolved
     case xs of
         [x] -> return x
+        _ -> error (show str)
     
 
 
@@ -207,7 +210,6 @@ collect retty params state = do
                     forM_ exprs $ \expr -> do
                         constraint (typeOfExpr state expr) (typeOfExpr state $ exprs !! 0)
 
-
             Call _ (Type tid) exprs -> do
                 let Just callType = Map.lookup tid (types state)
                 let exprTypes = map (typeOfExpr state) exprs
@@ -228,22 +230,16 @@ collect retty params state = do
                 constraint (typeOfExpr state expr) (Type.Bool)
                 constraint patType (typeOfPat state pat)
 
-            PatField _ str pats -> do
-                symbol <- getSymbol $  "from" ++ toUpper (head str) : tail str
-
-                case pats of
-                    [] -> return ()
-                    [pat] -> do
-                        case patType of
-                            Type _ -> return ()
-                            _ -> do
-                                let (TypeDef _, generics) = unfoldType patType
-                                let fieldType = typeOfPat state pat
-                                collectCall fieldType [patType] (foldType (TypeDef symbol : generics))
-
-                    pats -> do
-                        let (TypeDef _, ts) = unfoldType patType
-                        fail "todo multiple args"
+            PatField _ symbol pat -> do
+                Just (sumSym, i) <- gets (Map.lookup symbol . fieldsAll . astResolved)
+                resm <- baseTypeOfm patType
+                case resm of
+                    Nothing -> return ()
+                    Just base -> do
+                        let (TypeDef sumSymbol, _) = unfoldType patType
+                        unless (sumSymbol == sumSym) (fail "sum symbols don't match")
+                        let (Sum, ts) = unfoldType base
+                        constraint (typeOfPat state pat) (ts !! i)
 
             PatTuple _ pats -> do
                 forM_ (zip pats [0..]) $ \(pat@(Pattern pid), i) -> do

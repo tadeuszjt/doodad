@@ -64,7 +64,7 @@ data Pattern
     | PatSlice     TextPos [Pattern]      
     | PatGuarded   TextPos Pattern Expr   -- fine
     | PatAnnotated Pattern Type           -- fine
-    | PatField     TextPos String [Pattern] -- just(y) | x.isJust
+    | PatField     TextPos Symbol Pattern -- just(y) | x.isJust
     deriving (Eq)
 
 data Expr
@@ -196,7 +196,7 @@ instance Show Pattern where
         PatTuple pos ps          -> tupStrs (map show ps)
         PatGuarded pos pat expr  -> show pat ++ " | " ++ show expr
         PatAnnotated pat typ     -> show pat ++ ":" ++ show typ
-        PatField _ str pat       -> str ++ tupStrs [show pat]
+        PatField _ symbol pat    -> prettySymbol symbol ++ " " ++ show pat
         PatSlice _ pats          -> arrStrs (map show pats)
 
 

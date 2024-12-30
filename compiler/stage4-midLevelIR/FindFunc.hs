@@ -84,6 +84,21 @@ makeHeaderInstance callType = do
                     unless (typeFullyResolved lower) (error "propagating type vars")
                     makeHeaderInstance lower
 
+        TopField pos generics acqType i -> do
+            let genericSubs = zip (map TypeDef generics) (map Type [1..])
+            let typ = applyType genericSubs acqType
+
+            subsEither <- tryError (unify =<< getConstraintsFromTypes typ callType)
+            case subsEither of
+                Left _ -> return Nothing
+                Right subs -> do
+                    unless (applyType subs typ == callType) (fail $ "type mismatch: " ++ show callType)
+                    (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType
+                    args' <- forM argTypes $ \t -> return (ParamIR Value t)
+                    retty' <- return (RettyIR IR.Value retType)
+                    return $ Just $ FuncIrHeader { irFuncSymbol = symbol, irArgs = args', irRetty = retty' }
+
+
         TopInst pos generics implType args retty inst -> do
             --liftIO $ putStrLn $ "checking aquire: " ++ prettySymbol symbol
             let genericSubs = zip (map TypeDef generics) (map Type [1..])
@@ -139,6 +154,16 @@ makeInstance callType = do
                     unless (applyType subs upperType == callType) (fail $ "type mismatch: " ++ show callType)
                     unless (typeFullyResolved lower) (error "propagating type vars")
                     makeInstance lower
+
+        TopField pos generics acqType i -> do
+            let genericSubs = zip (map TypeDef generics) (map Type [1..])
+            let typ = applyType genericSubs acqType
+            subsEither <- tryError (unify =<< getConstraintsFromTypes typ callType)
+            case subsEither of
+                Left _ -> return Nothing
+                Right subs -> do
+                    unless (applyType subs typ == callType) (fail $ "type mismatch: " ++ show callType)
+                    return $ Just $ TopField pos [] callType i
 
         TopInst pos generics implType args retty inst -> do
             --liftIO $ putStrLn $ "checking aquire: " ++ prettySymbol symbol

@@ -189,6 +189,8 @@ buildModule isMain args modPath = do
         when (verbose args) $ liftIO $ putStrLn "resolving symbols..."
         (astResolved', supply) <- ResolveAst.resolveAst ast astImports
 
+        --when (printAstResolved args) $ liftIO (prettyAST astResolved')
+
         astFinal <- CombineAsts.combineAsts astResolved' supply astImports
         when (isMain && printAstFinal args ) $ liftIO (prettyASTResolved astFinal)
 
