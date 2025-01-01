@@ -13,19 +13,17 @@ import AstBuilder
 import Error
 import Type
 
-
 preprocess :: AST -> DoM s AstBuilderState
 preprocess ast = do
     ((), buildState) <- runDoMExcept (initBuildState (astModuleName ast) (astImports ast)) preprocess'
     return (astBuilderState buildState)
     where
         preprocess' :: DoM BuildState ()
-        preprocess' = do
-            forM_ (astStmts ast) $ \stmt -> case stmt of
-                    Function _ _ _ _ _ -> addTopStmt (TopStmt stmt)
-                    Derives _ _ _ _     -> addTopStmt (TopStmt stmt)
-                    Typedef _ _ _ _     -> addTopStmt (TopStmt stmt)
-                    x                   -> buildTopStatement x
+        preprocess' = forM_ (astStmts ast) $ \stmt -> case stmt of
+            Function _ _ _ _ _ -> addTopStmt (TopStmt stmt)
+            Derives _ _ _ _     -> addTopStmt (TopStmt stmt)
+            Typedef _ _ _ _     -> addTopStmt (TopStmt stmt)
+            x                   -> buildTopStatement x
 
 
 data BuildState = BuildState 
@@ -40,19 +38,6 @@ initBuildState name imports = BuildState
     , instBuilderState = initInstBuilderState
     , supply = 0
     }
-
-
-fresh :: DoM BuildState Int
-fresh = do
-    n <- gets supply
-    modify $ \s -> s { supply = n + 1 }
-    return n
-
-
-freshSym :: String -> DoM BuildState Symbol
-freshSym suggestion = do
-    id <- fresh
-    return (Sym ["_" ++ suggestion ++ show id])
 
 
 instance MonadAstBuilder (DoM BuildState) where

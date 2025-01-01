@@ -35,8 +35,7 @@ inst{P} print{ P, Square } (p&, square)
 
 fn{P} printBoard(p& P, board Board)
     for board -> row
-        p.print(row)
-        p.print('\n')
+        p.printLn(row)
 
 
 fn winner(board Board) Square
@@ -155,13 +154,13 @@ fn main(io Io)
                 error()
                     io.stdout.printLn("parse error")
 
-                move((row, col)) | row < 0 || row > (board.len - 1)
+                move(row, col) | row < 0 || row > (board.len - 1)
                     io.stdout.printLn("row not in range")
 
-                move((row, col)) | col < 0 || col > (board.len - 1)
+                move(row, col) | col < 0 || col > (board.len - 1)
                     io.stdout.printLn("col not in range")
 
-                move((row, col) : (I64, I64) )
+                move(row, col)
                     io.stdout.print("moving: ")
                     io.stdout.print(row)
                     io.stdout.print(", ")

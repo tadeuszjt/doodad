@@ -168,13 +168,12 @@ collectDefault params state = do
             _ -> return ()
             
 
-getSymbol :: String -> DoM CollectState Symbol
-getSymbol str = do
-    xs <- gets $ filter (symbolsCouldMatch (Sym [str])) . Map.keys . typeDefsAll . astResolved
+getSymbol :: Symbol -> DoM CollectState Symbol
+getSymbol symbol = do
+    xs <- gets $ filter (symbolsCouldMatch symbol) . Map.keys . typeDefsAll . astResolved
     case xs of
         [x] -> return x
-        _ -> error (show str)
-    
+        _ -> error (prettySymbol symbol)
 
 
 collect :: Type -> [Param] -> InstBuilderState -> DoM CollectState ()
@@ -188,10 +187,6 @@ collect retty params state = do
         let Just patType = Map.lookup id (types state) in case pattern of
             PatIdent _ symbol -> define symbol patType
             _ -> return ()
-
-    forM_ (Map.toList $ statements state) $ \(id, statement) -> case statement of
-        Assign _ symbol expr -> define symbol (typeOfExpr state expr)
-        _ -> return ()
 
     forM_ (Map.toList $ expressions state) $ \(id, expression) -> withPos expression $ do
         let exprType = typeOfExpr state (Expr id)
@@ -244,7 +239,7 @@ collect retty params state = do
             PatTuple _ pats -> do
                 forM_ (zip pats [0..]) $ \(pat@(Pattern pid), i) -> do
                     let Just pType = Map.lookup pid (types state)
-                    symbol <- getSymbol "tuplePattern"
+                    symbol <- getSymbol (Sym ["tuple", "tuplePattern"])
                     collectCall pType [patType] $ foldType [TypeDef symbol, pType, Size (length pats), Size i, patType]
 
             PatIgnore _ -> return ()
@@ -259,14 +254,13 @@ collect retty params state = do
         Return _ Nothing -> return ()
         Return _ (Just expr) -> constraint (typeOfExpr state expr) retty
         Let _ pat (Just expr) Nothing -> constraint (typeOfPat state pat) (typeOfExpr state expr)
-        Assign _ symbol expr -> constraint (typeOfExpr state expr) =<< look symbol
         If _ expr _ _ -> constraint (typeOfExpr state expr) Type.Bool
         While _ expr _ -> constraint (typeOfExpr state expr) Type.Bool
         Switch _ expr cases -> forM_ cases $ \(pat, _) -> constraint (typeOfPat state pat) (typeOfExpr state expr)
         For _ expr mpat _ -> case mpat of
             Nothing -> return ()
             Just pat -> do
-                symbol <- getSymbol "forAt"
+                symbol <- getSymbol (Sym ["for", "forAt"])
                 collectCall (typeOfPat state pat) [typeOfExpr state expr, I64] $
                     foldType [TypeDef symbol, typeOfPat state pat, typeOfExpr state expr]
                         

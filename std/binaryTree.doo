@@ -1,144 +1,146 @@
 module binaryTree
 
-import std/maybe
+import builtin/all
+import std/option
 import std/unordered
-import std/bool
-import std/features
-import std/assert
 
 tuple{K, V} Node {
-    left  Node{K, V}.Key.Maybe
-    right Node{K, V}.Key.Maybe
-    key   K
-    value V
+    left  Node{K, V}.unordered::Key.Option,
+    right Node{K, V}.unordered::Key.Option,
+    key   K,
+    value V,
 }
+derives{K, V} Node{K, V} (copy, destroy)
+
 
 tuple{K, V} Tree {
-    nodes Node{K, V}.Unordered
-    base  Node{K, V}.Key.Maybe
+    nodes Node{K, V}.unordered::Unordered,
+    base  Node{K, V}.unordered::Key.Option,
 }
 
 
-fn{K, V} Len::len(tree &Tree{K, V}) I64
+inst{K, V} container::len{Tree{K, V}} (tree &)
     return tree.nodes.len
 
 
-fn{K, V} Store::store(a &Node{K, V}, b Node{K, V})
-    a.left = b.left
-    a.right = b.right
-    a.key = b.key
-    a.value = b.value
-
-
-fn{K, V} At::at(t &Tree{K, V}, key K) &V
+inst{K, V} container::at{K, V, Tree{K, V}} (t&, key) -> &
     switch t.base
-        just(current)
+        some(current)
             while t.nodes[current].key != key   
-                if t.nodes[current].left -> just(left) | key < t.nodes[current].key
+                if t.nodes[current].left -> some(left) | key < t.nodes[current].key
                     current = left
 
-                else if t.nodes[current].right -> just(right) | key > t.nodes[current].key
+                else if t.nodes[current].right -> some(right) | key > t.nodes[current].key
                     current = right
 
                 else
-                    assert(false, "error")
+                    assert(false)
 
             return t.nodes[current].value
 
+
+inst{K, V} container::contains{Tree{K, V}, K} (tree &, key)
+    switch tree.base
+        none()    ; return false
+        some(base); return tree.nodeContains(base, key)
+
+
 fn{K, V} insert(t &Tree{K, V}, key K, value V)
-    fn{K, V} insertNode(n &Node{K, V}.Unordered, newNode Node{K, V}.Key, node Node{K, V}.Key)
-        let lt = n[newNode].key < n[node].key
-        let gt = n[newNode].key > n[node].key
-
-        if      n[node].left  -> just(left)  | lt; n.insertNode(newNode, left)
-        else if n[node].right -> just(right) | gt; n.insertNode(newNode, right)
-        else if n[node].left  -> nothing()   | lt; n[node].left  = just(newNode)
-        else if n[node].right -> nothing()   | gt; n[node].right = just(newNode)
-        else; assert(false, "key already in tree")
-
-    let nodeKey = t.nodes.insert
+    let nodeKey = t.nodes.insertZero
     t.nodes[nodeKey].key = key
     t.nodes[nodeKey].value = value
 
     switch t.base
-        nothing()     ; t.base = just(nodeKey)
-        just(baseNode); t.nodes.insertNode(nodeKey, baseNode)
+        none()        ; t.base = some(nodeKey)
+        some(baseNode); t.nodes.insertNode(nodeKey, baseNode)
 
 
 fn{K, V} delete(tree &Tree{K, V}, key K) 
-    fn{K, V} leftMost(nodes &Node{K, V}.Unordered, node Node{K, V}.Key) Node{K, V}.Key
-        if nodes[node].left -> just(left)
-            return nodes.leftMost(left)
-        return node
-
-    fn{K, V} rightMost(nodes &Node{K, V}.Unordered, node Node{K, V}.Key) Node{K, V}.Key
-        if nodes[node].right -> just(right)
-            return nodes.rightMost(right)
-        return node
-
-    fn{K, V} deleteFromNode(n &Node{K, V}.Unordered, node Node{K, V}.Key, key K)
-        assert(key != n[node].key, "key cannot match current node")
-
-        if n[node].left -> just(left) | key == n[left].key // deleting node on left
-
-            if n[left].right -> just(leftRight)
-                let leftMost     = n.leftMost(leftRight)
-                n[leftMost].left = n[left].left
-                n[node].left     = just(leftRight)
-            else
-                n[node].left   = n[left].left
-
-            n.delete(left)
-
-        else if n[node].right -> just(right) | key == n[right].key // deleting from right
-            if n[right].left -> just(rightLeft)
-                let rightMost      = n.rightMost(rightLeft)
-                n[rightMost].right = n[right].right
-                n[node].right      = just(rightLeft)
-            else; n[node].right    = n[right].right
-            n.delete(right)
-                
-        else if n[node].left -> just(left) | key < n[node].key
-            n.deleteFromNode(left, key)
-    
-        else if n[node].right -> just(right) | key > n[node].key
-            n.deleteFromNode(right, key)
-
-        else; assert(false, "invalid key")
-
     switch tree.base
-        just(base) | tree.nodes[base] -> baseNode | baseNode.key == key
-            if baseNode.left -> just(left)
-                tree.base = just(left)
+        some(base) | tree.nodes[base] -> baseNode | baseNode.key == key
+            if baseNode.left -> some(left)
+                tree.base = some(left)
                 tree.nodes[tree.nodes.rightMost(left)].right = baseNode.right
 
-            else if baseNode.right -> just(right)
-                tree.base = just(right)
+            else if baseNode.right -> some(right)
+                tree.base = some(right)
                 tree.nodes[tree.nodes.leftMost(right)].left = baseNode.left
 
             else
-                tree.base = nothing()
+                tree.base = none()
 
-            tree.nodes.delete(base)
+            tree.nodes.unordered::delete(base)
 
-        just(base)
+        some(base)
             tree.nodes.deleteFromNode(base, key)
 
-        nothing()
-            assert(false, "nothing to delete")
+        none()
+            assert(false)
 
 
-fn{K, V} contains(tree &Tree{K, V}, key K) Bool
-    fn{K, V} nodeContains(tree &Tree{K, V}, node Node{K, V}.Key, key K) Bool
 
-        if tree.nodes[node].left -> just(left) | key < tree.nodes[node].key
-            return tree.nodeContains(left, key)
+fn{K, V} leftMost(nodes &Node{K, V}.Unordered, node Node{K, V}.Key) Node{K, V}.Key
+    if nodes[node].left -> some(left)
+        return nodes.leftMost(left)
+    return node
 
-        if tree.nodes[node].right -> just(right) | key > tree.nodes[node].key
-            return tree.nodeContains(right, key)
 
-        return key == tree.nodes[node].key
+fn{K, V} rightMost(nodes &Node{K, V}.Unordered, node Node{K, V}.Key) Node{K, V}.Key
+    if nodes[node].right -> some(right)
+        return nodes.rightMost(right)
+    return node
 
-    switch tree.base
-        nothing(); return false
-        just(base); return tree.nodeContains(base, key)
+
+fn{K, V} deleteFromNode(n &Node{K, V}.Unordered, node Node{K, V}.Key, key K)
+    assert(key != n[node].key)
+
+    if n[node].left -> some(left) | key == n[left].key // deleting node on left
+
+        if n[left].right -> some(leftRight)
+            let leftMost     = n.leftMost(leftRight)
+            n[leftMost].left = n[left].left
+            n[node].left     = some(leftRight)
+        else
+            n[node].left   = n[left].left
+
+        n.unordered::delete(left)
+
+    else if n[node].right -> some(right) | key == n[right].key // deleting from right
+        if n[right].left -> some(rightLeft)
+            let rightMost      = n.rightMost(rightLeft)
+            n[rightMost].right = n[right].right
+            n[node].right      = some(rightLeft)
+        else; n[node].right    = n[right].right
+        n.unordered::delete(right)
+                
+    else if n[node].left -> some(left) | key < n[node].key
+        n.deleteFromNode(left, key)
+
+    else if n[node].right -> some(right) | key > n[node].key
+        n.deleteFromNode(right, key)
+
+    else; assert(false)
+
+
+fn{K, V} insertNode(n &Node{K, V}.Unordered, newNode Node{K, V}.Key, node Node{K, V}.Key)
+    let lt = n[newNode].key < n[node].key
+    let gt = n[newNode].key > n[node].key
+
+    if      n[node].left  -> some(left)  | lt; n.insertNode(newNode, left)
+    else if n[node].right -> some(right) | gt; n.insertNode(newNode, right)
+    else if n[node].left  -> none()      | lt; n[node].left  = some(newNode)
+    else if n[node].right -> none()      | gt; n[node].right = some(newNode)
+    else; assert(false)
+
+
+
+fn{K, V} nodeContains(tree &Tree{K, V}, node Node{K, V}.Key, key K) Bool
+    if tree.nodes[node].left -> some(left) | key < tree.nodes[node].key
+        return tree.nodeContains(left, key)
+
+    if tree.nodes[node].right -> some(right) | key > tree.nodes[node].key
+        return tree.nodeContains(right, key)
+
+    return key == tree.nodes[node].key
+
+

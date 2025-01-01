@@ -349,11 +349,6 @@ resolveStmt instState (Stmt id) = do
             mexpr'   <- traverse (resolveExpr instState) mexpr
             void $ appendStmt $ Let pos pattern' mexpr' Nothing
 
-        Assign pos (Sym str) expr -> do
-            symbol <- genSymbol (SymResolved str)
-            define symbol KeyVar symbol False
-            void $ appendStmt . Assign pos symbol =<< resolveExpr instState expr
-
         If pos expr stmt melse -> do
             pushSymbolTable
             expr' <- resolveExpr instState expr

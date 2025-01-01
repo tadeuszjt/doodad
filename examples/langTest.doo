@@ -7,6 +7,7 @@ import std/unordered
 import std/io
 import std/option
 import std/read
+import std/binaryTree
 
 fn testArithmetic()
     let x = 1 + 2
@@ -298,35 +299,35 @@ fn testOption()
         _; assert(false)
 
 
-//fn testTree()
-//    data t binaryTree::Tree{I64, Bool}
-//    let 0 = t.len()
-//    t.insert(1, true)
-//    t.insert(2, false)
-//    let 2 = t.Len::len()
-//
-//    let true = t.at(1)
-//    let false = t.at(2)
-//
-//    let true = t.contains(1)
-//    let true = t.contains(2)
-//    let false = t.contains(3)
-//
-//    t.delete(1)
-//    let 1 = t.len
-//
-//    let false = t.contains(1)
-//    let true = t.contains(2)
-//    let false = t.contains(3)
-//
-//    t.insert(3, true)
-//    t.insert(1, true)
-//
-//    let true = t.contains(1)
-//    let true = t.contains(2)
-//    let true = t.contains(3)
-//
-//
+fn testTree()
+    let t : binaryTree::Tree{I64, Bool}
+    let 0 = t.len()
+    t.binaryTree::insert(1, true)
+    t.binaryTree::insert(2, false)
+    let 2 = t.len
+
+    let true = t[1]
+    let false = t.at(2)
+
+    let true = t.contains(1)
+    let true = t.contains(2)
+    let false = t.contains(3)
+
+    t.binaryTree::delete(1)
+    let 1 = t.len
+
+    let false = t.contains(1)
+    let true = t.contains(2)
+    let false = t.contains(3)
+
+    t.binaryTree::insert(3, true)
+    t.binaryTree::insert(1, true)
+
+    let true = t.contains(1)
+    let true = t.contains(2)
+    let true = t.contains(3)
+
+
 //fn testMap()
 //    data m Map{I64, Bool}
 //    m.insert(1, true)
@@ -479,7 +480,7 @@ fn main()
     testUnordered()
     testArrayAt()
     testOption()
-////    testTree()
+    testTree()
 ////    testMap()
     testArrayPattern()
     testArrayExpr()

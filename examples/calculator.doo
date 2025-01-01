@@ -290,17 +290,17 @@ fn main(io Io)
     io.stdout.printLn(stack)
 
 
-fn atm(str &Char.Table, idx I64) Char.Option
+fn lexChar(str &Char.Table, idx I64) Char.Option
     if idx >= 0 && idx < str.len
         return some(str[idx])
     return none()
 
 
 fn lexInt(str &Char.Table, idx I64) (Item, I64).Option
-    if str.atm(idx) -> some(c) | isDigit(c)
+    if str.lexChar(idx) -> some(c) | isDigit(c)
 
         let n : I64 = 0
-        while str.atm(idx) -> some(c) | isDigit(c)
+        while str.lexChar(idx) -> some(c) | isDigit(c)
             n = n * 10 + (c - '0').convert
             idx = idx + 1
 
@@ -311,13 +311,13 @@ fn lexInt(str &Char.Table, idx I64) (Item, I64).Option
 
 
 fn lexSym(str &Char.Table, idx I64) (Item, I64).Option
-    if str.atm(idx) -> some(c) | c == '+' || c == '-' || c == '*' || c == '/' || c == '(' || c == ')'
+    if str.lexChar(idx) -> some(c) | c == '+' || c == '-' || c == '*' || c == '/' || c == '(' || c == ')'
         return some( (tokSym(c), idx + 1) )
     return none()
 
 
 fn lex(str &Char.Table, idx I64) (Item, I64).Option
-    while str.atm(idx) -> some(c) | c.isSpace
+    while str.lexChar(idx) -> some(c) | c.isSpace
         idx = idx + 1
 
     if str.lexInt(idx) -> some(x)

@@ -5,6 +5,12 @@ import builtin/container
 import builtin/for
 import builtin/tuple
 import builtin/convert
+import builtin/arithmetic
+import builtin/assert
+import builtin/compare
+
+fn{T} grow(t& T.Table)
+    builtinTableAppend(&t)
 
 
 inst{T} copy{Table{T}} (a)
@@ -13,6 +19,19 @@ inst{T} copy{Table{T}} (a)
         b.push(a[i])
 
     return b
+
+
+fn{T} push(t &Table{T}, e T)
+    builtinTableAppend(&t)
+    builtinTableAt(&t, t.len - 1) = e
+
+
+fn{T} pop(t &Table{T}) T
+    assert(t.len > 0)
+    let e = t.at(t.len - 1)
+    t.at(t.len - 1).destroy
+    ${ $t->len--; }
+    return e
 
 
 inst{T} makeSlice{ T, Table{T} } (slice)

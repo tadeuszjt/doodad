@@ -43,8 +43,7 @@ instance MonadFuncIR (DoM FuncIRState) where
         return a
 
 instance TypeDefs (DoM FuncIRState) where
-    getTypeDefs = do
-        gets (typeDefsAll . astResolved)
+    getTypeDefs = gets (typeDefsAll . astResolved)
 
 
 define :: Symbol -> ID -> DoM FuncIRState ()
@@ -179,19 +178,6 @@ makeStmt inst (S.Stmt stmtId) = do
             id <- appendSSA typ Value (InitVar Nothing)
             addTextPos id pos
             define symbol id
-
-        S.Assign _ symbol expr@(S.Expr ei) -> do
-            case typeOfExpr inst expr of
-                Apply Type.Slice t -> do
-                    arg@(ArgID id) <- makeExpr inst expr
-                    (_, IR.Slice) <- getType arg
-                    define symbol id
-                _ -> do
-                    arg <- deref =<< makeExpr inst expr
-                    (typ, refType) <- getType arg
-                    case refType of
-                        Const -> define symbol =<< appendSSA typ Value (InitVar $ Just arg)
-                        Value -> let ArgID id = arg in define symbol id
 
         S.Return _ (Just expr) -> do
             retty <- gets rettyIr

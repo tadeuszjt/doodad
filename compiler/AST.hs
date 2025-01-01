@@ -106,7 +106,6 @@ data Stmt
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Expr (Maybe Pattern) Stmt
     | EmbedC      TextPos [(String, Symbol)] String
-    | Assign      TextPos Symbol Expr
     | Enum        TextPos Generics Symbol [ (Symbol, [Type] ) ]
     | MacroTuple  TextPos Generics Symbol [ (Symbol, Type) ]
     | Derives     TextPos Generics Type [Type]
@@ -157,7 +156,6 @@ instance TextPosition Stmt where
         Function     p _ _ _ _ -> p
         Enum        p _ _ _ -> p
         MacroTuple  p _ _ _ -> p
-        Assign      p _ _ -> p
         Instance     p _ _ _ _ _ -> p
         Derives     p _ _ _ -> p
         x -> error ("invalid statement")
@@ -233,7 +231,6 @@ prettyStmt pre stmt = case stmt of
     ExprStmt callExpr -> putStrLn $ pre ++ show callExpr
     Block stmts -> mapM_ (prettyStmt (pre ++ "\t")) stmts
     EmbedC pos m str -> putStrLn $ pre ++ "$" ++ str
-    Assign pos symbol expr -> putStrLn $ pre ++ "assign " ++ prettySymbol symbol ++ " " ++ show expr
 
     FuncInst _ generics funcSymbol funcArgs funcRetty blk -> do
         putStrLn ""

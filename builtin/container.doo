@@ -7,32 +7,15 @@ import builtin/convert
 import builtin/compare
 
 
-func{T}                 len(T) I64
-func{T, V | T -> V}     push(T, V)
-func{T, V | T -> V}     pop(T) V
 func{K, V, T | T->V, T->K } at(T, K) V
-func{T}                 grow(T)
-func{T, V | T -> V}     index(T, I64) V
+func{T}                     len(T) I64
+func{T, V | T -> V}         index(T, I64) V
+func{T, V | T -> V}         contains(T, V) Bool
 
 
 inst{V} len{ Table{V} }        (t&);           return t.builtinTableLen()
 inst{T} index{ Table{T}, T }   (t&, idx) -> &; return t.builtinTableAt(idx)
 inst{T} at{ I64, T, Table{T} } (t&, idx) -> &; return t.builtinTableAt(idx)
-
-
-inst{T} push{ Table{T}, T } (t&, e)
-    builtinTableAppend(&t)
-    builtinTableAt(&t, t.len - 1) = e
-
-inst{T} grow{ T.Table } (t&)
-    builtinTableAppend(&t)
-
-inst{T} pop{ Table{T}, T } (t&)
-    assert(t.len > 0)
-    let e = t.at(t.len - 1)
-    t.at(t.len - 1).destroy
-    ${ $t->len--; }
-    return e
 
 
 inst{T} len{ T.Slice }         (s);           return builtinSliceLen(&s)
