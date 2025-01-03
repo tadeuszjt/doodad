@@ -2,6 +2,7 @@ module stack
 
 
 import builtin/all
+import std/print
 
 
 tuple{S, T} Stack {
@@ -9,15 +10,29 @@ tuple{S, T} Stack {
     array Array{S, T}
 }
 
+derives{S, T} Stack{S, T} (builtin::copy, builtin::destroy)
+
 
 inst{S, T} len{Stack{S, T}} (s&); return s.length
-inst{S, T} at{I64, T, Stack{S, T}} (s&, idx); return s.array[idx]
+inst{S, T} at{I64, T, Stack{S, T}} (s&, idx) -> &; return s.array[idx]
 
+
+inst{S, T, P} print::print{P, Stack{S, T}} (p&, stack)
+    p.print("Stack[")
+
+    for (0, stack.len) -> i
+        p.print(stack[i])
+        if i < (stack.len - 1)
+            p.print(", ")
+        
+    p.print(']')
+    
 
 fn{S, T} push(s &Stack{S, T}, elem T)
     assert(s.length < s.array.len)
     s.array[s.length] = elem
     s.length = s.length + 1
+
 
 fn{S, T} pop(s &Stack{S, T}) T
     assert(s.length > 0)

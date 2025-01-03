@@ -372,6 +372,10 @@ generateCall funcIr id = do
             [cexpr] <- mapM generateArg args
             void $ appendAssign C.Cint64_t (idName id) $ C.PMember cexpr "en"
 
+        x | symbolsCouldMatch x (Sym ["builtin", "builtinSlice"]) -> do
+            [cexpr] <- mapM generateArg args
+            error "here"
+
         x | symbolsCouldMatch x (Sym ["builtin", "builtinSliceLen"]) -> do
             [cexpr] <- mapM generateArg args
             void $ appendAssign C.Cint64_t (idName id) $ C.Member cexpr "len"

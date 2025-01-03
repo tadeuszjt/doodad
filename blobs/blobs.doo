@@ -58,7 +58,7 @@ fn getGridVecs(g &Grid, range Rect) Table{Vec2}
     for (rowMin, rowMax + 1) -> r
         for (colMin, colMax + 1) -> c
             for (0, g.array[r][c].len) -> i
-                result.container::push(g.array[r][c][i])
+                result.table::push(g.array[r][c][i])
 
     return result
 
@@ -127,7 +127,7 @@ fn containsBlob(table &Blob.Table, point Vec2) Bool
 fn main(io Io, rand Rand, w sf::Window)
     io.stdout.printLn("blobs")
     w.sf::create(1000, 800, "blobs")
-    let blobTexture = sf::textureFromFile("blob.png")
+    let blobTexture // = sf::textureFromFile("blob.png")
 
     let arena = Rect( (0.0, 0.0), (1000.0, 1000.0) )
     let blobs : Blob.Table
@@ -137,7 +137,7 @@ fn main(io Io, rand Rand, w sf::Window)
         blob.blobColour = rand.uniform(sf::black(), sf::white())
         blob.position   = rand.uniform(arena.min, arena.max)
         blob.velocity   = rand.uniform( (-1.0, -1.0), (1.0, 1.0) )
-        blobs.container::push(blob)
+        blobs.table::push(blob)
 
 
     let mousePos = Vec2(0.0, 0.0)
@@ -166,7 +166,7 @@ fn main(io Io, rand Rand, w sf::Window)
                     0,
                 ).rotate(rand.uniform(0, 2 * maths::pi()))
 
-                if arena.contains(childPos)
+                if arena.containsVec2(childPos)
                     let rect = Rect( childPos - (20, 20), childPos + (20, 20) )
                     let positions = grid.getGridVecs(rect)
 
@@ -179,7 +179,7 @@ fn main(io Io, rand Rand, w sf::Window)
                         let child
                         child.position   = childPos
                         child.blobColour = rand.uniform(sf::black(), sf::white())
-                        blobs.container::push(child)
+                        blobs.table::push(child)
 
         for (0, blobs.len) -> i
             blobs[i].sprite = makeQuad(blobs[i].position.convert, blobs[i].blobColour)

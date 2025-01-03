@@ -340,6 +340,7 @@ literal : int_c                                  { Call (tokPos $1) (TypeDef $ S
         | true                                   { AST.Bool (tokPos $1) True }
         | false                                  { AST.Bool (tokPos $1) False }
         | string_c                               { AST.String (tokPos $1) (processString $ tokStr $1) }
+        --| string_c                               { Call (tokPos $1) (TypeDef $ Sym ["builtin", "makeSlice"]) [AST.String (tokPos $1) (processString $ tokStr $1)] }
 
 ---------------------------------------------------------------------------------------------------
 -- Types ------------------------------------------------------------------------------------------

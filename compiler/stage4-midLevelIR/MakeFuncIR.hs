@@ -148,6 +148,7 @@ deref arg = do
     case refType of
         Const -> return arg
         Value -> return arg
+        -- IR.Slice -> return arg
         IR.Ref -> fmap ArgID $ appendSSA typ Value (MakeValueFromReference arg)
 
 
@@ -167,10 +168,30 @@ makeStmt inst (S.Stmt stmtId) = do
             id <- appendStmt (EmbedC strMap' str)
             addTextPos id (textPos statement)
 
-        S.Let _ pattern (Just expr) Nothing -> do
-            curId <- getCurrentId
-            b <- makePattern curId inst pattern =<< deref =<< makeExpr inst expr
-            void $ call (Sym ["assert", "assert"]) [] [b]
+        S.Let pos (S.Pattern patId) (Just expr) Nothing -> do
+            let Just pattern = Map.lookup patId (patterns inst)
+            case pattern of
+                S.PatIdent _ symbol -> do
+                    arg <- deref =<< makeExpr inst expr
+                    id' <- case arg of
+                        ArgConst t const -> appendSSA t Value (InitVar $ Just arg)
+                        ArgID id -> do
+                            funcIr <- gets irFunc
+                            case Map.lookup id (irStmts funcIr) of
+                                Just (SSA (Call _ _)) -> return id
+                                Just (SSA (InitVar _)) -> return id
+                                _ -> do
+                                    ArgID id' <- copy arg
+                                    return id'
+
+                    addTextPos id' pos
+                    define symbol id'
+
+
+                _ -> do
+                    curId <- getCurrentId
+                    b <- makePattern curId inst (S.Pattern patId) =<< deref =<< makeExpr inst expr
+                    void $ call (Sym ["assert", "assert"]) [] [b]
 
         S.Let pos (S.Pattern patId) Nothing Nothing -> do
             let Just (S.PatIdent _ symbol) = Map.lookup patId (patterns inst)

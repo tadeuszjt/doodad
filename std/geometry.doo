@@ -72,7 +72,7 @@ fn rotate(v Vec2, r F64) Vec2
     return mat3Rotation(r).transformVec2(v, 1.0)
 
 
-fn contains(r Rect, v Vec2) Bool
+fn containsVec2(r Rect, v Vec2) Bool
     return v.x >= r.min.x && v.y >= r.min.y && v.x < r.max.x && v.y < r.max.y
 
 

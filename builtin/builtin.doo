@@ -63,6 +63,10 @@ inst{T} store{T} (a&, b)
     a.destroy
     a.builtinStore(b)
 
+inst{T} makeSlice{T, Slice{T}} (slice)
+    return slice
+
+
 
 // args
 func{T} copy(T) T
@@ -108,8 +112,9 @@ fn{T} builtinTableAt(a &T.Table, b I64) &T;          ${ assert(false); }
 fn{T, S} builtinArrayLen(a &Array{S, T}) I64;        ${ assert(false); }
 fn{T, S} builtinArrayAt(a &Array{S, T}, idx I64) &T; ${ assert(false); }
 
-fn{T} builtinSliceLen(a T.Slice) I64;                ${ assert(false); }
-fn{T} builtinSliceAt(a  T.Slice, b I64) &T;          ${ assert(false); }
+fn{T, G} builtinSlice(a &T) G.Slice;                 ${ assert(false); }
+fn{T}    builtinSliceLen(a T.Slice) I64;             ${ assert(false); }
+fn{T}    builtinSliceAt(a  T.Slice, b I64) &T;       ${ assert(false); }
 
 // sum
 fn{T} builtinSumEnum(t &T) I64;      ${ assert(false); }
