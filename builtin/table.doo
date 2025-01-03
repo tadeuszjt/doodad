@@ -13,6 +13,17 @@ fn{T} grow(t& T.Table)
     builtinTableAppend(&t)
 
 
+inst{T} slice{Table{T}, T} (t&)
+    return builtinSlice(&t)
+
+
+inst{T} makeSlice{T, Table{T}} (slice)
+    let table
+    for (0, slice.len) -> i
+        table.push(slice[i])
+    return table
+
+
 inst{T} copy{Table{T}} (a)
     let b
     for (0, a.len) -> i
@@ -32,13 +43,6 @@ fn{T} pop(t &Table{T}) T
     t.at(t.len - 1).destroy
     ${ $t->len--; }
     return e
-
-
-inst{T} makeSlice{ T, Table{T} } (slice)
-    let table
-    for (0, slice.len) -> i
-        table.push(slice[i])
-    return table
 
 
 inst{A, B} builtin::field{0, Slice{A}, Table{Tuple{A, B}}} (table&)

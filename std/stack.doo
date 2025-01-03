@@ -26,6 +26,14 @@ inst{S, T, P} print::print{P, Stack{S, T}} (p&, stack)
             p.print(", ")
         
     p.print(']')
+
+
+inst{S, T} forEnd{Stack{S, T}} (s)
+    return s.len
+
+
+inst{S, T} forAt{T, Stack{S, T}} (s&, idx) -> &
+    return s[idx]
     
 
 fn{S, T} push(s &Stack{S, T}, elem T)

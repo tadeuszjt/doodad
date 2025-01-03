@@ -339,8 +339,8 @@ literal : int_c                                  { Call (tokPos $1) (TypeDef $ S
         | char_c                                 { AST.Char (tokPos $1) (read $ tokStr $1) }
         | true                                   { AST.Bool (tokPos $1) True }
         | false                                  { AST.Bool (tokPos $1) False }
-        | string_c                               { AST.String (tokPos $1) (processString $ tokStr $1) }
-        --| string_c                               { Call (tokPos $1) (TypeDef $ Sym ["builtin", "makeSlice"]) [AST.String (tokPos $1) (processString $ tokStr $1)] }
+        --| string_c                               { AST.String (tokPos $1) (processString $ tokStr $1) }
+        | string_c                               { Call (tokPos $1) (TypeDef $ Sym ["builtin", "makeSlice"]) [AST.String (tokPos $1) (processString $ tokStr $1)] }
 
 ---------------------------------------------------------------------------------------------------
 -- Types ------------------------------------------------------------------------------------------

@@ -374,7 +374,23 @@ generateCall funcIr id = do
 
         x | symbolsCouldMatch x (Sym ["builtin", "builtinSlice"]) -> do
             [cexpr] <- mapM generateArg args
-            error "here"
+
+            let (IR.ArgID argId) = args !! 0
+            let (argType, IR.Ref) = (IR.irTypes funcIr) Map.! argId
+
+            unless (ssaRefTyp == IR.Slice) (error "not IR.Slice")
+
+            base <- baseTypeOf argType
+            case unfoldType base of
+                (Table, [_]) -> do
+                    cType <- cTypeOf (Apply Slice ssaTyp)
+                    void $ appendAssign cType (idName id) $ C.Initialiser
+                        [ C.PMember cexpr "r0"
+                        , C.PMember cexpr "len"
+                        , C.PMember cexpr "cap"
+                        ]
+
+                    
 
         x | symbolsCouldMatch x (Sym ["builtin", "builtinSliceLen"]) -> do
             [cexpr] <- mapM generateArg args

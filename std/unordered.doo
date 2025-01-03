@@ -18,7 +18,11 @@ tuple{T} Unordered {
 derives{T} T.Unordered (destroy)
 
 
-inst{T} container::len{ T.Unordered } (u&)
+inst{T} builtin::slice{T.Unordered, T} (u&)
+    return u.values.slice
+
+
+inst{T} container::len{T.Unordered } (u&)
     return u.values.len
 
 

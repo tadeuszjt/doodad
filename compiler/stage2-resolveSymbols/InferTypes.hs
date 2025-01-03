@@ -152,8 +152,9 @@ collectDefault params state = do
                 (TypeDef symbol, ts) | symbolsCouldMatch symbol (Sym ["convert", "convert"]) -> do
                     constraintDefault exprType (typeOfExpr state $ exprs !! 0)
 
-                (TypeDef symbol, ts) | symbolsCouldMatch symbol (Sym ["builtin", "makeSlice"]) -> do
-                    constraintDefault exprType $ foldType (Slice : map (typeOfExpr state) exprs)
+                (TypeDef symbol, [t, s]) | symbolsCouldMatch symbol (Sym ["builtin", "makeSlice"]) -> do
+                    constraintDefault exprType (foldType [Slice, t])
+
                 (TypeDef symbol, ts) | symbolsCouldMatch symbol (Sym ["tuple", "make2"]) -> do
                     constraintDefault exprType $ foldType (Tuple : map (typeOfExpr state) exprs)
                 (TypeDef symbol, ts) | symbolsCouldMatch symbol (Sym ["tuple", "make3"]) -> do
@@ -310,7 +311,7 @@ applyConstraint subs constraint = case constraint of
 
 
 inferTypes :: [Param] -> Type -> InstBuilderState -> DoM ASTResolved InstBuilderState
-inferTypes params retty state = do
+inferTypes params retty state = withErrorPrefix "type inference: " $ do
     (instAnnotated, _) <- runDoMExcept 0 (annotate state)
     deAnnotate <$> inferTypes' instAnnotated
     where
