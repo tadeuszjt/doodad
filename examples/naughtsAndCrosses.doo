@@ -161,14 +161,10 @@ fn main(io Io)
                     io.stdout.printLn("col not in range")
 
                 move(row, col)
-                    io.stdout.print("moving: ")
-                    io.stdout.print(row)
-                    io.stdout.print(", ")
-                    io.stdout.printLn(col)
+                    io.stdout.print4("moving: ", row, ", ", col)
+                    io.stdout.print('\n')
                     board[row][col] = naught()
                     moved = true
-
-                _; io.stdout.print("something")
 
         io.cpuMove(&board)
         io.stdout.printBoard(board)

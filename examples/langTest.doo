@@ -466,6 +466,19 @@ fn testTableRows()
     let (true, 13) = table.1[2]
 
 
+fn testSlice()
+    let array : I64.Array{4} = [1, 2, 3, 4]
+    let 3 = array[2]
+    let 2 = array.slice[1]
+
+    let table : (I64, Bool).Table = [(1, true), (2, false), (3, true), (4, true)]
+    let (3, true) = table.slice[2]
+    let 4 = table.slice.len
+
+    let array2 : (I64, Bool).Array{4} = table.slice.makeSlice
+    let (4, true) = array2[3]
+
+
 fn main()
     testArithmetic()
     testFloats()
@@ -489,6 +502,7 @@ fn main()
     testFunctionalDependency()
     testMake2()
     testTableRows()
+    testSlice()
 
     ${ puts("langTest success"); }
     return

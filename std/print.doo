@@ -5,8 +5,36 @@ import builtin/all
 
 func{P, T} print(P, T)
 
-fn{P, T} printLn(p &P, t T)
-    p.print(t)
+
+fn{P, A, B} print2(p &P, a A, b B)
+    p.print(a)
+    p.print(b)
+
+
+fn{P, A, B, C} print3(p &P, a A, b B, c C)
+    p.print(a)
+    p.print(b)
+    p.print(c)
+
+
+fn{P, A, B, C, D} print4(p &P, a A, b B, c C, d D)
+    p.print(a)
+    p.print(b)
+    p.print(c)
+    p.print(d)
+
+
+fn{P, A} printLn(p &P, a A)
+    p.print(a)
+    p.print('\n')
+
+
+fn{P, A, B} printLn2(p &P, a A, b B)
+    p.print3(a, b, '\n')
+
+
+fn{P, A, B, C} printLn3(p &P, a A, b B, c C)
+    p.print3(a, b, c)
     p.print('\n')
 
 
@@ -38,6 +66,8 @@ inst{T} print{ T, I64 } (t&, n)
 
 
 inst{T} print{ T, U8 }  (p&, n); p.print(convert(n) : I64)
+
+
 inst{T} print{ T, I32 } (p&, n); p.print(convert(n) : I64)
 
 
@@ -85,30 +115,16 @@ inst{P, S, T} print{ P, Array{S, T} } (p&, array)
 
 
 inst{P, A, B} print{ P, Tuple{A, B} } (a&, b)
-    a.print('(')
-    a.print( b.builtinField{0, A, Tuple{A, B}} )
-    a.print(", ")
-    a.print( b.1 )
+    a.print4('(', b.builtinField{0, A, Tuple{A, B}}, ", ", b.1)
     a.print(')')
 
 
 inst{P, A, B, C} print{ P, Tuple{A, B, C} } (a&, b)
-    a.print('(')
-    a.print( b.0 )
-    a.print(", ")
-    a.print( b.tuplePattern{B, 3, 1, Tuple{A, B, C}} )
-    a.print(", ")
-    a.print( b.2 )
-    a.print(')')
+    a.print4('(', b.0, ", ", b.tuplePattern{B, 3, 1, Tuple{A, B, C}})
+    a.print3(", ", b.2, ')')
 
 
 inst{P, A, B, C, D} print{ P, Tuple{A, B, C, D} } (a&, b)
-    a.print('(')
-    a.print( b.0 )
-    a.print(", ")
-    a.print( b.1 )
-    a.print(", ")
-    a.print( b.2  )
-    a.print(", ")
-    a.print( b.3  )
+    a.print4('(', b.0, ", ", b.1)
+    a.print4(", ", b.2, ", ", b.3)
     a.print(')')

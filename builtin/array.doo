@@ -11,6 +11,10 @@ import builtin/destroy
 import builtin/assert
 
 
+inst{S, T} slice{Array{S, T}, T} (arr&)
+    return builtinSlice(&arr)
+
+
 inst{S, T} add{ Array{S, T} } (a, b)
     let c
     for (0, c.len) -> i

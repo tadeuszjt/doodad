@@ -58,20 +58,12 @@ derives Cell (builtin::destroy, builtin::copy)
 
 inst{P} print{P, Cell} (p&, cell)
     switch cell
-        accept(); p.print("accept")
-        shift(n)
-            p.print("shift(")
-            p.print(n)
-            p.print(")")
-        reduce(n)
-            p.print("reduce(")
-            p.print(n)
-            p.print(")")
-        goto(n)
-            p.print("goto(")
-            p.print(n)
-            p.print(")")
-        empty(); p.print("empty")
+        accept() ; p.print("accept")
+        shift(n) ; p.print3("shift(", n, ")")
+        reduce(n); p.print3("reduce(", n, ')')
+        goto(n)  ; p.print3("goto(", n, ')')
+        empty()  ; p.print("empty")
+
 
 enum Item {
     tokInt(I64),
@@ -86,42 +78,19 @@ enum Item {
 }
 derives Item (destroy, copy)
 
+
 inst{P} print{P, Item} (p&, item)
     switch item
-        tokInt(n)
-            p.print("tokInt(")
-            p.print(n)
-            p.print(")")
-        tokSym(c)
-            p.print("tokSym(")
-            p.print(c)
-            p.print(")")
-        tokEnd()
-            p.print("tokEnd()")
-        state(n)
-            p.print("state(")
-            p.print(n)
-            p.print(")")
-        e_(n)
-            p.print("e_(")
-            p.print(n)
-            p.print(")")
-        e(n)
-            p.print("e(")
-            p.print(n)
-            p.print(")")
-        t(n)
-            p.print("t(")
-            p.print(n)
-            p.print(")")
-        d(n)
-            p.print("d(")
-            p.print(n)
-            p.print(")")
-        f(n)
-            p.print("f(")
-            p.print(n)
-            p.print(")")
+        tokInt(n); p.print3("tokInt(", n, ')')
+        tokSym(c); p.print3("tokSym(", c, ')')
+        tokEnd() ; p.print("tokEnd()")
+        state(n) ; p.print3("state(", n, ')')
+        e_(n)    ; p.print3("e_(", n, ')')
+        e(n)     ; p.print3("e(", n, ')')
+        t(n)     ; p.print3("t(", n, ')')
+        d(n)     ; p.print3("d(", n, ')')
+        f(n)     ; p.print3("f(", n, ')')
+
 
 fn lookupCell(state I64, item Item) Cell
     let array = [
@@ -260,8 +229,6 @@ fn main(io Io)
                 item = x
                 let state(s) = stack[stack.len - 2]
                 st = s
-            _
-                assert(false)
 
         switch lookupCell(st, item)
             shift(s) // Push token onto stack, increase tokenIdx, push next state

@@ -390,6 +390,13 @@ generateCall funcIr id = do
                         , C.PMember cexpr "cap"
                         ]
 
+                (Array, [Size n, t]) -> do
+                    cType <- cTypeOf (Apply Slice ssaTyp)
+                    void $ appendAssign cType (idName id) $ C.Initialiser
+                        [ C.PMember cexpr "arr"
+                        , C.Int (fromIntegral n)
+                        , C.Int 0
+                        ]
                     
 
         x | symbolsCouldMatch x (Sym ["builtin", "builtinSliceLen"]) -> do

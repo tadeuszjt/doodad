@@ -9,12 +9,26 @@ tuple{S, T} Stack {
     length I64,
     array Array{S, T}
 }
-
 derives{S, T} Stack{S, T} (builtin::copy, builtin::destroy)
 
 
 inst{S, T} len{Stack{S, T}} (s&); return s.length
-inst{S, T} at{I64, T, Stack{S, T}} (s&, idx) -> &; return s.array[idx]
+
+
+inst{S, T} at{I64, T, Stack{S, T}} (s&, idx) -> &
+    assert(idx >= 0 && idx < s.len)
+    return s.array[idx]
+
+
+inst{S, T} compare::equal{Stack{S, T}} (a, b)
+    if a.len != b.len
+        return false
+
+    for (0, a.len) -> i
+        if a[i] != b[i]
+            return false
+
+    return true
 
 
 inst{S, T, P} print::print{P, Stack{S, T}} (p&, stack)

@@ -2,6 +2,8 @@ module tuple
 
 import builtin/builtin
 import builtin/convert
+import builtin/compare
+import builtin/boolean
 
 
 func{ A, B, C | C->A, C->B }                   make2(A, B) C
@@ -134,3 +136,7 @@ inst{A, B, C, D, E} destroy{Tuple{A, B, C, D, E}} (t&)
     t.2.destroy
     t.3.destroy
     t.4.destroy
+
+
+inst{A, B} compare::equal{Tuple{A, B}} (a, b)
+    return a.0 == b.0 && a.1 == b.1

@@ -151,7 +151,10 @@ cTypeOf a = case typeof a of
     Type.Tuple     -> return Cint64_t
 
     TypeDef s -> do
-        ([], typ) <- (Map.! s) <$> getTypeDefs
+        (xs, typ) <- (Map.! s) <$> getTypeDefs
+        case xs of
+            [] -> return ()
+            _  -> error (show xs)
         getTypedef (Symbol.sym s) =<< cTypeOf typ
 
     Apply Type.Slice t -> getTypedef "Slice" =<< cTypeNoDef (typeof a)

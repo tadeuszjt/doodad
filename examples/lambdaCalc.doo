@@ -1,0 +1,518 @@
+module lambdaCalc
+
+import builtin/all
+import std/io
+import std/print
+import std/sparse
+import std/stack
+import std/option
+import std/char
+
+//Grammar
+//
+//    0 $accept: program $end
+//
+//    1 program: expr
+//
+//    2 expr: LAM VAR DOT expr
+//    3     | app_expr
+//
+//    4 app_expr: simple_expr
+//    5         | app_expr simple_expr
+//
+//    6 simple_expr: VAR
+//    7            | '(' expr ')'
+//
+//
+//Terminals, with rules where they appear
+//
+//    $end (0) 0
+//    '(' (40) 7
+//    ')' (41) 7
+//    error (256)
+//    VAR (258) 2 6
+//    LAM (259) 2
+//    DOT (260) 2
+//
+//
+//Nonterminals, with rules where they appear
+//
+//    $accept (8)
+//        on left: 0
+//    program (9)
+//        on left: 1
+//        on right: 0
+//    expr (10)
+//        on left: 2 3
+//        on right: 1 2 7
+//    app_expr (11)
+//        on left: 4 5
+//        on right: 3 5
+//    simple_expr (12)
+//        on left: 6 7
+//        on right: 4 5
+//
+//
+//State 0
+//
+//    0 $accept: • program $end
+//    1 program: • expr
+//    2 expr: • LAM VAR DOT expr
+//    3     | • app_expr
+//    4 app_expr: • simple_expr
+//    5         | • app_expr simple_expr
+//    6 simple_expr: • VAR
+//    7            | • '(' expr ')'
+//
+//    VAR  shift, and go to state 1
+//    LAM  shift, and go to state 2
+//    '('  shift, and go to state 3
+//
+//    program      go to state 4
+//    expr         go to state 5
+//    app_expr     go to state 6
+//    simple_expr  go to state 7
+//
+//
+//State 1
+//
+//    6 simple_expr: VAR •
+//
+//    $default  reduce using rule 6 (simple_expr)
+//
+//
+//State 2
+//
+//    2 expr: LAM • VAR DOT expr
+//
+//    VAR  shift, and go to state 8
+//
+//
+//State 3
+//
+//    2 expr: • LAM VAR DOT expr
+//    3     | • app_expr
+//    4 app_expr: • simple_expr
+//    5         | • app_expr simple_expr
+//    6 simple_expr: • VAR
+//    7            | • '(' expr ')'
+//    7            | '(' • expr ')'
+//
+//    VAR  shift, and go to state 1
+//    LAM  shift, and go to state 2
+//    '('  shift, and go to state 3
+//
+//    expr         go to state 9
+//    app_expr     go to state 6
+//    simple_expr  go to state 7
+//
+//
+//State 4
+//
+//    0 $accept: program • $end
+//
+//    $end  shift, and go to state 10
+//
+//
+//State 5
+//
+//    1 program: expr •
+//
+//    $default  reduce using rule 1 (program)
+//
+//
+//State 6
+//
+//    3 expr: app_expr •  [$end, ')']
+//    5 app_expr: app_expr • simple_expr
+//    6 simple_expr: • VAR
+//    7            | • '(' expr ')'
+//
+//    VAR  shift, and go to state 1
+//    '('  shift, and go to state 3
+//
+//    $default  reduce using rule 3 (expr)
+//
+//    simple_expr  go to state 11
+//
+//
+//State 7
+//
+//    4 app_expr: simple_expr •
+//
+//    $default  reduce using rule 4 (app_expr)
+//
+//
+//State 8
+//
+//    2 expr: LAM VAR • DOT expr
+//
+//    DOT  shift, and go to state 12
+//
+//
+//State 9
+//
+//    7 simple_expr: '(' expr • ')'
+//
+//    ')'  shift, and go to state 13
+//
+//
+//State 10
+//
+//    0 $accept: program $end •
+//
+//    $default  accept
+//
+//
+//State 11
+//
+//    5 app_expr: app_expr simple_expr •
+//
+//    $default  reduce using rule 5 (app_expr)
+//
+//
+//State 12
+//
+//    2 expr: • LAM VAR DOT expr
+//    2     | LAM VAR DOT • expr
+//    3     | • app_expr
+//    4 app_expr: • simple_expr
+//    5         | • app_expr simple_expr
+//    6 simple_expr: • VAR
+//    7            | • '(' expr ')'
+//
+//    VAR  shift, and go to state 1
+//    LAM  shift, and go to state 2
+//    '('  shift, and go to state 3
+//
+//    expr         go to state 14
+//    app_expr     go to state 6
+//    simple_expr  go to state 7
+//
+//
+//State 13
+//
+//    7 simple_expr: '(' expr ')' •
+//
+//    $default  reduce using rule 7 (simple_expr)
+//
+//
+//State 14
+//
+//    2 expr: LAM VAR DOT expr •
+//
+//    $default  reduce using rule 2 (expr)
+
+enum Cell {
+    accept(),
+    shift(I64),
+    reduce(I64),
+    goto(I64),
+    empty(),
+}
+derives Cell (builtin::destroy, builtin::copy)
+
+
+enum Token {
+    tokSym(Char),
+    tokIdent(Char.Stack{16}),
+    tokEnd(),
+}
+derives Token (builtin::copy, builtin::destroy, equal)
+
+
+enum{K} Calc {
+    lam(Char.Stack{16}, K),
+    var(Char.Stack{16}),
+    app(K, K),
+}
+derives{K} Calc{K} (copy, destroy)
+
+
+enum{K} Item {
+    itemToken(Token),
+    itemProg(K),
+    itemExpr(K),
+    itemAppExpr(K),
+    itemSimpExpr(K),
+    itemState(I64)
+}
+derives{K} Item{K} (copy, destroy)
+
+
+inst{P} print{P, Cell} (p&, cell)
+    switch cell
+        accept();  p.print("accept")
+        shift(n);  p.print3("shift(", n, ')')
+        reduce(n); p.print3("reduce(", n, ')')
+        goto(n);   p.print3("goto(", n, ')')
+        empty();   p.print("empty")
+
+
+inst{P} print::print{P, Token} (p&, token)
+    switch token
+        tokSym(c)  ; p.print3("tokSym(", c, ')')
+        tokEnd(str); p.print("tokEnd()")
+        tokIdent(str)
+            p.print("tokIdent(")
+            for str -> c
+                p.print(c)
+            p.print(')')
+
+
+inst{P, K} print::print{P, Calc{K}} (p&, calc)
+    switch calc
+        var(s); p.print3("var(", s, ')')
+        app(k1, k2)
+            p.print3("app(", k1, ", ")
+            p.print2(k2, ')')
+        lam(s, k)
+            p.print("lam(")
+            p.print(s) // TODO slice
+            p.print(", ")
+            p.print(k)
+            p.print(')')
+
+
+inst{P, K} print{P, Item{K}} (p&, item)
+    switch item
+        itemToken(token); p.print3("itemToken(", token, ')')
+        itemProg(k)     ; p.print3("itemProg(", k, ')')
+        itemExpr(k)     ; p.print3("itemExpr(", k, ')')
+        itemAppExpr(k)  ; p.print3("itemAppExpr(", k, ')')
+        itemSimpExpr(k) ; p.print3("itemSimpExpr(", k, ')')
+        itemState(k)    ; p.print3("itemState(", k, ')')
+
+
+fn lexChar(str Char.Slice, idx I64) Char.Option
+    if idx >= 0 && idx < str.len
+        return some(str[idx])
+    return none()
+
+
+fn lexSym(str Char.Slice, idx I64) (Token, I64).Option
+    if str.lexChar(idx) -> some(c)
+        switch c
+            '.';
+            '\\';
+            '(';
+            ')';
+            _; return none()
+
+        return some( (tokSym(c), 1) )
+
+    return none()
+
+
+fn lexVar(str Char.Slice, idx I64) (Token, I64).Option
+    if str.lexChar(idx) -> some(c) | isAlpha(c)
+    else; return none()
+
+    let tab : Char.Stack{16}
+
+    while str.lexChar(idx) -> some(c) | isAlpha(c) || isDigit(c)
+        idx = idx + 1
+        tab.stack::push(c)
+
+    return (tokIdent(tab), tab.len).some
+
+
+fn lex(str Char.Slice, idx I64) (Token, I64).Option
+    let spacesLen = 0
+    while str.lexChar(idx) -> some(c) | isSpace(c)
+        idx = idx + 1
+        spacesLen = spacesLen + 1
+
+    if str.lexSym(idx) -> some(tok, len)
+        return some( (tok, spacesLen + len) )
+    if str.lexVar(idx) -> some(tok, len)
+        return some( (tok, spacesLen + len) )
+    return none()
+
+
+fn{K} isRule(item Item{K}) Bool
+    switch item
+        itemProg(_); return true
+        itemExpr(_); return true
+        itemAppExpr(_); return true
+        itemSimpExpr(_); return true
+        _; return false
+
+// ┌────┬─────┬─────┬─────┬─────┬─────┬─────┬─────┬────┬────┬────────┬─────────┐
+// │    │$end │'('  │')'  │err  │VAR  │LAM  │DOT  │prog│expr│app_expr│simp_expr│
+// ├────┼─────┼─────┼─────┼─────┼─────┼─────┼─────┼────┼────┼────────┼─────────┤
+// │ 0  │     │s3   │     │     │s1   │s2   │     │4   │5   │6       │7        │
+// │ 1  │r6   │r6   │r6   │r6   │r6   │r6   │r6   │    │    │        │         │
+// │ 2  │     │     │     │     │s8   │     │     │    │    │        │         │
+// │ 3  │     │s3   │     │     │s1   │s2   │     │    │9   │6       │7        │
+// │ 4  │s10  │     │     │     │     │     │     │    │    │        │         │
+// │ 5  │r1   │r1   │r1   │r1   │r1   │r1   │r1   │    │    │        │         │
+// │ 6  │r3   │s3   │r3   │r3   │s1   │r3   │r3   │    │    │        │11       │
+// │ 7  │r4   │r4   │r4   │r4   │r4   │r4   │r4   │    │    │        │         │
+// │ 8  │     │     │     │     │     │     │s12  │    │    │        │         │
+// │ 9  │     │     │s13  │     │     │     │     │    │    │        │         │
+// │ 10 │r0   │r0   │r0   │r0   │r0   │r0   │r0   │    │    │        │         │
+// │ 11 │r5   │r5   │r5   │r5   │r5   │r5   │r5   │    │    │        │         │
+// │ 12 │     │s3   │     │     │s1   │s2   │     │    │14  │6       │7        │
+// │ 13 │r7   │r7   │r7   │r7   │r7   │r7   │r7   │    │    │        │         │
+// │ 14 │r2   │r2   │r2   │r2   │r2   │r2   │r2   │    │    │        │         │
+// │ 15 │acc  │acc  │acc  │acc  │acc  │acc  │acc  │    │    │        │         │ *special state for end
+// └────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴────┴────┴────────┴─────────┘
+
+fn{K} lookupCell(state I64, item Item{K}) Cell
+    let array = [
+        [empty(),   shift(3),  empty(),   empty(),   shift(1),  shift(2),  empty(),   goto(4), goto(5),  goto(6), goto(7)],
+        [reduce(6), reduce(6), reduce(6), reduce(6), reduce(6), reduce(6), reduce(6), empty(), empty(),  empty(), empty()],
+        [empty(),   empty(),   empty(),   empty(),   shift(8),  empty(),   empty(),   empty(), empty(),  empty(), empty()],
+        [empty(),   shift(3),  empty(),   empty(),   shift(1),  shift(2),  empty(),   empty(), goto(9),  goto(6), goto(7)],
+        [shift(10), empty(),   empty(),   empty(),   empty(),   empty(),   empty(),   empty(), empty(),  empty(), empty()],
+        [reduce(1), reduce(1), reduce(1), reduce(1), reduce(1), reduce(1), reduce(1), empty(), empty(),  empty(), empty()],
+        [reduce(3), reduce(3), reduce(3), reduce(3), shift(1),  reduce(3), reduce(3), empty(), empty(),  empty(), goto(11)],
+        [reduce(4), reduce(4), reduce(4), reduce(4), reduce(4), reduce(4), reduce(4), empty(), empty(),  empty(), empty()],
+        [empty(),   empty(),   empty(),   empty(),   empty(),   empty(),   shift(12), empty(), empty(),  empty(), empty()],
+        [empty(),   empty(),   shift(13), empty(),   empty(),   empty(),   empty(),   empty(), empty(),  empty(), empty()],
+        [reduce(0), reduce(0), reduce(0), reduce(0), reduce(0), reduce(0), reduce(0), empty(), empty(),  empty(), empty()],
+        [reduce(5), reduce(5), reduce(5), reduce(5), reduce(5), reduce(5), reduce(5), empty(), empty(),  empty(), empty()],
+        [empty(),   shift(3),  empty(),   empty(),   shift(1),  shift(2),  empty(),   empty(), goto(14), goto(6), goto(7)],
+        [reduce(7), reduce(7), reduce(7), reduce(7), reduce(7), reduce(7), reduce(7), empty(), empty(),  empty(), empty()],
+        [reduce(2), reduce(2), reduce(2), reduce(2), reduce(2), reduce(2), reduce(2), empty(), empty(),  empty(), empty()],
+        [accept() , accept() , accept() , accept() , accept() , accept() , accept() , empty(), empty(),  empty(), empty()],
+    ] : Cell.Array{11}.Array{16}
+
+    let col = 0
+    switch item:Item{K}
+        itemToken(tokEnd())    ; col = 0
+        itemToken(tokSym('(')) ; col = 1
+        itemToken(tokSym(')')) ; col = 2
+        itemToken(tokIdent(_)) ; col = 4
+        itemToken(tokSym('\\')); col = 5
+        itemToken(tokSym('.')) ; col = 6
+        itemProg(_)            ; col = 7
+        itemExpr(_)            ; col = 8
+        itemAppExpr(_)         ; col = 9
+        itemSimpExpr(_)        ; col = 10
+
+    return array[state][col]
+
+
+fn{K} getItem(stack &Item{K}.Table) Item{K}
+    let itemState(_) = stack.table::pop
+    return stack.table::pop
+
+
+fn reduceStack(ast &Calc{I64}.Table, stack &Item{I64}.Table, production I64)
+    switch production
+        0 // $accept: program $end
+            let itemToken(tokEnd()) = stack.getItem
+            let itemProg(key)       = stack.getItem
+            stack.table::push(itemProg(key))
+            stack.table::push(itemState(15))
+
+        1 // program: expr
+            let itemExpr(key) = stack.getItem
+            stack.table::push(itemProg(key))
+
+        2 // expr: LAM VAR DOT expr
+            let itemExpr(key)         = stack.getItem
+            let itemToken(tokSym('.')) = stack.getItem
+            let itemToken(tokIdent(s)) = stack.getItem
+            let itemToken(tokSym('\\')) = stack.getItem
+
+            ast.table::push(lam(s, key))
+            stack.table::push(itemExpr(ast.len - 1))
+            
+        3 // expr: app_expr
+            let itemAppExpr(key) = stack.getItem
+            stack.table::push(itemExpr(key))
+
+        4 // app_expr: simple_expr
+            let itemSimpExpr(key) = stack.getItem
+            stack.table::push(itemAppExpr(key))
+
+        5 // app_expr: app_expr simple_expr
+            let itemSimpExpr(k1) = stack.getItem
+            let itemAppExpr(k2)  = stack.getItem
+
+            ast.table::push(app(k2, k1))
+            stack.table::push(itemAppExpr(ast.len - 1))
+
+        6 // simple_expr: VAR
+            let itemToken(tokIdent(s)) = stack.getItem
+
+            ast.table::push(var(s))
+            stack.table::push(itemSimpExpr(ast.len - 1))
+
+        7 // simple_expr: '(' expr ')'
+            let itemToken(tokSym(')')) = stack.getItem
+            let itemExpr(key)         = stack.getItem
+            let itemToken(tokSym('(')) = stack.getItem
+            stack.table::push(itemSimpExpr(key))
+
+
+fn main(io Io)
+    io.stdout.printLn("lambdaCalc")
+
+    let str : Char.Table = "\y . (\x . (y x))"
+
+    let tokens : Token.Table
+    let idx = 0
+    while str.slice.lex(idx) -> some(token, len)
+        idx = idx + len
+        tokens.table::push(token)
+
+    tokens.table::push(tokEnd())
+
+    io.stdout.printLn(tokens)
+
+    let stack : Item{I64}.Table = [itemState(0)]
+    let ast : Calc{I64}.Table
+
+    let loop = true
+    let tokIdx = 0
+    while loop
+        let item = itemToken(tokens[tokIdx])
+        let st = 0
+
+        switch stack[stack.len - 1]
+            itemState(s)
+                st = s
+                assert(tokIdx < tokens.len)
+                item = itemToken(tokens[tokIdx])
+
+            x | isRule(x)
+                item = x
+                let itemState(s) = stack[stack.len - 2]
+                st = s
+            _
+                assert(false)
+
+
+        switch lookupCell(st, item)
+            shift(s) // Push token onto stack, increase tokenIdx, push next state
+                io.stdout.print("-- shifting ")
+                io.stdout.printLn(s)
+                stack.table::push(itemToken(tokens[tokIdx]))
+                stack.table::push(itemState(s))
+                if tokens[tokIdx] != tokEnd() // TODO here
+                    tokIdx = tokIdx + 1
+
+            reduce(production) // pop state, replace RHS of production with LHS
+                io.stdout.printLn("-- reducing ")
+                ast.reduceStack(&stack, production)
+
+            goto(s) // push next state
+                io.stdout.printLn("-- goto ")
+                stack.table::push(itemState(s))
+
+            accept()
+                io.stdout.printLn("-- accept")
+                let tokEnd() = tokens[tokIdx]
+                loop = false
+
+            empty()
+                io.stdout.printLn("what")
+                loop = false
+
+
+    io.stdout.printLn(stack)
+    io.stdout.printLn(ast)
