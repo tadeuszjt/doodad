@@ -8,6 +8,7 @@ import std/io
 import std/option
 import std/read
 import std/binaryTree
+import std/set
 
 fn testArithmetic()
     let x = 1 + 2
@@ -479,6 +480,43 @@ fn testSlice()
     let (4, true) = array2[3]
 
 
+fn testSet()
+    let set : I64.Set = [1, 2, 3, 2]
+    let 3 = set.len
+
+    let true = set.contains(2)
+    let false = set.contains(4)
+
+    set.set::delete(2)
+    let 2 = set.len
+    let false = set.contains(2)
+    let true = set.contains(1)
+    let true = set.contains(3)
+    let false = set.contains(0)
+
+    set.set::delete(1)
+    let 1 = set.len
+    let false = set.contains(2)
+    let false = set.contains(1)
+    let true = set.contains(3)
+    let false = set.contains(0)
+
+    let a : I64.Set = [3, 2, 3, 1]
+    let b : I64.Set = [3, 2, 4]
+    let c = a + b
+
+    let 4 = c.len
+    let true = c.contains(1)
+    let true = c.contains(4)
+    let true = c.contains(3)
+    let false = c.contains(0)
+
+    let d : I64.Set = [1, 2, 3, 4] - [2, 3]
+    let 2 = d.len
+    let true = d.contains(1)
+    let true = d.contains(4)
+    
+
 fn main()
     testArithmetic()
     testFloats()
@@ -503,6 +541,7 @@ fn main()
     testMake2()
     testTableRows()
     testSlice()
+    testSet()
 
     ${ puts("langTest success"); }
     return

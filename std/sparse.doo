@@ -11,8 +11,7 @@ tuple{T} Sparse {
     values T.Table,
     empty  T.Key.Table
 }
-
-derives{T} Sparse{T} (destroy)
+derives{T} Sparse{T} (destroy, copy)
 
 
 inst{T} container::len{ T.Sparse } (s&)

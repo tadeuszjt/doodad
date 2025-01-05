@@ -449,28 +449,23 @@ fn reduceStack(ast &Calc{I64}.Table, stack &Item{I64}.Table, production I64)
             stack.table::push(itemSimpExpr(key))
 
 
-fn main(io Io)
-    io.stdout.printLn("lambdaCalc")
-
-    let str : Char.Table = "\y . (\x . (y x))"
-
+fn parse(io &Io, str Char.Slice) (I64, Calc{I64}.Table)
     let tokens : Token.Table
     let idx = 0
+
     while str.slice.lex(idx) -> some(token, len)
         idx = idx + len
         tokens.table::push(token)
 
     tokens.table::push(tokEnd())
 
-    io.stdout.printLn(tokens)
 
     let stack : Item{I64}.Table = [itemState(0)]
     let ast : Calc{I64}.Table
-
-    let loop = true
     let tokIdx = 0
-    while loop
-        let item = itemToken(tokens[tokIdx])
+
+    while true
+        let item
         let st = 0
 
         switch stack[stack.len - 1]
@@ -483,8 +478,6 @@ fn main(io Io)
                 item = x
                 let itemState(s) = stack[stack.len - 2]
                 st = s
-            _
-                assert(false)
 
 
         switch lookupCell(st, item)
@@ -506,13 +499,24 @@ fn main(io Io)
 
             accept()
                 io.stdout.printLn("-- accept")
-                let tokEnd() = tokens[tokIdx]
-                loop = false
+                let itemProg(i) = stack[1] // [state(0), prog(n), state(15)]
+                return (i, ast)
 
             empty()
                 io.stdout.printLn("what")
-                loop = false
+                assert(false)
 
 
-    io.stdout.printLn(stack)
-    io.stdout.printLn(ast)
+
+//fn freeVars(ast &Calc{I64}.Table, termKey I64) Char.Stack{16}.Table
+//    switch ast[termKey]
+//        var(s); return [s]
+//        app(k1, k2); 
+
+
+fn main(io Io)
+    io.stdout.printLn("lambdaCalc")
+    let (k, ast) = io.parse("\y . (\x . (y x))")
+
+
+

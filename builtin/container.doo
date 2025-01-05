@@ -11,7 +11,7 @@ import builtin/boolean
 func{K, V, T | T->V, T->K } at(T, K) V
 func{T}                     len(T) I64
 func{T, V | T -> V}         index(T, I64) V
-func{T, V | T -> V}         contains(T, V) Bool
+func{V, T | T -> V}         contains(T, V) Bool
 
 
 inst{V} len{ Table{V} }        (t&);           return t.builtinTableLen()

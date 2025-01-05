@@ -15,7 +15,7 @@ tuple{T} Unordered {
     entries I64.Key.Table,
     values  T.Table
 }
-derives{T} T.Unordered (destroy)
+derives{T} T.Unordered (copy, destroy)
 
 
 inst{T} builtin::slice{T.Unordered, T} (u&)

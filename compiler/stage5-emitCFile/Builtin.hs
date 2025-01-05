@@ -18,6 +18,8 @@ builtinSumReset sumType sum idx = do
 
 builtinTableAppend :: Type -> C.Expression -> Generate ()
 builtinTableAppend typ expr = do
+    --appendElem $ C.ExprStmt $ C.Call "puts" [C.String "builtinTableAppend"]
+
     Apply Table t <- baseTypeOf typ
     base <- baseTypeOf t
 
@@ -55,6 +57,7 @@ builtinTableAppend typ expr = do
                     let dst = C.Infix C.Plus ptr (C.Infix C.Times cap off)
                     let l = C.Infix C.Times len $ C.SizeofType (cts !! i)
                     appendElem $ C.ExprStmt $ C.Call "memmove" [dst, src, l]
+                    appendElem $ C.ExprStmt $ C.Call "memset"  [src, C.Int 0, C.Infix C.Minus dst src]
 
             (_, _) -> return ()
 

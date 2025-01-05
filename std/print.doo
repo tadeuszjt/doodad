@@ -114,6 +114,10 @@ inst{P, S, T} print{ P, Array{S, T} } (p&, array)
     p.print(']')
 
 
+inst{P} print{P, Tuple} (p&, t)
+    p.print("()")
+
+
 inst{P, A, B} print{ P, Tuple{A, B} } (a&, b)
     a.print4('(', b.builtinField{0, A, Tuple{A, B}}, ", ", b.1)
     a.print(')')

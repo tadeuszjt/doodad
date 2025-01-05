@@ -6,6 +6,7 @@ import builtin/compare
 import builtin/boolean
 
 
+func                                           make0() Tuple
 func{ A, B, C | C->A, C->B }                   make2(A, B) C
 func{ A, B, C, D | D->A, D->B, D->C }          make3(A, B, C) D
 func{ A, B, C, D, E | E->A, E->B, E->C, E->D } make4(A, B, C, D) E
@@ -44,6 +45,12 @@ inst{A, B, C, D, E} copy{ Tuple{A, B, C, D, E} } (a)
     b.3 = a.3
     b.4 = a.4
     return b
+
+
+inst make0 ()
+    let tup
+    return tup
+
 
 inst{A, B} make2{ A, B, Tuple{A, B} } (a, b)
     let tup

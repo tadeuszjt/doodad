@@ -3,6 +3,7 @@ module binaryTree
 import builtin/all
 import std/option
 import std/unordered
+import std/print
 
 tuple{K, V} Node {
     left  Node{K, V}.unordered::Key.Option,
@@ -11,16 +12,26 @@ tuple{K, V} Node {
     value V,
 }
 derives{K, V} Node{K, V} (copy, destroy)
+derives{P, K, V} Node{K, V} (print{P})
 
 
 tuple{K, V} Tree {
     nodes Node{K, V}.unordered::Unordered,
     base  Node{K, V}.unordered::Key.Option,
 }
+derives{K, V} Tree{K, V} (copy)
+
+
+inst{P, K, V} print{P, Tree{K, V}} (p&, tree&)
+    p.print(tree.nodes)
 
 
 inst{K, V} container::len{Tree{K, V}} (tree &)
     return tree.nodes.len
+
+
+fn{K, V} keys(tree &Tree{K, V}) Slice{K}
+    return tree.nodes.unordered::values.key
 
 
 inst{K, V} container::at{K, V, Tree{K, V}} (t&, key) -> &
@@ -39,7 +50,7 @@ inst{K, V} container::at{K, V, Tree{K, V}} (t&, key) -> &
             return t.nodes[current].value
 
 
-inst{K, V} container::contains{Tree{K, V}, K} (tree &, key)
+inst{K, V} container::contains{K, Tree{K, V}} (tree &, key)
     switch tree.base
         none()    ; return false
         some(base); return tree.nodeContains(base, key)

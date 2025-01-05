@@ -1,0 +1,52 @@
+module set
+
+import builtin/all
+import std/binaryTree
+
+
+type{T} Set Tree{T, Tuple}
+
+
+derives{T} Set{T} (copy, container::len, container::contains{T})
+
+
+inst{T} makeSlice{T, Set{T}} (slice)
+    let set
+    for (0, slice.len) -> i
+        if !set.contains(slice[i])
+            set.insert(slice[i])
+    return set
+
+
+inst{T} slice{Set{T}, T} (set)
+    return (set.pretend : Tree{T, ()}).keys
+
+
+inst{T} arithmetic::add{Set{T}} (a, b)
+    let c = a
+    for b.slice -> e
+        c.insert(e) 
+    return c
+
+
+inst{T} arithmetic::subtract{Set{T}} (a, b)
+    let c = a
+    for b.slice -> e
+        if c.contains(e)
+            c.delete(e)
+    return c
+
+            
+fn{T} insert(set &Set{T}, e T)
+    if !set.contains(e)
+        set.pretend.binaryTree::insert(e, ())
+
+
+fn{T} delete(set &Set{T}, e T)
+    (set.pretend : Tree{T, ()}).binaryTree::delete(e)
+
+
+
+    
+
+
