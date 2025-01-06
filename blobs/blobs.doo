@@ -58,14 +58,14 @@ fn getGridVecs(g &Grid, range Rect) Table{Vec2}
     for (rowMin, rowMax + 1) -> r
         for (colMin, colMax + 1) -> c
             for (0, g.array[r][c].len) -> i
-                result.table::push(g.array[r][c][i])
+                result.push(g.array[r][c][i])
 
     return result
 
 
 fn addToGrid(g &Grid, v Vec2)
     let (row, col) = g.gridLocation(v)
-    g.array[row][col].stack::push(v)
+    g.array[row][col].push(v)
 
 
 tuple Blob {
@@ -137,7 +137,7 @@ fn main(io Io, rand Rand, w sf::Window)
         blob.blobColour = rand.uniform(sf::black(), sf::white())
         blob.position   = rand.uniform(arena.min, arena.max)
         blob.velocity   = rand.uniform( (-1.0, -1.0), (1.0, 1.0) )
-        blobs.table::push(blob)
+        blobs.push(blob)
 
 
     let mousePos = Vec2(0.0, 0.0)
@@ -179,7 +179,7 @@ fn main(io Io, rand Rand, w sf::Window)
                         let child
                         child.position   = childPos
                         child.blobColour = rand.uniform(sf::black(), sf::white())
-                        blobs.table::push(child)
+                        blobs.push(child)
 
         for (0, blobs.len) -> i
             blobs[i].sprite = makeQuad(blobs[i].position.convert, blobs[i].blobColour)

@@ -12,6 +12,13 @@ tuple{S, T} Stack {
 derives{S, T} Stack{S, T} (builtin::copy, builtin::destroy)
 
 
+inst{S, T} makeSlice{T, Stack{S, T}} (slice)
+    let stack
+    for (0, slice.len) -> i
+        stack.push(slice[i])
+    return stack
+
+
 inst{S, T} len{Stack{S, T}} (s&); return s.length
 
 
@@ -29,6 +36,22 @@ inst{S, T} compare::equal{Stack{S, T}} (a, b)
             return false
 
     return true
+
+
+inst{S, T} compare::greaterThan{Stack{S, T}} (a, b)
+    for (0, a.len) -> i | i < b.len
+        if a[i] > b[i]
+            return true
+
+    return a.len > b.len
+
+
+inst{S, T} compare::lessThan{Stack{S, T}} (a, b)
+    for (0, a.len) -> i | i < b.len
+        if a[i] < b[i]
+            return true
+
+    return a.len < b.len
 
 
 inst{S, T, P} print::print{P, Stack{S, T}} (p&, stack)
@@ -50,13 +73,13 @@ inst{S, T} forAt{T, Stack{S, T}} (s&, idx) -> &
     return s[idx]
     
 
-fn{S, T} push(s &Stack{S, T}, elem T)
+inst{S, T} container::push{T, Stack{S, T}} (s&, elem)
     assert(s.length < s.array.len)
     s.array[s.length] = elem
     s.length = s.length + 1
 
 
-fn{S, T} pop(s &Stack{S, T}) T
+inst{S, T} container::pop{T, Stack{S, T}} (s&)
     assert(s.length > 0)
     s.length = s.length - 1
     return s.array[s.length]

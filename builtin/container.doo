@@ -7,11 +7,17 @@ import builtin/convert
 import builtin/compare
 import builtin/boolean
 
-
-func{K, V, T | T->V, T->K } at(T, K) V
+// basic container
 func{T}                     len(T) I64
-func{T, V | T -> V}         index(T, I64) V
 func{V, T | T -> V}         contains(T, V) Bool
+
+// iterateable
+func{K, V, T | T->V, T->K } at(T, K) V
+func{T, V | T -> V}         index(T, I64) V
+
+// stack
+func{V, T | T->V}           push(T, V)
+func{V, T | T->V}           pop(T) V
 
 
 inst{V} len{ Table{V} }        (t&);           return t.builtinTableLen()

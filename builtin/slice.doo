@@ -1,0 +1,16 @@
+module slice
+
+import builtin/compare
+import builtin/tuple
+import builtin/builtin
+import builtin/convert
+import builtin/container
+import builtin/for
+
+
+inst{T} compare::lessThan{Slice{T}} (a, b)
+    for (0, a.len) -> i | i < b.len
+        if a[i] >= b[i]
+            return false
+
+    return a.len < b.len

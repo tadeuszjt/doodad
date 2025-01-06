@@ -2,12 +2,27 @@ module set
 
 import builtin/all
 import std/binaryTree
+import std/print
 
 
 type{T} Set Tree{T, Tuple}
 
-
 derives{T} Set{T} (copy, container::len, container::contains{T})
+
+
+inst{T} container::at{I64, T, Set{T}} (set&, idx) -> &
+    return (set.pretend : Tree{T, ()}).keys[idx]
+
+
+inst{P, T} print{P, Set{T}} (p&, set)
+    p.print('{')
+
+    for (0, set.len) -> i
+        p.print(set[i])
+        if i < (set.len - 1)
+            p.print(", ")
+
+    p.print('}')
 
 
 inst{T} makeSlice{T, Set{T}} (slice)
@@ -25,7 +40,8 @@ inst{T} slice{Set{T}, T} (set)
 inst{T} arithmetic::add{Set{T}} (a, b)
     let c = a
     for b.slice -> e
-        c.insert(e) 
+        if !c.contains(e)
+            c.insert(e) 
     return c
 
 
@@ -43,6 +59,7 @@ fn{T} insert(set &Set{T}, e T)
 
 
 fn{T} delete(set &Set{T}, e T)
+    assert(set.contains(e))
     (set.pretend : Tree{T, ()}).binaryTree::delete(e)
 
 

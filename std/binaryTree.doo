@@ -34,6 +34,10 @@ fn{K, V} keys(tree &Tree{K, V}) Slice{K}
     return tree.nodes.unordered::values.key
 
 
+fn{K, V} values(tree &Tree{K, V}) Slice{V}
+    return tree.nodes.unordered::values.value
+
+
 inst{K, V} container::at{K, V, Tree{K, V}} (t&, key) -> &
     switch t.base
         some(current)

@@ -7,6 +7,7 @@ import std/sparse
 import std/stack
 import std/option
 import std/char
+import std/set
 
 //Grammar
 //
@@ -312,7 +313,7 @@ fn lexVar(str Char.Slice, idx I64) (Token, I64).Option
 
     while str.lexChar(idx) -> some(c) | isAlpha(c) || isDigit(c)
         idx = idx + 1
-        tab.stack::push(c)
+        tab.push(c)
 
     return (tokIdent(tab), tab.len).some
 
@@ -396,8 +397,8 @@ fn{K} lookupCell(state I64, item Item{K}) Cell
 
 
 fn{K} getItem(stack &Item{K}.Table) Item{K}
-    let itemState(_) = stack.table::pop
-    return stack.table::pop
+    let itemState(_) = stack.container::pop
+    return stack.container::pop
 
 
 fn reduceStack(ast &Calc{I64}.Table, stack &Item{I64}.Table, production I64)
@@ -405,12 +406,12 @@ fn reduceStack(ast &Calc{I64}.Table, stack &Item{I64}.Table, production I64)
         0 // $accept: program $end
             let itemToken(tokEnd()) = stack.getItem
             let itemProg(key)       = stack.getItem
-            stack.table::push(itemProg(key))
-            stack.table::push(itemState(15))
+            stack.container::push(itemProg(key))
+            stack.container::push(itemState(15))
 
         1 // program: expr
             let itemExpr(key) = stack.getItem
-            stack.table::push(itemProg(key))
+            stack.container::push(itemProg(key))
 
         2 // expr: LAM VAR DOT expr
             let itemExpr(key)         = stack.getItem
@@ -418,35 +419,35 @@ fn reduceStack(ast &Calc{I64}.Table, stack &Item{I64}.Table, production I64)
             let itemToken(tokIdent(s)) = stack.getItem
             let itemToken(tokSym('\\')) = stack.getItem
 
-            ast.table::push(lam(s, key))
-            stack.table::push(itemExpr(ast.len - 1))
+            ast.container::push(lam(s, key))
+            stack.container::push(itemExpr(ast.len - 1))
             
         3 // expr: app_expr
             let itemAppExpr(key) = stack.getItem
-            stack.table::push(itemExpr(key))
+            stack.container::push(itemExpr(key))
 
         4 // app_expr: simple_expr
             let itemSimpExpr(key) = stack.getItem
-            stack.table::push(itemAppExpr(key))
+            stack.container::push(itemAppExpr(key))
 
         5 // app_expr: app_expr simple_expr
             let itemSimpExpr(k1) = stack.getItem
             let itemAppExpr(k2)  = stack.getItem
 
-            ast.table::push(app(k2, k1))
-            stack.table::push(itemAppExpr(ast.len - 1))
+            ast.container::push(app(k2, k1))
+            stack.container::push(itemAppExpr(ast.len - 1))
 
         6 // simple_expr: VAR
             let itemToken(tokIdent(s)) = stack.getItem
 
-            ast.table::push(var(s))
-            stack.table::push(itemSimpExpr(ast.len - 1))
+            ast.container::push(var(s))
+            stack.container::push(itemSimpExpr(ast.len - 1))
 
         7 // simple_expr: '(' expr ')'
             let itemToken(tokSym(')')) = stack.getItem
             let itemExpr(key)         = stack.getItem
             let itemToken(tokSym('(')) = stack.getItem
-            stack.table::push(itemSimpExpr(key))
+            stack.container::push(itemSimpExpr(key))
 
 
 fn parse(io &Io, str Char.Slice) (I64, Calc{I64}.Table)
@@ -455,9 +456,9 @@ fn parse(io &Io, str Char.Slice) (I64, Calc{I64}.Table)
 
     while str.slice.lex(idx) -> some(token, len)
         idx = idx + len
-        tokens.table::push(token)
+        tokens.container::push(token)
 
-    tokens.table::push(tokEnd())
+    tokens.container::push(tokEnd())
 
 
     let stack : Item{I64}.Table = [itemState(0)]
@@ -482,41 +483,66 @@ fn parse(io &Io, str Char.Slice) (I64, Calc{I64}.Table)
 
         switch lookupCell(st, item)
             shift(s) // Push token onto stack, increase tokenIdx, push next state
-                io.stdout.print("-- shifting ")
-                io.stdout.printLn(s)
-                stack.table::push(itemToken(tokens[tokIdx]))
-                stack.table::push(itemState(s))
+                //io.stdout.print("-- shifting ")
+                //io.stdout.printLn(s)
+                stack.container::push(itemToken(tokens[tokIdx]))
+                stack.container::push(itemState(s))
                 if tokens[tokIdx] != tokEnd() // TODO here
                     tokIdx = tokIdx + 1
 
             reduce(production) // pop state, replace RHS of production with LHS
-                io.stdout.printLn("-- reducing ")
+                //io.stdout.printLn("-- reducing ")
                 ast.reduceStack(&stack, production)
 
             goto(s) // push next state
-                io.stdout.printLn("-- goto ")
-                stack.table::push(itemState(s))
+                //io.stdout.printLn("-- goto ")
+                stack.container::push(itemState(s))
 
             accept()
-                io.stdout.printLn("-- accept")
+                //io.stdout.printLn("-- accept")
                 let itemProg(i) = stack[1] // [state(0), prog(n), state(15)]
                 return (i, ast)
 
             empty()
-                io.stdout.printLn("what")
+                //io.stdout.printLn("what")
                 assert(false)
 
 
+fn freshVar(str Char.Stack{16}, used Char.Stack{16}.Set) Char.Stack{16}
+    str.push('\'')
+    while used.contains(str)
+        str.push('\'')
+    return str
+    
 
-//fn freeVars(ast &Calc{I64}.Table, termKey I64) Char.Stack{16}.Table
+fn freeVars(ast &Calc{I64}.Table, termKey I64) Char.Stack{16}.Set
+    switch ast[termKey]
+        var(s)     ; return [s]
+        app(k1, k2); return ast.freeVars(k1) + ast.freeVars(k2)
+        lam(s, k)  ; return ast.freeVars(k) - [s]
+
+
+//fn alphaSubstitute(ast &Calc{I64}.Table, termKey I64, from Char.Stack{16}, to Char.Stack{16})
 //    switch ast[termKey]
-//        var(s); return [s]
-//        app(k1, k2); 
-
-
+//        var(s) | s == from
+//            ast[termKey] = var(to)
+//        lam(s, k) | s == from;
+//        lam(s, k)
+//            let fv = ast.freeVars(k)
+//            if fv.contains(to)
+//                freshVar(s, fv)
+//                ast[termKey] = lam(freshVar(s, fv), 
+            
+                
 fn main(io Io)
     io.stdout.printLn("lambdaCalc")
-    let (k, ast) = io.parse("\y . (\x . (y x))")
+    let (k, ast) = io.parse("(\y . (\x . (y x z))) w")
+
+    let set = ast.freeVars(k)
+
+    io.stdout.printLn(freshVar(['z'], set))
+
+    io.stdout.printLn(set)
 
 
 

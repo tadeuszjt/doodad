@@ -32,12 +32,12 @@ inst{T} copy{Table{T}} (a)
     return b
 
 
-fn{T} push(t &Table{T}, e T)
+inst{T} container::push{T, Table{T}} (t&, e)
     builtinTableAppend(&t)
     builtinTableAt(&t, t.len - 1) = e
 
 
-fn{T} pop(t &Table{T}) T
+inst{T} container::pop{T, Table{T}} (t&)
     assert(t.len > 0)
     let e = t.at(t.len - 1)
     t.at(t.len - 1).destroy

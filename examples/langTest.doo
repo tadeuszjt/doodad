@@ -513,8 +513,8 @@ fn testSet()
 
     let d : I64.Set = [1, 2, 3, 4] - [2, 3]
     let 2 = d.len
-    let true = d.contains(1)
-    let true = d.contains(4)
+    let 1 = d[0]
+    let 4 = d[1]
     
 
 fn main()
