@@ -47,11 +47,18 @@ inst{S, T} copy{ Array{S, T} } (a)
     return b
 
 
-inst{S, T} equal{ Array{S, T} } (a, b)
+inst{S, T} compare{Array{S, T}} (a, b)
     for (0, a.len) -> i
-        if a[i] != b[i]
-            return false
-    return true
+        switch compare(a[i], b[i])
+            lt(); return lt()
+            gt(); return gt()
+            eq();
+
+    return eq()
+
+
+inst{S, T} equal{ Array{S, T} } (a, b)
+    return compare(a, b) == eq()
 
 
 inst{S, T} makeSlice{ T, Array{S, T} } (slice)

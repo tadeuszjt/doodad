@@ -8,7 +8,7 @@ enum{T} Option {
     some(T),
 }
 
-derives{T} T.Option (copy, destroy, equal)
+derives{T} T.Option (copy, destroy, equal, compare)
 
 
 inst{P, T} print::print{P, T.Option} (p &, option)

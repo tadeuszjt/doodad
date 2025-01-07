@@ -204,6 +204,20 @@ import std/set
 //
 //    $default  reduce using rule 2 (expr)
 
+
+type String Char.Stack{16}
+derives String (copy, destroy, push{Char}, makeSlice{Char}, len, pop{Char}, equal, compare,
+    at{I64, Char})
+
+
+inst{P} print{P, String} (p&, str)
+    p.print('"')
+    for (0, str.len) -> i
+        p.print(str[i])
+
+    p.print('"')
+
+
 enum Cell {
     accept(),
     shift(I64),
@@ -216,15 +230,15 @@ derives Cell (builtin::destroy, builtin::copy)
 
 enum Token {
     tokSym(Char),
-    tokIdent(Char.Stack{16}),
+    tokIdent(String),
     tokEnd(),
 }
 derives Token (builtin::copy, builtin::destroy, equal)
 
 
 enum{K} Calc {
-    lam(Char.Stack{16}, K),
-    var(Char.Stack{16}),
+    lam(String, K),
+    var(String),
     app(K, K),
 }
 derives{K} Calc{K} (copy, destroy)
@@ -309,7 +323,7 @@ fn lexVar(str Char.Slice, idx I64) (Token, I64).Option
     if str.lexChar(idx) -> some(c) | isAlpha(c)
     else; return none()
 
-    let tab : Char.Stack{16}
+    let tab : String
 
     while str.lexChar(idx) -> some(c) | isAlpha(c) || isDigit(c)
         idx = idx + 1
@@ -508,21 +522,41 @@ fn parse(io &Io, str Char.Slice) (I64, Calc{I64}.Table)
                 assert(false)
 
 
-fn freshVar(str Char.Stack{16}, used Char.Stack{16}.Set) Char.Stack{16}
+fn freshVar(str String, used String.Set) String
     str.push('\'')
     while used.contains(str)
         str.push('\'')
     return str
     
 
-fn freeVars(ast &Calc{I64}.Table, termKey I64) Char.Stack{16}.Set
+fn freeVars(ast &Calc{I64}.Table, termKey I64) String.Set
     switch ast[termKey]
         var(s)     ; return [s]
         app(k1, k2); return ast.freeVars(k1) + ast.freeVars(k2)
         lam(s, k)  ; return ast.freeVars(k) - [s]
 
 
-//fn alphaSubstitute(ast &Calc{I64}.Table, termKey I64, from Char.Stack{16}, to Char.Stack{16})
+fn copyExpr(ast &Calc{I64}.Table, termKey I64) I64
+    switch ast[termKey]
+        var(s)
+            ast.push(var(s))
+            return ast.len - 1
+        app(k1, k2)
+            let c1 = ast.copyExpr(k1)
+            let c2 = ast.copyExpr(k2)
+            ast.push(app(c1, c2))
+            return ast.len - 1
+        lam(s, k)
+            let c = ast.copyExpr(k)
+            ast.push(lam(s, c))
+            return ast.len - 1
+
+
+fn substitute(ast &Calc{I64}.Table, termKey I64, str String, expr I64)
+    switch ast[termKey]
+        var(s) | s == str; ast[termKey] = ast[ast.copyExpr(expr)]
+
+//fn alphaSubstitute(ast &Calc{I64}.Table, termKey I64, from String, to String)
 //    switch ast[termKey]
 //        var(s) | s == from
 //            ast[termKey] = var(to)

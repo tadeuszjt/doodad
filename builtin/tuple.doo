@@ -146,4 +146,12 @@ inst{A, B, C, D, E} destroy{Tuple{A, B, C, D, E}} (t&)
 
 
 inst{A, B} compare::equal{Tuple{A, B}} (a, b)
-    return a.0 == b.0 && a.1 == b.1
+    return compare(a, b) == eq()
+
+
+inst{A, B} compare::compare{Tuple{A, B}} (a, b)
+    let c0 = compare(a.0, b.0)
+    if c0 -> eq()
+        return compare(a.1, b.1)
+    else
+        return c0

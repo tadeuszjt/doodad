@@ -38,12 +38,12 @@ fn gridLocation(g &Grid, p Vec2) (I64, I64)
     let numCols = g.array[0].len
     return (
         clamp(
-            ((p.x - g.rect.min.x) / (g.rect.max.x - g.rect.min.x) * numRows.convert).convert,
+            ((p.x - g.rect.geometry::min.x) / (g.rect.geometry::max.x - g.rect.geometry::min.x) * numRows.convert).convert,
             0,
             numRows - 1
         ),
         clamp(
-            ((p.y - g.rect.min.y) / (g.rect.max.y - g.rect.min.y) * numCols.convert).convert,
+            ((p.y - g.rect.geometry::min.y) / (g.rect.geometry::max.y - g.rect.geometry::min.y) * numCols.convert).convert,
             0,
             numCols - 1
         )
@@ -51,8 +51,8 @@ fn gridLocation(g &Grid, p Vec2) (I64, I64)
     
 
 fn getGridVecs(g &Grid, range Rect) Table{Vec2}
-    let (rowMin, colMin) = g.gridLocation(range.min)
-    let (rowMax, colMax) = g.gridLocation(range.max)
+    let (rowMin, colMin) = g.gridLocation(range.geometry::min)
+    let (rowMax, colMax) = g.gridLocation(range.geometry::max)
 
     let result : Table{Vec2}
     for (rowMin, rowMax + 1) -> r
@@ -135,7 +135,7 @@ fn main(io Io, rand Rand, w sf::Window)
     for (0, 100)
         let blob
         blob.blobColour = rand.uniform(sf::black(), sf::white())
-        blob.position   = rand.uniform(arena.min, arena.max)
+        blob.position   = rand.uniform(arena.geometry::min, arena.geometry::max)
         blob.velocity   = rand.uniform( (-1.0, -1.0), (1.0, 1.0) )
         blobs.push(blob)
 

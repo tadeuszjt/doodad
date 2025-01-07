@@ -28,30 +28,17 @@ inst{S, T} at{I64, T, Stack{S, T}} (s&, idx) -> &
 
 
 inst{S, T} compare::equal{Stack{S, T}} (a, b)
-    if a.len != b.len
-        return false
-
-    for (0, a.len) -> i
-        if a[i] != b[i]
-            return false
-
-    return true
+    return compare(a, b) == eq()
 
 
-inst{S, T} compare::greaterThan{Stack{S, T}} (a, b)
-    for (0, a.len) -> i | i < b.len
-        if a[i] > b[i]
-            return true
+inst{S, T} compare::compare{Stack{S, T}} (a, b)
+    for (0, min(a.len, b.len)) -> i
+        switch compare(a[i], b[i])
+            lt(); return lt()
+            gt(); return gt()
+            _   ;
 
-    return a.len > b.len
-
-
-inst{S, T} compare::lessThan{Stack{S, T}} (a, b)
-    for (0, a.len) -> i | i < b.len
-        if a[i] < b[i]
-            return true
-
-    return a.len < b.len
+    return compare(a.len, b.len)
 
 
 inst{S, T, P} print::print{P, Stack{S, T}} (p&, stack)

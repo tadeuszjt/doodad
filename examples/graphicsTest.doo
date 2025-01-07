@@ -27,8 +27,8 @@ derives{P} Blob (print::print{P})
 
 fn vec2f(rand &Rand, rect Rectf) Vec2f
     return (
-        rand.uniform(rect.min.x, rect.max.x),
-        rand.uniform(rect.min.y, rect.max.y)
+        rand.uniform(rect.window::min.x, rect.window::max.x),
+        rand.uniform(rect.window::min.y, rect.window::max.y)
     )
 
 fn colour(rand &Rand) Colour

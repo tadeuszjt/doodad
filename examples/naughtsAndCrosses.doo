@@ -13,7 +13,7 @@ enum Square {
     naught,
     cross,
 }
-derives Square (copy, destroy, equal)
+derives Square (copy, destroy, equal, compare)
 
 
 enum Input {

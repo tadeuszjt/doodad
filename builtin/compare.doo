@@ -6,9 +6,110 @@ import builtin/convert
 import builtin/boolean
 
 
+
+enum Ordering {
+    lt(),
+    eq(),
+    gt(),
+}
+derives Ordering (copy, equal)
+
+
+func{T} compare(T, T) Ordering
+
+
+fn{T} builtinCompare(a T, b T) Ordering
+    if builtinLessThan(a, b); return lt()
+    if builtinEqual(a, b)   ; return eq()
+    else                    ; return gt()
+
+
+fn{T} lessThan(a T, b T) Bool
+    switch compare(a, b)
+        lt(); return true
+        _   ; return false
+
+
+fn{T} lessThanEqual(a T, b T) Bool
+    switch compare(a, b)
+        lt(); return true
+        eq(); return true
+        _   ; return false
+
+
+fn{T} greaterThan(a T, b T) Bool
+    switch compare(a, b)
+        gt(); return true
+        _   ; return false
+    
+
+fn{T} greaterThanEqual(a T, b T) Bool
+    switch compare(a, b)
+        gt(); return true
+        eq(); return true
+        _   ; return false
+
+
+fn{T} clamp(a T, min T, max T) T
+    if a < min; return min
+    if a > max; return max
+    return a
+
+
+fn{T} min(a T, b T) T
+    if b < a
+        return b
+    return a
+
+
+fn{T} max(a T, b T) T
+    if a < b
+        return b
+    return a
+
+
+inst compare{I64} (a, b); return builtinCompare(a, b)
+inst compare{U8} (a, b); return builtinCompare(a, b)
+inst compare{F64} (a, b); return builtinCompare(a, b)
+inst compare{F32} (a, b); return builtinCompare(a, b)
+inst compare{Bool} (a, b); return builtinCompare(a, b)
+inst compare{Char} (a, b); return builtinCompare(a, b)
+inst compare{Tuple} (a, b); return eq()
+
+
+inst{A, B} compare{ Sum{A, B} } (a, b)
+    let enA = a.builtin::builtinSumEnum
+    let enB = b.builtin::builtinSumEnum
+
+    if enA != enB
+        return compare(enA, enB)
+
+    switch enA
+        0; return compare(a.0, b.0)
+        1; return compare(a.1, b.1)
+
+
+inst{A, B, C} compare{ Sum{A, B, C} } (a, b)
+    let enA = a.builtin::builtinSumEnum
+    let enB = b.builtin::builtinSumEnum
+
+    if enA != enB
+        return compare(enA, enB)
+
+    switch enA
+        0; return compare(a.0, b.0)
+        1; return compare(a.1, b.1)
+        2; return compare(a.2, b.2)
+
+
 func{T} equal(T, T) Bool
-func{T} greaterThan(T, T) Bool
-func{T} lessThan(T, T) Bool
+
+
+fn{T} notEqualTo(a T, b T) Bool
+    let c = true
+    if equal(a, b)
+        c = false
+    return c
 
 
 inst equal{ I64 }  (a, b); return builtinEqual(a, b)
@@ -20,50 +121,10 @@ inst equal{ Char } (a, b); return builtinEqual(a, b)
 inst equal{ Tuple{} } (a, b); return true
 
 
-fn{T} lessThanEqual(a T, b T) Bool; return !greaterThan(a, b)
-fn{T} greaterThanEqual(a T, b T) Bool; return !lessThan(a, b)
+inst{A, B} equal{Sum{A, B}} (a, b); return compare(a, b) == eq()
 
-fn{T} clamp(a T, min T, max T) T
-    if a < min; return min
-    if a > max; return max
-    return a
-
-
-inst{A, B} equal{ Sum{A, B} } (a, b)
-    let enA = a.builtin::builtinSumEnum
-    let enB = b.builtin::builtinSumEnum
-
-    if enA != enB
-        return false
-
-    switch enA
-        0; return a.0 == b.0
-        1; return a.1 == b.1
 
 inst{A, B, C} equal{ Sum{A, B, C} } (a, b)
-    let enA = a.builtin::builtinSumEnum
-    let enB = b.builtin::builtinSumEnum
-
-    if enA != enB
-        return false
-
-    switch enA
-        0; return a.0 == b.0
-        1; return a.1 == b.1
-        2; return a.2 == b.2
-
-
-fn{T} notEqualTo(a T, b T) Bool
-    let c = true
-    if equal(a, b)
-        c = false
-    return c
-
-
-inst greaterThan{ I64 } (a, b); return builtinGreaterThan(a, b)
-inst greaterThan{Char } (a, b); return builtinGreaterThan(a, b)
-
-inst lessThan{ I64 }    (a, b); return builtinLessThan(a, b)
-inst lessThan{ F32 }    (a, b); return builtinLessThan(a, b)
-inst lessThan{ F64 }    (a, b); return builtinLessThan(a, b)
-inst lessThan{Char }    (a, b); return builtinLessThan(a, b)
+    if compare(a, b) -> eq()
+        return true
+    return false

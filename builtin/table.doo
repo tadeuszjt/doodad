@@ -9,6 +9,7 @@ import builtin/arithmetic
 import builtin/assert
 import builtin/compare
 
+
 fn{T} grow(t& T.Table)
     builtinTableAppend(&t)
 
@@ -43,6 +44,20 @@ inst{T} container::pop{T, Table{T}} (t&)
     t.at(t.len - 1).destroy
     ${ $t->len--; }
     return e
+
+
+inst{T} compare{Table{T}} (a, b)
+    for (0, min(a.len, b.len)) -> i
+        switch compare(a[i], b[i])
+            lt(); return lt()
+            gt(); return gt()
+            eq(); 
+
+    return compare(a.len, b.len)
+
+
+inst{T} equal{Table{T}} (a, b)
+    return compare(a, b) == eq()
 
 
 inst{A, B} builtin::field{0, Slice{A}, Table{Tuple{A, B}}} (table&)
