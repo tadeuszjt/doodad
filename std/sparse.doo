@@ -1,10 +1,12 @@
 module sparse
 
 import builtin/all
+import std/print
 
 
 type{T} Key I64
 derives{T} Key{T} (copy, destroy)
+derives{P, T} Key{T} (print{P})
 
 
 tuple{T} Sparse {
