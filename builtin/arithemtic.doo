@@ -2,7 +2,6 @@ module arithmetic
 
 import builtin/builtin
 import builtin/convert
-import builtin/tuple
 
 
 func{T} add(T, T) T
@@ -41,17 +40,3 @@ inst negate{F32}   (a); return builtinSubtract(0.0, a)
 
 inst add{Char}      (a, b); return builtinAdd(a, b)
 inst subtract{Char} (a, b); return builtinSubtract(a, b)
-
-inst{A} add{ Tuple{A} } (a, b)
-    let tup
-    tup.0 = a.0 + b.0
-    return tup
-
-inst{A, B} add{ Tuple{A, B} }      (a, b); return (a.0 + b.0, a.1 + b.1)
-inst{A, B} subtract{ Tuple{A, B} } (a, b); return (a.0 - b.0, a.1 - b.1)
-inst{A, B} multiply{ Tuple{A, B} } (a, b); return (a.0 * b.0, a.1 * b.1)
-inst{A, B} divide{ Tuple{A, B} }   (a, b); return (a.0 / b.0, a.1 / b.1)
-
-inst{A, B, C} add{ Tuple{A, B, C} } (a, b); return (a.0 + b.0, a.1 + b.1, a.2 + b.2)
-
-inst{A, B, C, D} add{ Tuple{A, B, C, D} } (a, b); return (a.0 + b.0, a.1 + b.1, a.2 + b.2, a.3 + b.3)

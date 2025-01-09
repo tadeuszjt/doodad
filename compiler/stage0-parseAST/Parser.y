@@ -304,7 +304,7 @@ condition : expr                                 { $1 }
 expr   : literal                                 { $1 }
        | expr ':' type_                          { AExpr $3 $1 }
        | symbol                                  { AST.Ident (fst $1) (snd $1) }
-       | '[' exprs ']'                          { Call (tokPos $1) (TypeDef $ Sym ["makeSlice"]) [AST.Array (tokPos $1) $2] }
+       | '[' exprs ']'                          { Call (tokPos $1) (TypeDef $ Sym ["slice", "makeSlice"]) [AST.Array (tokPos $1) $2] }
        | expr '.' int_c                          { Call (tokPos $2) (foldType $ [TypeDef (Sym ["builtin", "field"]), Size (read $ tokStr $3), Type 0, Type 0]) [AST.Reference (tokPos $2) $1] }
        | '&' expr                                { AST.Reference (tokPos $1) $2 }
        | expr '[' expr ']'                       { Call (tokPos $2) (TypeDef $ Sym ["container", "at"]) [AST.Reference (tokPos $2) $1, $3] }
@@ -340,7 +340,7 @@ literal : int_c                                  { Call (tokPos $1) (TypeDef $ S
         | true                                   { AST.Bool (tokPos $1) True }
         | false                                  { AST.Bool (tokPos $1) False }
         --| string_c                               { AST.String (tokPos $1) (processString $ tokStr $1) }
-        | string_c                               { Call (tokPos $1) (TypeDef $ Sym ["builtin", "makeSlice"]) [AST.String (tokPos $1) (processString $ tokStr $1)] }
+        | string_c                               { Call (tokPos $1) (TypeDef $ Sym ["slice", "makeSlice"]) [AST.String (tokPos $1) (processString $ tokStr $1)] }
 
 ---------------------------------------------------------------------------------------------------
 -- Types ------------------------------------------------------------------------------------------

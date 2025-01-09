@@ -12,10 +12,11 @@ enum Ordering {
     eq(),
     gt(),
 }
-derives Ordering (copy, equal)
+derives Ordering (copy, equal, destroy)
 
 
 func{T} compare(T, T) Ordering
+func{T} equal(T, T) Bool
 
 
 fn{T} builtinCompare(a T, b T) Ordering
@@ -77,34 +78,6 @@ inst compare{Char} (a, b); return builtinCompare(a, b)
 inst compare{Tuple} (a, b); return eq()
 
 
-inst{A, B} compare{ Sum{A, B} } (a, b)
-    let enA = a.builtin::builtinSumEnum
-    let enB = b.builtin::builtinSumEnum
-
-    if enA != enB
-        return compare(enA, enB)
-
-    switch enA
-        0; return compare(a.0, b.0)
-        1; return compare(a.1, b.1)
-
-
-inst{A, B, C} compare{ Sum{A, B, C} } (a, b)
-    let enA = a.builtin::builtinSumEnum
-    let enB = b.builtin::builtinSumEnum
-
-    if enA != enB
-        return compare(enA, enB)
-
-    switch enA
-        0; return compare(a.0, b.0)
-        1; return compare(a.1, b.1)
-        2; return compare(a.2, b.2)
-
-
-func{T} equal(T, T) Bool
-
-
 fn{T} notEqualTo(a T, b T) Bool
     let c = true
     if equal(a, b)
@@ -119,12 +92,3 @@ inst equal{ F32 }  (a, b); return builtinEqual(a, b)
 inst equal{ Bool } (a, b); return builtinEqual(a, b)
 inst equal{ Char } (a, b); return builtinEqual(a, b)
 inst equal{ Tuple{} } (a, b); return true
-
-
-inst{A, B} equal{Sum{A, B}} (a, b); return compare(a, b) == eq()
-
-
-inst{A, B, C} equal{ Sum{A, B, C} } (a, b)
-    if compare(a, b) -> eq()
-        return true
-    return false

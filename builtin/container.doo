@@ -8,33 +8,28 @@ import builtin/compare
 import builtin/boolean
 
 // basic container
-func{T}                     len(T) I64
-func{V, T | T -> V}         contains(T, V) Bool
+func{T}                    len(T) I64
+func{V, T | T -> V}        contains(T, V) Bool
 
-// iterateable
-func{K, V, T | T->V, T->K } at(T, K) V
-func{T, V | T -> V}         index(T, I64) V
+// index
+func{K, V, T | T->V, T->K} at(T, K) V
+func{T, V | T->V}          index(T, I64) V
 
 // stack
-func{V, T | T->V}           push(T, V)
-func{V, T | T->V}           pop(T) V
+func{V, T | T->V}          push(T, V)
+func{V, T | T->V}          pop(T) V
+
+// iterate
+func{T}                    forEnd(T) I64
+func{V, T | T -> V}        forAt( T, I64 ) V
 
 
-inst{V} len{ Table{V} }        (t&);           return t.builtinTableLen()
-inst{T} index{ Table{T}, T }   (t&, idx) -> &; return t.builtinTableAt(idx)
-inst{T} at{ I64, T, Table{T} } (t&, idx) -> &
-    assert(idx >= 0 && idx < t.len)
-    return t.builtinTableAt(idx)
+// for (start, end) -> i
+inst forEnd{Tuple{I64, I64}} (t)
+    return t.1 - t.0
 
 
-inst{T} len{ T.Slice }         (s);           return builtinSliceLen(&s)
-inst{T} index{ Slice{T}, T}    (s, idx) -> &; return builtinSliceAt(&s, idx)
-inst{T} at{ I64, T, Slice{T} } (s, idx) -> &
-    assert(idx >= 0 && idx < s.len)
-    return builtinSliceAt(&s, idx)
+inst forAt{I64, Tuple{I64, I64}} (t, idx)
+    return idx + t.0
 
 
-inst{T, S} len{ Array{S, T} }        (arr&);           return builtinArrayLen(&arr)
-inst{T, S} at{ I64, T, Array{S, T} } (arr&, idx) -> &
-    assert(idx >= 0 && idx < arr.len)
-    return builtinArrayAt(&arr, idx)

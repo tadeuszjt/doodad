@@ -38,6 +38,7 @@ generate = withErrorPrefix "generate: " $ do
         crt <- case IR.irRetty header of
             IR.RettyIR IR.Value t -> cTypeOf t
             IR.RettyIR IR.Ref t -> cRefTypeOf t
+            IR.RettyIR IR.Slice t -> cTypeOf (Apply Type.Slice t)
 
         cats <- forM (IR.irArgs header) $ \param -> case param of
             IR.ParamIR IR.Slice t -> cTypeOf (Apply Type.Slice t)

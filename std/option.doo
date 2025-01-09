@@ -7,14 +7,10 @@ enum{T} Option {
     none,
     some(T),
 }
-
 derives{T} T.Option (copy, destroy, equal, compare)
 
 
 inst{P, T} print::print{P, T.Option} (p &, option)
     switch option
-        none(); p.print("none()")
-        some(x)
-            p.print("some(")
-            p.print(x)
-            p.print(')')
+        none() ; p.print("none()")
+        some(x); p.print3("some(", x, ')')

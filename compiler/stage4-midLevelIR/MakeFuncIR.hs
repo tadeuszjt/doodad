@@ -279,7 +279,7 @@ makeStmt inst (S.Stmt stmtId) = do
             void $ withCurrentID loopId $ do
                 arg <- makeExpr inst expr
 
-                end <- call (Sym ["for", "forEnd"]) [typeOfExpr inst expr] [arg]
+                end <- call (Sym ["container", "forEnd"]) [typeOfExpr inst expr] [arg]
                 lte <- call (Sym ["builtin", "builtinLessThan"]) [Type.Bool] [ArgID idx, end]
                 not <- call (Sym ["boolean", "not"]) [Type.Bool] [lte]
                 ifId <- appendStmt (If not [])
@@ -288,7 +288,7 @@ makeStmt inst (S.Stmt stmtId) = do
                 case mpat of
                     Nothing -> return ()
                     Just pat -> do
-                        elem <- call (Sym ["for", "forAt"]) [typeOfPat inst pat, typeOfExpr inst expr]
+                        elem <- call (Sym ["container", "forAt"]) [typeOfPat inst pat, typeOfExpr inst expr]
                             [arg, ArgID idx]
                         b <- makePattern loopId inst pat =<< deref elem
                         not <- call (Sym ["boolean", "not"]) [Type.Bool] [b]

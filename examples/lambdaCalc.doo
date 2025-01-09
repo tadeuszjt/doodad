@@ -551,25 +551,42 @@ fn{P} printExpr(p &P, ast &Calc.Sparse, termKey Calc.Key)
             for s -> c
                 p.print(c)
         app(k1, k2)
-            p.print('(')
             switch ast[k1]
-                app(k1l, k1r)
-                    p.printExpr(&ast, k1l)
+                var(s); p.printExpr(&ast, k1)
+                app(k2, k3)
+                    p.printExpr(&ast, k2)
                     p.print(' ')
-                    p.printExpr(&ast, k1r)
-                _
+                    p.printExpr(&ast, k3)
+                lam(_, _)
+                    p.print('(')
                     p.printExpr(&ast, k1)
+                    p.print(')')
 
             p.print(' ')
-            p.printExpr(&ast, k2)
-            p.print(')')
+
+            switch ast[k2]
+                var(s); p.printExpr(&ast, k2)
+                _
+                    p.print('(')
+                    p.printExpr(&ast, k2)
+                    p.print(')')
+
+
         lam(s, k)
             p.print('(')
             p.print('\\')
-            for s -> c
-                p.print(c)
+            for s -> c; p.print(c)
             p.print('.')
-            p.printExpr(&ast, k)
+
+            switch ast[k]
+                lam(s2, k2)
+                    p.print('\\')
+                    for s2 -> c; p.print(c)
+                    p.print('.')
+                    p.printExpr(&ast, k2)
+                _
+                    p.printExpr(&ast, k)
+                    
             p.print(')')
 
 
@@ -615,21 +632,30 @@ fn betaReduce(ast &Calc.Sparse, termKey Calc.Key) Calc.Key
         lam(s, k); return ast.sparse::insert(lam(s, ast.betaReduce(k)))
         var(s)   ; return ast.sparse::insert(var(s))
 
+
+fn fullReduce(ast &Calc.Sparse, termKey Calc.Key) Calc.Key
+    let expr = ast.copyExpr(termKey)
+    for (0, 7)
+        let expr2 = ast.betaReduce(expr)
+        ast.deleteExpr(expr)
+        expr = expr2
+
+    return expr
+
                 
 fn main(io Io)
     io.stdout.printLn("lambdaCalc")
 
     let ast : Calc.Sparse
-    let expr1 = ast.parse("(\x . x x) (\y . y)")
+    let expr1 = ast.parse("(\x.\y.x y) (\a.\b.a) (\c.c)")
 
-    let expr2 = ast.betaReduce(ast.betaReduce(expr1))
+    let expr2 = ast.fullReduce(ast.betaReduce(expr1))
 
     io.stdout.printExpr(&ast, expr1)
     io.stdout.print('\n')
-
-    ast.deleteExpr(expr1)
-
     io.stdout.printExpr(&ast, expr2)
     io.stdout.print('\n')
 
-    io.stdout.printLn(ast.len)
+    ast.deleteExpr(expr1)
+    ast.deleteExpr(expr2)
+    io.stdout.printLn(ast)

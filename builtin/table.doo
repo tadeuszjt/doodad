@@ -2,12 +2,30 @@ module table
 
 import builtin/builtin
 import builtin/container
-import builtin/for
 import builtin/tuple
 import builtin/convert
 import builtin/arithmetic
 import builtin/assert
 import builtin/compare
+import builtin/slice
+import builtin/boolean
+
+
+inst{V} len{ Table{V} } (t&)
+    return t.builtinTableLen()
+
+
+inst{T} index{ Table{T}, T } (t&, idx) -> &
+    return t.builtinTableAt(idx)
+
+
+inst{T} at{ I64, T, Table{T} } (t&, idx) -> &
+    assert(idx >= 0 && idx < t.len)
+    return t.builtinTableAt(idx)
+
+
+inst{T} forEnd{T.Table}   (s&);           return s.len
+inst{T} forAt{T, T.Table }(s&, idx) -> &; return s[idx]
 
 
 fn{T} grow(t& T.Table)
@@ -26,44 +44,47 @@ inst{T} makeSlice{T, Table{T}} (slice)
 
 
 inst{T} copy{Table{T}} (a)
-    let b
-    for (0, a.len) -> i
-        b.push(a[i])
-
-    return b
+    return a.slice.makeSlice
 
 
 inst{T} container::push{T, Table{T}} (t&, e)
     builtinTableAppend(&t)
-    builtinTableAt(&t, t.len - 1) = e
+    t[t.len - 1] = e
 
 
 inst{T} container::pop{T, Table{T}} (t&)
     assert(t.len > 0)
-    let e = t.at(t.len - 1)
-    t.at(t.len - 1).destroy
+    let e = t[t.len - 1]
+    t[t.len - 1].destroy
     ${ $t->len--; }
     return e
 
 
 inst{T} compare{Table{T}} (a, b)
-    for (0, min(a.len, b.len)) -> i
-        switch compare(a[i], b[i])
-            lt(); return lt()
-            gt(); return gt()
-            eq(); 
-
-    return compare(a.len, b.len)
+    return compare(a.slice, b.slice)
 
 
 inst{T} equal{Table{T}} (a, b)
     return compare(a, b) == eq()
 
 
+inst{T} destroy{ T.Table } (t&)
+    for (0, t.len) -> i
+        t[i].destroy
+    ${
+        //printf("destroying table:%p\n", $t->r0);
+        if ($t->r0) free($t->r0);
+        $t->r0 = NULL;
+        $t->len = 0;
+        $t->cap = 0;
+    }
+
+
 inst{A, B} builtin::field{0, Slice{A}, Table{Tuple{A, B}}} (table&)
     return builtin::builtinField{0, Slice{A}, Table{Tuple{A, B}}}(&table)
 inst{A, B} builtin::field{1, Slice{B}, Table{Tuple{A, B}}} (table&)
     return builtin::builtinField{1, Slice{B}, Table{Tuple{A, B}}}(&table)
+
 
 inst{A, B, C} builtin::field{0, Slice{A}, Table{Tuple{A, B, C}}} (table&)
     return builtin::builtinField{0, Slice{A}, Table{Tuple{A, B, C}}}(&table)

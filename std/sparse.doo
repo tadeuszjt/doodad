@@ -6,7 +6,6 @@ import std/print
 
 type{T} Key I64
 derives{T} Key{T} (copy, destroy)
-derives{P, T} Key{T} (print{P})
 
 
 tuple{T} Sparse {
@@ -16,8 +15,32 @@ tuple{T} Sparse {
 derives{T} Sparse{T} (destroy, copy)
 
 
+inst{P, T} print{P, Key{T}} (p&, k)
+    p.print("sparse::Key")
+
+
+inst{P, T} print{P, Sparse{T}} (p&, s)
+    p.print('[')
+
+    let indices : I64.Table
+
+    for (0, s.values.len) -> i
+        let isEmpty = false
+        for s.empty -> k | !isEmpty
+            isEmpty = i == k.pretend
+        if !isEmpty; indices.push(i)
+
+    for (0, indices.len) -> j
+        p.print(s.values[indices[j]])
+        if j < (indices.len - 1)
+            p.print(", ")
+
+    p.print(']')
+
+
 inst{T} container::len{ T.Sparse } (s&)
     return s.values.len - s.empty.len
+
 
 inst{T, K, V} container::at{ T.Key, V, V.Sparse } (s&, key) -> &
     return s.values.at( key.pretend:I64 )

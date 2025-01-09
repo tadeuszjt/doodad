@@ -103,7 +103,12 @@ collectCall exprType exprTypes callType = do
             Just _  -> return Nothing
             Nothing -> return (Just i) 
 
-    Just instances <- gets $ Map.lookup funcSymbol . instancesAll . astResolved
+    resm <- gets $ Map.lookup funcSymbol . instancesAll . astResolved
+    instances <- case resm of
+        --Nothing -> fail $ "no instances for: " ++ prettySymbol funcSymbol
+        Nothing -> return (Map.empty)
+        Just x -> return x
+
     fullAcqs <- fmap catMaybes $ forM (Map.elems $ instances) $ \stmt -> do
         appliedAcqType <- case stmt of
             TopInst _ generics acqType _ _ _ -> do
@@ -152,7 +157,7 @@ collectDefault params state = do
                 (TypeDef symbol, ts) | symbolsCouldMatch symbol (Sym ["convert", "convert"]) -> do
                     constraintDefault exprType (typeOfExpr state $ exprs !! 0)
 
-                (TypeDef symbol, [t, s]) | symbolsCouldMatch symbol (Sym ["builtin", "makeSlice"]) -> do
+                (TypeDef symbol, [t, s]) | symbolsCouldMatch symbol (Sym ["slice", "makeSlice"]) -> do
                     constraintDefault exprType (foldType [Slice, t])
 
                 (TypeDef symbol, ts) | symbolsCouldMatch symbol (Sym ["tuple", "make2"]) -> do
@@ -263,7 +268,7 @@ collect retty params state = do
         For _ expr mpat _ -> case mpat of
             Nothing -> return ()
             Just pat -> do
-                symbol <- getSymbol (Sym ["for", "forAt"])
+                symbol <- getSymbol (Sym ["container", "forAt"])
                 collectCall (typeOfPat state pat) [typeOfExpr state expr, I64] $
                     foldType [TypeDef symbol, typeOfPat state pat, typeOfExpr state expr]
                         

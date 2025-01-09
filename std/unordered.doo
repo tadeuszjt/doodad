@@ -18,7 +18,7 @@ tuple{T} Unordered {
 derives{T} T.Unordered (copy, destroy)
 
 
-inst{T} builtin::slice{T.Unordered, T} (u&)
+inst{T} slice::slice{T.Unordered, T} (u&)
     return u.values.slice
 
 

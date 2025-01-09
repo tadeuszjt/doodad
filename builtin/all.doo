@@ -1,8 +1,6 @@
 module all
 
-export builtin/for
 export builtin/tuple
-export builtin/destroy
 export builtin/convert
 export builtin/boolean
 export builtin/compare

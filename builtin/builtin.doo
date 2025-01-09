@@ -3,8 +3,6 @@ module builtin
 
 fn{T, G} pretend(a &T) &G; return a.builtinPretend
 
-func{T, S | S -> T} makeSlice(Slice{T}) S
-
 // destroy func
 func{T} destroy(T)
 inst destroy{Char} (c&);      return
@@ -13,66 +11,17 @@ inst destroy{F32} (c&);       return
 inst destroy{F64} (c&);       return
 inst destroy{I64} (c&);       return
 inst destroy{I32} (c&);       return
+inst destroy{U8}  (n&);       return
 inst destroy{Tuple{}} (tup&); return
-
-// slice func
-func{T, G | T->G } slice(T) Slice{G}
-
 
 // field func
 func{N, G, T | N -> G} field(T) G
-
-
-inst{A} field{0, A, Sum{A}} (sum&) -> &; return sum.builtinField{0, A, Sum{A}}
-
-inst{A, B} field{0, A, Sum{A, B}} (sum&) -> &; return sum.builtinField{0, A, Sum{A, B}}
-inst{A, B} field{1, B, Sum{A, B}} (sum&) -> &; return sum.builtinField{1, B, Sum{A, B}}
-
-inst{A, B, C} field{0, A, Sum{A, B, C}} (sum&) -> &; return sum.builtinField{0, A, Sum{A, B, C}}
-inst{A, B, C} field{1, B, Sum{A, B, C}} (sum&) -> &; return sum.builtinField{1, B, Sum{A, B, C}}
-inst{A, B, C} field{2, C, Sum{A, B, C}} (sum&) -> &; return sum.builtinField{2, C, Sum{A, B, C}}
-
-inst{A, B, C, D} field{0, A, Sum{A, B, C, D}} (sum&) -> &; return sum.builtinField{0, A, Sum{A, B, C, D}}
-inst{A, B, C, D} field{1, B, Sum{A, B, C, D}} (sum&) -> &; return sum.builtinField{1, B, Sum{A, B, C, D}}
-inst{A, B, C, D} field{2, C, Sum{A, B, C, D}} (sum&) -> &; return sum.builtinField{2, C, Sum{A, B, C, D}}
-inst{A, B, C, D} field{3, D, Sum{A, B, C, D}} (sum&) -> &; return sum.builtinField{3, D, Sum{A, B, C, D}}
-
-inst{A, B, C, D, E} field{0, A, Sum{A, B, C, D, E}} (sum&) -> &; return sum.builtinField{0, A, Sum{A, B, C, D, E}}
-inst{A, B, C, D, E} field{1, B, Sum{A, B, C, D, E}} (sum&) -> &; return sum.builtinField{1, B, Sum{A, B, C, D, E}}
-inst{A, B, C, D, E} field{2, C, Sum{A, B, C, D, E}} (sum&) -> &; return sum.builtinField{2, C, Sum{A, B, C, D, E}}
-inst{A, B, C, D, E} field{3, D, Sum{A, B, C, D, E}} (sum&) -> &; return sum.builtinField{3, D, Sum{A, B, C, D, E}}
-inst{A, B, C, D, E} field{4, E, Sum{A, B, C, D, E}} (sum&) -> &; return sum.builtinField{4, E, Sum{A, B, C, D, E}}
-
-inst{A, B, C, D, E, F} field{0, A, Sum{A, B, C, D, E, F}} (sum&) -> &; return sum.builtinField{0, A, Sum{A, B, C, D, E, F}}
-inst{A, B, C, D, E, F} field{1, B, Sum{A, B, C, D, E, F}} (sum&) -> &; return sum.builtinField{1, B, Sum{A, B, C, D, E, F}}
-inst{A, B, C, D, E, F} field{2, C, Sum{A, B, C, D, E, F}} (sum&) -> &; return sum.builtinField{2, C, Sum{A, B, C, D, E, F}}
-inst{A, B, C, D, E, F} field{3, D, Sum{A, B, C, D, E, F}} (sum&) -> &; return sum.builtinField{3, D, Sum{A, B, C, D, E, F}}
-inst{A, B, C, D, E, F} field{4, E, Sum{A, B, C, D, E, F}} (sum&) -> &; return sum.builtinField{4, E, Sum{A, B, C, D, E, F}}
-inst{A, B, C, D, E, F} field{5, F, Sum{A, B, C, D, E, F}} (sum&) -> &; return sum.builtinField{5, F, Sum{A, B, C, D, E, F}}
-
-inst{A, B, C, D, E, F, G, H, I} field{0, A, Sum{A, B, C, D, E, F, G, H, I}} (sum&) -> &; return sum.builtinField{0, A, Sum{A, B, C, D, E, F, G, H, I}}
-inst{A, B, C, D, E, F, G, H, I} field{1, B, Sum{A, B, C, D, E, F, G, H, I}} (sum&) -> &; return sum.builtinField{1, B, Sum{A, B, C, D, E, F, G, H, I}}
-inst{A, B, C, D, E, F, G, H, I} field{2, C, Sum{A, B, C, D, E, F, G, H, I}} (sum&) -> &; return sum.builtinField{2, C, Sum{A, B, C, D, E, F, G, H, I}}
-inst{A, B, C, D, E, F, G, H, I} field{3, D, Sum{A, B, C, D, E, F, G, H, I}} (sum&) -> &; return sum.builtinField{3, D, Sum{A, B, C, D, E, F, G, H, I}}
-inst{A, B, C, D, E, F, G, H, I} field{4, E, Sum{A, B, C, D, E, F, G, H, I}} (sum&) -> &; return sum.builtinField{4, E, Sum{A, B, C, D, E, F, G, H, I}}
-inst{A, B, C, D, E, F, G, H, I} field{5, F, Sum{A, B, C, D, E, F, G, H, I}} (sum&) -> &; return sum.builtinField{5, F, Sum{A, B, C, D, E, F, G, H, I}}
-inst{A, B, C, D, E, F, G, H, I} field{6, G, Sum{A, B, C, D, E, F, G, H, I}} (sum&) -> &; return sum.builtinField{6, G, Sum{A, B, C, D, E, F, G, H, I}}
-inst{A, B, C, D, E, F, G, H, I} field{7, H, Sum{A, B, C, D, E, F, G, H, I}} (sum&) -> &; return sum.builtinField{7, H, Sum{A, B, C, D, E, F, G, H, I}}
-inst{A, B, C, D, E, F, G, H, I} field{8, I, Sum{A, B, C, D, E, F, G, H, I}} (sum&) -> &; return sum.builtinField{8, I, Sum{A, B, C, D, E, F, G, H, I}}
 
 
 func{T} store(T, T)
 inst{T} store{T} (a&, b)
     a.destroy
     a.builtinStore(b)
-
-inst{T} makeSlice{T, Slice{T}} (slice)
-    return slice
-
-
-inst{T} slice{Slice{T}, T} (s)
-    return s
-
 
 // args
 func{T} copy(T) T

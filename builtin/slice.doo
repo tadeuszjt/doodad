@@ -5,12 +5,57 @@ import builtin/tuple
 import builtin/builtin
 import builtin/convert
 import builtin/container
-import builtin/for
+import builtin/assert
+import builtin/boolean
+
+func{T, G | T->G} slice(T) Slice{G}
+func{T, S | S->T} makeSlice(Slice{T}) S
 
 
-inst{T} compare::lessThan{Slice{T}} (a, b)
+inst{T} makeSlice{T, Slice{T}} (slice)
+    return slice
+
+
+inst{T} slice{Slice{T}, T} (slice)
+    return slice
+
+
+inst{T} len{T.Slice} (s)
+    return builtinSliceLen(&s)
+
+
+inst{T} at{I64, T, Slice{T}} (s, idx) -> &
+    assert(idx >= 0 && idx < s.len)
+    return s.builtinSliceAt(idx)
+
+
+inst{T} forEnd{T.Slice} (s)
+    return s.len
+
+
+inst{T} forAt{T, T.Slice} (s, idx) -> &
+    return s.at(idx)
+
+
+inst{T} compare::compare{Slice{T}} (a, b)
     for (0, a.len) -> i | i < b.len
-        if a[i] >= b[i]
-            return false
+        switch compare(a[i], b[i])
+            lt(); return lt()
+            gt(); return gt()
+            eq();
 
-    return a.len < b.len
+    return compare(a.len, b.len)
+
+
+inst{T} compare::equal{Slice{T}} (a, b)
+    switch compare(a, b)
+        eq(); return true
+        lt(); return false
+        gt(); return false
+
+
+inst{T} destroy{Slice{T}} (slice&)
+    return
+
+
+

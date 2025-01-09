@@ -4,6 +4,7 @@ import builtin/builtin
 import builtin/convert
 import builtin/compare
 import builtin/boolean
+import builtin/arithmetic
 
 
 func                                           make0() Tuple
@@ -26,16 +27,20 @@ inst{A, B, C, D} tuplePattern{B, 4, 1, Tuple{A, B, C, D}} (tup&) -> &; return tu
 inst{A, B, C, D} tuplePattern{C, 4, 2, Tuple{A, B, C, D}} (tup&) -> &; return tup.2
 inst{A, B, C, D} tuplePattern{D, 4, 3, Tuple{A, B, C, D}} (tup&) -> &; return tup.3
 
+
 inst copy{ Tuple{} } (a); return a
+
 
 inst{A} copy{ Tuple{A} } (a)
     let b
     b.0 = a.0
     return b
 
+
 inst{A, B} copy{ Tuple{A, B} }             (a); return (a.0, a.1)
 inst{A, B, C} copy{ Tuple{A, B, C} }       (a); return (a.0, a.1, a.2)
 inst{A, B, C, D} copy{ Tuple{A, B, C, D} } (a); return (a.0, a.1, a.2, a.3)
+
 
 inst{A, B, C, D, E} copy{ Tuple{A, B, C, D, E} } (a)
     let b
@@ -58,12 +63,14 @@ inst{A, B} make2{ A, B, Tuple{A, B} } (a, b)
     tup.1 = b
     return tup
 
+
 inst{A, B, C} make3{ A, B, C, Tuple{A, B, C} } (a, b, c)
     let tup
     tup.0 = a 
     tup.1 = b
     tup.2 = c
     return tup
+
 
 inst{A, B, C, D} make4{ A, B, C, D, Tuple{A, B, C, D} } (a, b, c, d)
     let tup
@@ -72,6 +79,22 @@ inst{A, B, C, D} make4{ A, B, C, D, Tuple{A, B, C, D} } (a, b, c, d)
     tup.2 = c
     tup.3 = d
     return tup
+
+
+inst{A} add{ Tuple{A} } (a, b)
+    let tup
+    tup.0 = a.0 + b.0
+    return tup
+
+
+inst{A, B} subtract{ Tuple{A, B} } (a, b); return (a.0 - b.0, a.1 - b.1)
+inst{A, B} multiply{ Tuple{A, B} } (a, b); return (a.0 * b.0, a.1 * b.1)
+inst{A, B} divide{ Tuple{A, B} }   (a, b); return (a.0 / b.0, a.1 / b.1)
+
+
+inst{A, B}       add{ Tuple{A, B} }       (a, b); return (a.0 + b.0, a.1 + b.1)
+inst{A, B, C}    add{ Tuple{A, B, C} }    (a, b); return (a.0 + b.0, a.1 + b.1, a.2 + b.2)
+inst{A, B, C, D} add{ Tuple{A, B, C, D} } (a, b); return (a.0 + b.0, a.1 + b.1, a.2 + b.2, a.3 + b.3)
 
 
 inst{A, B} field{0, A, Tuple{A, B}} (tup&) -> &; return tup.builtinField{0, A, Tuple{A, B}}
@@ -86,11 +109,14 @@ inst{A, B, C} field{2, C, Tuple{A, B, C}} (tup&) -> &; return tup.builtinField{2
 inst{A, B, C, D} field{0, A, Tuple{A, B, C, D}} (tup&) -> &
     return tup.builtinField{0, A, Tuple{A, B, C, D}}
 
+
 inst{A, B, C, D} field{1, B, Tuple{A, B, C, D}} (tup&) -> &
     return tup.builtinField{1, B, Tuple{A, B, C, D}}
 
+
 inst{A, B, C, D} field{2, C, Tuple{A, B, C, D}} (tup&) -> &
     return tup.builtinField{2, C, Tuple{A, B, C, D}}
+
 
 inst{A, B, C, D} field{3, D, Tuple{A, B, C, D}} (tup&) -> &
     return tup.builtinField{3, D, Tuple{A, B, C, D}}
@@ -99,14 +125,18 @@ inst{A, B, C, D} field{3, D, Tuple{A, B, C, D}} (tup&) -> &
 inst{A, B, C, D, E} field{0, A, Tuple{A, B, C, D, E}} (t&) -> &
     return t.builtinField{0, A, Tuple{A, B, C, D, E}}
 
+
 inst{A, B, C, D, E} field{1, B, Tuple{A, B, C, D, E}} (t&) -> &
     return t.builtinField{1, B, Tuple{A, B, C, D, E}}
+
 
 inst{A, B, C, D, E} field{2, C, Tuple{A, B, C, D, E}} (t&) -> &
     return t.builtinField{2, C, Tuple{A, B, C, D, E}}
 
+
 inst{A, B, C, D, E} field{3, D, Tuple{A, B, C, D, E}} (t&) -> &
     return t.builtinField{3, D, Tuple{A, B, C, D, E}}
+
 
 inst{A, B, C, D, E} field{4, E, Tuple{A, B, C, D, E}} (t&) -> &
     return t.builtinField{4, E, Tuple{A, B, C, D, E}}
@@ -115,6 +145,7 @@ inst{A, B, C, D, E} field{4, E, Tuple{A, B, C, D, E}} (t&) -> &
 inst{A, B} convert{Tuple{A, A}, Tuple{B, B}} (a)
     return (a.0 .convert, a.1 .convert)
 
+
 inst{A, B} convert{Tuple{A, A, A}, Tuple{B, B, B}} (a)
     return (a.0 .convert, a.1 .convert, a.2 .convert)
 
@@ -122,14 +153,17 @@ inst{A, B} convert{Tuple{A, A, A}, Tuple{B, B, B}} (a)
 inst{A} destroy{ Tuple{A} } (tup&)
     tup.0.destroy
 
+
 inst{A, B} destroy{ Tuple{A, B} } (tup&)
     tup.0.destroy
     tup.1.destroy
+
 
 inst{A, B, C} destroy{ Tuple{A, B, C} } (tup&)
     tup.0.destroy
     tup.1.destroy
     tup.2.destroy
+
 
 inst{A, B, C, D} destroy{ Tuple{A, B, C, D} } (tup&)
     tup.0.destroy

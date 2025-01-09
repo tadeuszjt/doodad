@@ -10,6 +10,7 @@ inst{A} copy{ Sum{A} } (a)
     b.0 = a.0
     return b
 
+
 inst{A, B} copy{ Sum{A, B} } (a)
     let b
     let en = a.builtinSumEnum
@@ -132,3 +133,175 @@ inst{A, B, C, D, E, F, G, H, I} copy{ Sum{A, B, C, D, E, F, G, H, I} } (a)
         8; b.8 = a.8
 
     return b
+
+
+
+inst{A, B} equal{Sum{A, B}} (a, b)
+    return compare(a, b) == eq()
+
+
+inst{A, B, C} equal{ Sum{A, B, C} } (a, b)
+    if compare(a, b) -> eq()
+        return true
+    return false
+
+
+
+inst{A, B} compare{ Sum{A, B} } (a, b)
+    let enA = a.builtin::builtinSumEnum
+    let enB = b.builtin::builtinSumEnum
+
+    switch compare(enA, enB)
+        eq();
+        x; return x
+
+    switch enA
+        0; return compare(a.0, b.0)
+        1; return compare(a.1, b.1)
+
+
+inst{A, B, C} compare{ Sum{A, B, C} } (a, b)
+    let enA = a.builtin::builtinSumEnum
+    let enB = b.builtin::builtinSumEnum
+
+    if enA != enB
+        return compare(enA, enB)
+
+    switch enA
+        0; return compare(a.0, b.0)
+        1; return compare(a.1, b.1)
+        2; return compare(a.2, b.2)
+
+
+inst{A} field{0, A, Sum{A}} (sum&) -> &; return sum.builtinField{0, A, Sum{A}}
+
+inst{A, B} field{0, A, Sum{A, B}} (sum&) -> &; return sum.builtinField{0, A, Sum{A, B}}
+inst{A, B} field{1, B, Sum{A, B}} (sum&) -> &; return sum.builtinField{1, B, Sum{A, B}}
+
+inst{A, B, C} field{0, A, Sum{A, B, C}} (sum&) -> &; return sum.builtinField{0, A, Sum{A, B, C}}
+inst{A, B, C} field{1, B, Sum{A, B, C}} (sum&) -> &; return sum.builtinField{1, B, Sum{A, B, C}}
+inst{A, B, C} field{2, C, Sum{A, B, C}} (sum&) -> &; return sum.builtinField{2, C, Sum{A, B, C}}
+
+inst{A, B, C, D} field{0, A, Sum{A, B, C, D}} (sum&) -> &; return sum.builtinField{0, A, Sum{A, B, C, D}}
+inst{A, B, C, D} field{1, B, Sum{A, B, C, D}} (sum&) -> &; return sum.builtinField{1, B, Sum{A, B, C, D}}
+inst{A, B, C, D} field{2, C, Sum{A, B, C, D}} (sum&) -> &; return sum.builtinField{2, C, Sum{A, B, C, D}}
+inst{A, B, C, D} field{3, D, Sum{A, B, C, D}} (sum&) -> &; return sum.builtinField{3, D, Sum{A, B, C, D}}
+
+inst{A, B, C, D, E} field{0, A, Sum{A, B, C, D, E}} (sum&) -> &; return sum.builtinField{0, A, Sum{A, B, C, D, E}}
+inst{A, B, C, D, E} field{1, B, Sum{A, B, C, D, E}} (sum&) -> &; return sum.builtinField{1, B, Sum{A, B, C, D, E}}
+inst{A, B, C, D, E} field{2, C, Sum{A, B, C, D, E}} (sum&) -> &; return sum.builtinField{2, C, Sum{A, B, C, D, E}}
+inst{A, B, C, D, E} field{3, D, Sum{A, B, C, D, E}} (sum&) -> &; return sum.builtinField{3, D, Sum{A, B, C, D, E}}
+inst{A, B, C, D, E} field{4, E, Sum{A, B, C, D, E}} (sum&) -> &; return sum.builtinField{4, E, Sum{A, B, C, D, E}}
+
+inst{A, B, C, D, E, F} field{0, A, Sum{A, B, C, D, E, F}} (sum&) -> &; return sum.builtinField{0, A, Sum{A, B, C, D, E, F}}
+inst{A, B, C, D, E, F} field{1, B, Sum{A, B, C, D, E, F}} (sum&) -> &; return sum.builtinField{1, B, Sum{A, B, C, D, E, F}}
+inst{A, B, C, D, E, F} field{2, C, Sum{A, B, C, D, E, F}} (sum&) -> &; return sum.builtinField{2, C, Sum{A, B, C, D, E, F}}
+inst{A, B, C, D, E, F} field{3, D, Sum{A, B, C, D, E, F}} (sum&) -> &; return sum.builtinField{3, D, Sum{A, B, C, D, E, F}}
+inst{A, B, C, D, E, F} field{4, E, Sum{A, B, C, D, E, F}} (sum&) -> &; return sum.builtinField{4, E, Sum{A, B, C, D, E, F}}
+inst{A, B, C, D, E, F} field{5, F, Sum{A, B, C, D, E, F}} (sum&) -> &; return sum.builtinField{5, F, Sum{A, B, C, D, E, F}}
+
+inst{A, B, C, D, E, F, G, H, I} field{0, A, Sum{A, B, C, D, E, F, G, H, I}} (sum&) -> &; return sum.builtinField{0, A, Sum{A, B, C, D, E, F, G, H, I}}
+inst{A, B, C, D, E, F, G, H, I} field{1, B, Sum{A, B, C, D, E, F, G, H, I}} (sum&) -> &; return sum.builtinField{1, B, Sum{A, B, C, D, E, F, G, H, I}}
+inst{A, B, C, D, E, F, G, H, I} field{2, C, Sum{A, B, C, D, E, F, G, H, I}} (sum&) -> &; return sum.builtinField{2, C, Sum{A, B, C, D, E, F, G, H, I}}
+inst{A, B, C, D, E, F, G, H, I} field{3, D, Sum{A, B, C, D, E, F, G, H, I}} (sum&) -> &; return sum.builtinField{3, D, Sum{A, B, C, D, E, F, G, H, I}}
+inst{A, B, C, D, E, F, G, H, I} field{4, E, Sum{A, B, C, D, E, F, G, H, I}} (sum&) -> &; return sum.builtinField{4, E, Sum{A, B, C, D, E, F, G, H, I}}
+inst{A, B, C, D, E, F, G, H, I} field{5, F, Sum{A, B, C, D, E, F, G, H, I}} (sum&) -> &; return sum.builtinField{5, F, Sum{A, B, C, D, E, F, G, H, I}}
+inst{A, B, C, D, E, F, G, H, I} field{6, G, Sum{A, B, C, D, E, F, G, H, I}} (sum&) -> &; return sum.builtinField{6, G, Sum{A, B, C, D, E, F, G, H, I}}
+inst{A, B, C, D, E, F, G, H, I} field{7, H, Sum{A, B, C, D, E, F, G, H, I}} (sum&) -> &; return sum.builtinField{7, H, Sum{A, B, C, D, E, F, G, H, I}}
+inst{A, B, C, D, E, F, G, H, I} field{8, I, Sum{A, B, C, D, E, F, G, H, I}} (sum&) -> &; return sum.builtinField{8, I, Sum{A, B, C, D, E, F, G, H, I}}
+
+
+inst{A} destroy{Sum{A}} (sum&)
+    sum.0.destroy
+    ${ memset($sum, 0, sizeof(*$sum)); }
+
+
+inst{A, B} destroy{Sum{A, B}} (sum&)
+    switch sum.builtinSumEnum
+        0; sum.0.destroy
+        1; sum.1.destroy
+
+    ${ memset($sum, 0, sizeof(*$sum)); }
+
+
+inst{A, B, C} destroy{ Sum{A, B, C} } (sum&)
+    switch sum.builtinSumEnum
+        0; sum.0.destroy
+        1; sum.1.destroy
+        2; sum.2.destroy
+
+    ${ memset($sum, 0, sizeof(*$sum)); }
+
+
+inst{A, B, C, D} destroy{ Sum{A, B, C, D} } (sum&)
+    switch sum.builtinSumEnum
+        0; sum.0.destroy
+        1; sum.1.destroy
+        2; sum.2.destroy
+        3; sum.3.destroy
+
+    ${ memset($sum, 0, sizeof(*$sum)); }
+
+inst{A, B, C, D, E} destroy{ Sum{A, B, C, D, E} } (sum&)
+    switch sum.builtinSumEnum
+        0; sum.0.destroy
+        1; sum.1.destroy
+        2; sum.2.destroy
+        3; sum.3.destroy
+        4; sum.4.destroy
+
+    ${ memset($sum, 0, sizeof(*$sum)); }
+
+
+inst{A, B, C, D, E, F} destroy{ Sum{A, B, C, D, E, F} } (sum&)
+    switch sum.builtinSumEnum
+        0; sum.0.destroy
+        1; sum.1.destroy
+        2; sum.2.destroy
+        3; sum.3.destroy
+        4; sum.4.destroy
+        5; sum.5.destroy
+
+    ${ memset($sum, 0, sizeof(*$sum)); }
+
+
+inst{A, B, C, D, E, F, G} destroy{ Sum{A, B, C, D, E, F, G} } (sum&)
+    switch sum.builtinSumEnum
+        0; sum.0.destroy
+        1; sum.1.destroy
+        2; sum.2.destroy
+        3; sum.3.destroy
+        4; sum.4.destroy
+        5; sum.5.destroy
+        6; sum.6.destroy
+
+    ${ memset($sum, 0, sizeof(*$sum)); }
+
+
+inst{A, B, C, D, E, F, G, H} destroy{ Sum{A, B, C, D, E, F, G, H} } (sum&)
+    switch sum.builtinSumEnum
+        0; sum.0.destroy
+        1; sum.1.destroy
+        2; sum.2.destroy
+        3; sum.3.destroy
+        4; sum.4.destroy
+        5; sum.5.destroy
+        6; sum.6.destroy
+        7; sum.7.destroy
+
+    ${ memset($sum, 0, sizeof(*$sum)); }
+
+
+inst{A, B, C, D, E, F, G, H, I} destroy{ Sum{A, B, C, D, E, F, G, H, I} } (sum&)
+    switch sum.builtinSumEnum
+        0; sum.0.destroy
+        1; sum.1.destroy
+        2; sum.2.destroy
+        3; sum.3.destroy
+        4; sum.4.destroy
+        5; sum.5.destroy
+        6; sum.6.destroy
+        7; sum.7.destroy
+        8; sum.8.destroy
+
+    ${ memset($sum, 0, sizeof(*$sum)); }
