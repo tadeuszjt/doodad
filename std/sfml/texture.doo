@@ -1,8 +1,6 @@
 module texture
 
-import builtin/builtin
-import builtin/assert
-import builtin/convert
+import builtin/all
 
 
 include <SFML/Graphics.h>
@@ -24,8 +22,8 @@ inst destroy{Texture} (t&)
 fn textureFromFile(fileName Char.Slice) Texture
     let texture
     let texturePtr = 0
+    assert(fileName.len < 128)
     ${
-        assert($fileName.len < 128);
         char filename[128] = {0};
         snprintf(filename, sizeof(filename), "%s", $fileName.ptr);
         sfTexture *texture = sfTexture_createFromFile(filename, NULL);

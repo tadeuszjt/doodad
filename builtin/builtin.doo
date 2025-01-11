@@ -1,10 +1,27 @@
 module builtin
 
 
-fn{T, G} pretend(a &T) &G; return a.builtinPretend
+func{T} copy(T) T
 
-// destroy func
 func{T} destroy(T)
+
+func{N, G, T | N -> G} field(T) G
+
+
+fn{T, G} pretend(a &T) &G
+    return a.builtinPretend
+
+
+fn{T} store(a &T, b T)
+    a.destroy
+    a.builtinStore(b)
+
+
+fn{T} swap(a &T, b &T)
+    builtinSwap(&a, &b)
+
+
+
 inst destroy{Char} (c&);      return
 inst destroy{Bool} (c&);      return
 inst destroy{F32} (c&);       return
@@ -14,17 +31,7 @@ inst destroy{I32} (c&);       return
 inst destroy{U8}  (n&);       return
 inst destroy{Tuple{}} (tup&); return
 
-// field func
-func{N, G, T | N -> G} field(T) G
 
-
-func{T} store(T, T)
-inst{T} store{T} (a&, b)
-    a.destroy
-    a.builtinStore(b)
-
-// args
-func{T} copy(T) T
 inst copy{I32} (a); return a
 inst copy{I64} (a); return a
 inst copy{F64} (a); return a
@@ -34,12 +41,11 @@ inst copy{Bool} (a); return a
 inst copy{Char} (a); return a
 
 
-// misc
+fn{T}       builtinSwap(a &T, b &T); ${ assert(false); }
 fn{T}       builtinStore(a &T, b T); ${ assert(false); }
 fn{I, G, T} builtinField(t &T) &G;   ${ assert(false); }
 fn{T, G}    builtinConvert(a T) G;   ${ assert(false); }
 fn{T, G}    builtinPretend(a &T) &G; ${ assert(false); }
-//fn{T}       builtinSwap(a &T, b &T); ${ assert(false); }
 
 
 // arithmetic
@@ -59,17 +65,18 @@ fn{T} builtinOr(a T, b T)  T;            ${ assert(false); }
 fn{T} builtinNot(a T)      T;            ${ assert(false); }
 
 
-// container
 fn{T} builtinTableLen(a &T.Table) I64;               ${ assert(false); }
 fn{T} builtinTableAppend(a &T.Table);                ${ assert(false); }
 fn{T} builtinTableAt(a &T.Table, b I64) &T;          ${ assert(false); }
 
+
 fn{T, S} builtinArrayLen(a &Array{S, T}) I64;        ${ assert(false); }
 fn{T, S} builtinArrayAt(a &Array{S, T}, idx I64) &T; ${ assert(false); }
 
-fn{T, G} builtinSlice(a &T) G.Slice;                 ${ assert(false); }
-fn{T}    builtinSliceLen(a T.Slice) I64;             ${ assert(false); }
-fn{T}    builtinSliceAt(a  T.Slice, b I64) &T;       ${ assert(false); }
+
+fn{T, G} builtinSlice(a &T, start I64, end I64) G.Slice; ${ assert(false); }
+fn{T}    builtinSliceLen(a T.Slice) I64;                 ${ assert(false); }
+fn{T}    builtinSliceAt(a  T.Slice, b I64) &T;           ${ assert(false); }
 
 // sum
 fn{T} builtinSumEnum(t &T) I64;      ${ assert(false); }

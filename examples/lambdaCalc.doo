@@ -453,7 +453,7 @@ fn parse(ast &Calc.Sparse, str Char.Slice) Calc.Key
     let tokens : Token.Table
     let idx = 0
 
-    while str.slice.lex(idx) -> some(token, len)
+    while str.slice(0, str.len).lex(idx) -> some(token, len)
         idx = idx + len
         tokens.container::push(token)
 

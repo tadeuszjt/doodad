@@ -32,8 +32,16 @@ fn{T} grow(t& T.Table)
     builtinTableAppend(&t)
 
 
-inst{T} slice{Table{T}, T} (t&)
-    return builtinSlice(&t)
+inst{T} slice{Table{T}, T} (t&, start, end)
+    if start < 0
+        start = 0
+    if start > t.len
+        start = t.len
+    if end < start
+        end = start
+    if end > t.len
+        end = t.len
+    return builtinSlice(&t, start, end)
 
 
 inst{T} makeSlice{T, Table{T}} (slice)
@@ -44,7 +52,7 @@ inst{T} makeSlice{T, Table{T}} (slice)
 
 
 inst{T} copy{Table{T}} (a)
-    return a.slice.makeSlice
+    return a.slice(0, a.len).makeSlice
 
 
 inst{T} container::push{T, Table{T}} (t&, e)
@@ -61,7 +69,7 @@ inst{T} container::pop{T, Table{T}} (t&)
 
 
 inst{T} compare{Table{T}} (a, b)
-    return compare(a.slice, b.slice)
+    return compare(a.slice(0, a.len), b.slice(0, b.len))
 
 
 inst{T} equal{Table{T}} (a, b)

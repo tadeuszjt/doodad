@@ -189,7 +189,12 @@ cTypeOf a = case typeof a of
 
             Apply Type.Slice t -> do
                 cType <- cTypeOf t
-                return $ Cstruct [C.Param "ptr" (Cpointer cType), C.Param "len" Csize_t, C.Param "cap" Csize_t]
+                return $ Cstruct
+                    [ C.Param "ptr" (Cpointer cType)
+                    , C.Param "cap" Csize_t
+                    , C.Param "start" Csize_t
+                    , C.Param "end" Csize_t
+                    ]
 
             Apply Table t -> do
                 baseT <- baseTypeOf t

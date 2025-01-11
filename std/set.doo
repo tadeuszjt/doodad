@@ -33,13 +33,21 @@ inst{T} makeSlice{T, Set{T}} (slice)
     return set
 
 
-inst{T} slice{Set{T}, T} (set)
-    return (set.pretend : Tree{T, ()}).keys
+inst{T} slice{Set{T}, T} (set, start, end)
+    return (set.pretend : Tree{T, ()}).keys.slice(start, end)
+
+
+inst{T} compare{Set{T}} (a, b)
+    return compare(a.slice(0, a.len), b.slice(0, b.len))
+
+
+inst{T} equal{Set{T}} (a, b)
+    return compare(a, b) == eq()
 
 
 inst{T} arithmetic::add{Set{T}} (a, b)
     let c = a
-    for b.slice -> e
+    for b.slice(0, b.len)-> e
         if !c.contains(e)
             c.insert(e) 
     return c
@@ -47,7 +55,7 @@ inst{T} arithmetic::add{Set{T}} (a, b)
 
 inst{T} arithmetic::subtract{Set{T}} (a, b)
     let c = a
-    for b.slice -> e
+    for b.slice(0, b.len) -> e
         if c.contains(e)
             c.delete(e)
     return c

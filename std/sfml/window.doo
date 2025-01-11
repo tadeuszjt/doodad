@@ -4,6 +4,7 @@ import builtin/all
 import std/option
 import std/print
 import std/sparse
+import std/stack
 import std/io
 
 import std/sfml/texture
@@ -80,10 +81,11 @@ derives Event (copy, destroy)
 
 fn create(w &Window, sizeX I64, sizeY I64, name Char.Slice)
     let ptr = 0
+    let nameArray : Char.Table = name.makeSlice
+
     ${
         char cname[128+1] = {0};
-        assert($name.len < 128);
-        strncpy(cname, $name.ptr, $name.len);
+        strncpy(cname, $nameArray.r0, $nameArray.len);
         sfVideoMode mode = {$sizeX, $sizeY, 32};
         sfRenderWindow *window = sfRenderWindow_create(mode, cname, sfClose | sfResize, NULL);
         assert(window != NULL);
@@ -170,6 +172,7 @@ fn pollEvent(w &Window) Event.Option
 fn drawQuads(w &Window, quads Slice{Quad}, texture &Texture, transform Mat3f)
     //for (0, quads.len) -> i
     //    let q = quads[i]
+    //assert(quads.start == 0)
 
     let texturePtr = texture.texturePtr
     let ptr = w.windowPtr
@@ -186,7 +189,7 @@ fn drawQuads(w &Window, quads Slice{Quad}, texture &Texture, transform Mat3f)
         sfRenderWindow_drawPrimitives(
             (sfRenderWindow*)$ptr,
             (const sfVertex *)$quads.ptr,
-            $quads.len * 6,
+            $quads.end * 6,
             sfTriangles,
             NULL
             //&states

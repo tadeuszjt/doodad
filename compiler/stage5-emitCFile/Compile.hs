@@ -193,9 +193,10 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
 
                 cSlice <- cTypeOf (Apply Type.Slice ssaTyp)
                 void $ appendAssign cSlice (idName id) $ C.Initialiser
-                    [ C.Ident name
-                    , C.Int (fromIntegral $ length args)
-                    , C.Int 0
+                    [ C.Ident name                       --  ptr
+                    , C.Int 0                            -- cap
+                    , C.Int 0                            -- start
+                    , C.Int (fromIntegral $ length args) -- end
                     ]
 
             IR.InitVar marg -> do
@@ -210,7 +211,12 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
                 unless (ssaRefTyp == IR.Slice) (error "wasn't a slice")
                 cType <- cTypeOf (Apply Type.Slice ssaTyp)
                 let len = fromIntegral (length str)
-                void $ appendAssign cType (idName id) $ C.Initialiser [C.String str, C.Int len, C.Int len]
+                void $ appendAssign cType (idName id) $ C.Initialiser
+                    [ C.String str -- ptr
+                    , C.Int len    -- cap
+                    , C.Int 0      -- start
+                    , C.Int len    -- end
+                    ]
 
 
             IR.MakeReferenceFromValue (IR.ArgID argId) -> case (IR.irTypes funcIr) Map.! argId of
@@ -374,35 +380,38 @@ generateCall funcIr id = do
             void $ appendAssign C.Cint64_t (idName id) $ C.PMember cexpr "en"
 
         x | symbolsCouldMatch x (Sym ["builtin", "builtinSlice"]) -> do
-            [cexpr] <- mapM generateArg args
+            [cexpr, cstart, cend] <- mapM generateArg args
 
             let (IR.ArgID argId) = args !! 0
-            let (argType, IR.Ref) = (IR.irTypes funcIr) Map.! argId
+            let (argType, _) = (IR.irTypes funcIr) Map.! argId
 
             unless (ssaRefTyp == IR.Slice) (error "not IR.Slice")
 
             base <- baseTypeOf argType
             case unfoldType base of
+                    
                 (Table, [_]) -> do
                     cType <- cTypeOf (Apply Slice ssaTyp)
                     void $ appendAssign cType (idName id) $ C.Initialiser
-                        [ C.PMember cexpr "r0"
-                        , C.PMember cexpr "len"
-                        , C.PMember cexpr "cap"
-                        ]
+                        [ C.PMember cexpr "r0" , C.PMember cexpr "cap" , cstart , cend ]
 
                 (Array, [Size n, t]) -> do
                     cType <- cTypeOf (Apply Slice ssaTyp)
                     void $ appendAssign cType (idName id) $ C.Initialiser
-                        [ C.PMember cexpr "arr"
-                        , C.Int (fromIntegral n)
-                        , C.Int 0
-                        ]
+                        [ C.PMember cexpr "arr" , C.Int 0 , cstart , cend ]
+
+                _ -> do
+                    cType <- cTypeOf (Apply Slice ssaTyp)
+                    void $ appendAssign cType (idName id) $ C.Initialiser
+                        [ C.Member cexpr "ptr", C.Member cexpr "cap", cstart, cend ]
+
                     
 
         x | symbolsCouldMatch x (Sym ["builtin", "builtinSliceLen"]) -> do
             [cexpr] <- mapM generateArg args
-            void $ appendAssign C.Cint64_t (idName id) $ C.Member cexpr "len"
+            void $ appendAssign C.Cint64_t (idName id) $ C.Infix C.Minus
+                (C.Member cexpr "end")
+                (C.Member cexpr "start")
 
         x | symbolsCouldMatch x (Sym ["builtin", "builtinPretend"]) -> do
             [cexpr] <- mapM generateArg args
@@ -442,23 +451,27 @@ generateCall funcIr id = do
 
             cRefType <- cRefTypeOf argType
             base <- baseTypeOf argType
-            -- ptr = ptr + (cap ? 0 : sizeof(struct) * idx)
-            -- idx = cap ? idx : 0
+
+            -- ptr = ptr + (cap ? 0 : sizeof(struct) * (idx + start)
+            -- idx = cap ? (idx + start) : 0
             -- cap = cap ? cap : 1
+            let start = C.Member cexpr "start"
             case unfoldType base of
                 (Tuple, ts) -> do 
                     ct <- cTypeOf base
-                    let ptr = C.Infix C.Plus (C.Cast (C.Cpointer C.Cvoid) $ C.Member cexpr "ptr") $ C.CndExpr (C.Member cexpr "cap")
-                            (C.Int 0)
-                            (C.Infix C.Times cidx (C.SizeofType ct))
-                    let idx = C.CndExpr (C.Member cexpr "cap") cidx (C.Int 0)
+                    let ptr = C.Infix C.Plus
+                            (C.Cast (C.Cpointer C.Cvoid) $ C.Member cexpr "ptr")
+                            (C.CndExpr (C.Member cexpr "cap")
+                                (C.Int 0)
+                                (C.Infix C.Times (C.SizeofType ct) (C.Infix C.Plus cidx start)))
+
+                    let idx = C.CndExpr (C.Member cexpr "cap") (C.Infix C.Plus cidx start) (C.Int 0)
                     let cap = C.CndExpr (C.Member cexpr "cap") (C.Member cexpr "cap") (C.Int 1)
 
                     void $ appendAssign cRefType (idName id) $ C.Initialiser [ptr, idx, cap]
 
-                (_, _) -> do
-                    void $ appendAssign cRefType (idName id) $ 
-                        C.Address $ C.Subscript (C.Member cexpr "ptr") cidx
+                (_, _) -> void $ appendAssign cRefType (idName id) $ C.Address $
+                    C.Subscript (C.Member cexpr "ptr") (C.Infix C.Plus start cidx)
 
 
         x | symbolsCouldMatch x (Sym ["builtin", "builtinField"]) -> do
@@ -493,11 +506,15 @@ generateCall funcIr id = do
                             let off = C.Offsetof ct ("m" ++ show i)
                             let ptr = C.Cast (Cpointer Cvoid) (C.PMember cexpr "r0")
                             let row = C.Infix C.Plus ptr $ C.Infix C.Times off $ C.PMember cexpr "cap"
-                            -- setting slice cap to 0 represents non-flat memory
-                            
                             cSlice <- cTypeOf (Apply Slice $ ts !! i)
-                            void $ appendElem $ C.Assign cSlice (idName id) $ 
-                                C.Initialiser [ row, C.PMember cexpr "len", C.Int 0 ]
+
+                            -- setting slice cap to 0 represents non-flat memory
+                            void $ appendElem $ C.Assign cSlice (idName id) $ C.Initialiser
+                                [ row
+                                , C.Int 0
+                                , C.Int 0
+                                , C.PMember cexpr "len"
+                                ]
 
                 (Tuple, ts) -> do
                     let IR.Ref = ssaRefTyp

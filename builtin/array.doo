@@ -38,8 +38,17 @@ inst{S, T} makeSlice{ T, Array{S, T} } (slice)
     return array
 
 
-inst{S, T} slice{Array{S, T}, T} (arr&)
-    return builtinSlice(&arr)
+inst{S, T} slice{Array{S, T}, T} (arr&, start, end)
+    if start < 0
+        start = 0
+    if start > arr.len
+        start = arr.len
+    if end < start
+        end = start
+    if end > arr.len
+        end = arr.len
+
+    return builtinSlice(&arr, start, end)
 
 
 inst{S, T} destroy{Array{S, T}} (arr&)
@@ -48,11 +57,11 @@ inst{S, T} destroy{Array{S, T}} (arr&)
     
 
 inst{S, T} copy{Array{S, T}} (a)
-    return a.slice.makeSlice
+    return a.slice(0, a.len).makeSlice
 
 
 inst{S, T} compare{Array{S, T}} (a, b)
-    return compare(a.slice, b.slice)
+    return compare(a.slice(0, a.len), b.slice(0, b.len))
 
 
 inst{S, T} equal{Array{S, T}} (a, b)
