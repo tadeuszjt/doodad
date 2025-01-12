@@ -9,6 +9,7 @@ import builtin/compare
 import builtin/assert
 import builtin/boolean
 import builtin/slice
+import builtin/limits
 
 
 inst{T, S} len{Array{S, T}} (arr&)
@@ -57,11 +58,11 @@ inst{S, T} destroy{Array{S, T}} (arr&)
     
 
 inst{S, T} copy{Array{S, T}} (a)
-    return a.slice(0, a.len).makeSlice
+    return a[..].makeSlice
 
 
 inst{S, T} compare{Array{S, T}} (a, b)
-    return compare(a.slice(0, a.len), b.slice(0, b.len))
+    return compare(a[..], b[..])
 
 
 inst{S, T} equal{Array{S, T}} (a, b)

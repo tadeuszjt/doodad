@@ -1,53 +1,80 @@
 module set
 
 import builtin/all
-import std/binaryTree
 import std/print
 
 
-type{T} Set Tree{T, Tuple}
+type{T} Set T.Table
 
-derives{T} Set{T} (copy, container::len, container::contains{T})
-
-
-inst{T} container::at{I64, T, Set{T}} (set&, idx) -> &
-    return (set.pretend : Tree{T, ()}).keys[idx]
+derives{T} Set{T} (copy, container::len, container::at{I64, T})
+derives{P, T} Set{T} (print{P})
 
 
-inst{P, T} print{P, Set{T}} (p&, set)
-    p.print('{')
+fn{T} sortSet(set &T.Set)
+    while true
+        let changed = false
 
-    for (0, set.len) -> i
-        p.print(set[i])
-        if i < (set.len - 1)
-            p.print(", ")
+        for (0, set.len - 1) -> i
+            if set[i] > set[i + 1]
+                let tmp = set[i]
+                set[i] = set[i + 1]
+                set[i + 1] = tmp
+                changed = true
 
-    p.print('}')
+        if !changed
+            return
+            
 
 
 inst{T} makeSlice{T, Set{T}} (slice)
     let set
     for (0, slice.len) -> i
         if !set.contains(slice[i])
-            set.insert(slice[i])
+            (set.pretend : T.Table).push(slice[i])
+
+    set.sortSet
     return set
 
 
 inst{T} slice{Set{T}, T} (set, start, end)
-    return (set.pretend : Tree{T, ()}).keys.slice(start, end)
+    return (set.pretend : T.Table).slice(start, end)
 
 
 inst{T} compare{Set{T}} (a, b)
-    return compare(a.slice(0, a.len), b.slice(0, b.len))
+    return compare(a[..], b[..])
 
 
 inst{T} equal{Set{T}} (a, b)
     return compare(a, b) == eq()
 
 
+inst{T} contains{T, Set{T}} (set, elem)
+    for (0, set.len) -> i
+        if set[i] == elem
+            return true
+    return false
+
+
+fn{T} insert(set &T.Set, elem T)
+    if !set.contains(elem)
+        (set.pretend : T.Table).push(elem)
+        set.sortSet
+
+
+fn{T} delete(set &T.Set, elem T)
+    let loop = true
+    for (0, set.len) -> i | loop
+        if set[i] == elem
+            set[i] = set[set.len - 1]
+            (set.pretend : T.Table).pop
+            loop = false
+
+    set.sortSet
+
+
 inst{T} arithmetic::add{Set{T}} (a, b)
     let c = a
-    for b.slice(0, b.len)-> e
+    for b[..] -> e
         if !c.contains(e)
             c.insert(e) 
     return c
@@ -55,23 +82,7 @@ inst{T} arithmetic::add{Set{T}} (a, b)
 
 inst{T} arithmetic::subtract{Set{T}} (a, b)
     let c = a
-    for b.slice(0, b.len) -> e
+    for b[..] -> e
         if c.contains(e)
             c.delete(e)
     return c
-
-            
-fn{T} insert(set &Set{T}, e T)
-    if !set.contains(e)
-        set.pretend.binaryTree::insert(e, ())
-
-
-fn{T} delete(set &Set{T}, e T)
-    assert(set.contains(e))
-    (set.pretend : Tree{T, ()}).binaryTree::delete(e)
-
-
-
-    
-
-

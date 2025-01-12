@@ -9,6 +9,7 @@ import builtin/assert
 import builtin/compare
 import builtin/slice
 import builtin/boolean
+import builtin/limits
 
 
 inst{V} len{ Table{V} } (t&)
@@ -52,7 +53,7 @@ inst{T} makeSlice{T, Table{T}} (slice)
 
 
 inst{T} copy{Table{T}} (a)
-    return a.slice(0, a.len).makeSlice
+    return a[..].makeSlice
 
 
 inst{T} container::push{T, Table{T}} (t&, e)
@@ -69,7 +70,7 @@ inst{T} container::pop{T, Table{T}} (t&)
 
 
 inst{T} compare{Table{T}} (a, b)
-    return compare(a.slice(0, a.len), b.slice(0, b.len))
+    return compare(a[..], b[..])
 
 
 inst{T} equal{Table{T}} (a, b)

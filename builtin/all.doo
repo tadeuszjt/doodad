@@ -12,3 +12,4 @@ export builtin/array
 export builtin/sum
 export builtin/table
 export builtin/slice
+export builtin/limits

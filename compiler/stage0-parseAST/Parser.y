@@ -308,6 +308,23 @@ expr   : literal                                 { $1 }
        | expr '.' int_c                          { Call (tokPos $2) (foldType $ [TypeDef (Sym ["builtin", "field"]), Size (read $ tokStr $3), Type 0, Type 0]) [AST.Reference (tokPos $2) $1] }
        | '&' expr                                { AST.Reference (tokPos $1) $2 }
        | expr '[' expr ']'                       { Call (tokPos $2) (TypeDef $ Sym ["container", "at"]) [AST.Reference (tokPos $2) $1, $3] }
+
+       | expr '[' '..' ']'                       { Call (tokPos $2) (TypeDef $ Sym ["slice", "slice"])
+            [ AST.Reference (tokPos $2) $1
+            , AST.Int (tokPos $2) 0
+            , Call (tokPos $2) (TypeDef $ Sym ["limits", "limitMax"]) []
+            ] }
+       | expr '[' '..' expr ']'                  { Call (tokPos $2) (TypeDef $ Sym ["slice", "slice"])
+            [ AST.Reference (tokPos $2) $1
+            , AST.Int (tokPos $2) 0
+            , $4
+            ] }
+       | expr '[' expr '..' ']'                  { Call (tokPos $2) (TypeDef $ Sym ["slice", "slice"])
+            [ AST.Reference (tokPos $2) $1
+            , $3
+            , Call (tokPos $2) (TypeDef $ Sym ["limits", "limitMax"]) []
+            ] }
+       | expr '[' expr '..' expr ']'             { Call (tokPos $2) (TypeDef $ Sym ["slice", "slice"]) [AST.Reference (tokPos $2) $1, $3, $5] }
        | expr '.' callType                       { Call (tokPos $2) $3 (AST.Reference (tokPos $2) $1 : []) }
        | expr '.' callType  '(' exprs ')'       { Call (tokPos $4) $3 (AST.Reference (tokPos $2) $1 : $5) }
        | callType '(' exprs ')'                 { Call (tokPos $2) $1 $3 }

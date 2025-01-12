@@ -371,6 +371,14 @@ bool lexFloating(Io *io) {
         return false;
     }
 
+    // prevent '3..' from lexing as float
+    if (Io_getChar(io).c == '.') {
+        Io_rewind(io, 2 + prefixLen);
+        return false;
+    } else {
+        Io_rewind(io, 1);
+    }
+
 
     int postfixLen = 0;
     for (;; postfixLen++) {

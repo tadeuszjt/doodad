@@ -1,0 +1,19 @@
+module limits
+
+include <stdint.h>
+
+
+func{T} limitMax() T
+func{T} limitMin() T
+
+
+inst limitMin{I64} ()
+    let min
+    ${ $min = INT64_MIN; }
+    return min
+
+
+inst limitMax{I64} ()
+    let max
+    ${ $max = INT64_MAX; }
+    return max

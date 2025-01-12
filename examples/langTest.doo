@@ -459,8 +459,8 @@ fn testTableRows()
     table.push( (2, (false , 12)) )
     table.push( (3, (true , 13)) )
 
-    let 3 = table.0 .len
-    let 3 = table.1 .len
+    let 3 = table.0.len
+    let 3 = table.1.len
 
     let (true, 11) = table.1[0]
     let (false, 12) = table.1[1]
@@ -473,8 +473,11 @@ fn testSlice()
     let 2 = array.slice(0, array.len)[1]
 
     let table : (I64, Bool).Table = [(1, true), (2, false), (3, true), (4, true)]
-    let (3, true) = table.slice(0, table.len)[2]
-    let (3, true) = table.slice(2, 999)[0]
+    let (3, true) = table[0..table.len][2]
+    let (3, true) = table[..table.len][2]
+    let (3, true) = table[..][2]
+    let (3, true) = table.slice(2, limitMax())[0]
+    let (2, false) = table[..][1]
     let 4 = table.slice(0, table.len).len
 
     let array2 : (I64, Bool).Array{4} = table.slice(0, table.len).makeSlice
@@ -482,7 +485,7 @@ fn testSlice()
 
     let table2 : I64.Table = [1, 2, 3, 4]
     let 0 = table2.slice(1, 1).len
-    let 3 = table2.slice(1, 34).len
+    let 3 = table2[1..].len
     let 2 = table2.slice(1, 3)[0]
     let 3 = table2.slice(1, 3)[1]
 
@@ -528,6 +531,8 @@ fn testSet()
     let true = [1, 2, 3] : Set{I64} < [1, 2, 4]
     let false = [1, 2, 3] : Set{I64} < [1, 2, 3]
     let true = [1, 2, 2, 3] : Set{I64} < [1, 2, 3, 4]
+
+    let true = [1, 2, 3, 4] : Set{I64} == [4, 3, 2, 1]
 
 
 fn testCompare()
