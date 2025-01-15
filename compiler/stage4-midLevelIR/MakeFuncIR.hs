@@ -3,6 +3,7 @@ module MakeFuncIR where
 
 import Control.Monad.Identity
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Control.Monad.State
 import Data.Maybe
 import Data.Char
@@ -24,6 +25,7 @@ data FuncIRState = FuncIRState
     , irFunc :: FuncIR
     , astResolved :: ASTResolved
     , rettyIr  :: RettyIR
+    , contexts :: Set.Set Type
     }
 
 
@@ -32,6 +34,7 @@ initFuncIRState ast = FuncIRState
     , irFunc = initFuncIr
     , astResolved = ast
     , rettyIr = RettyIR Value Tuple
+    , contexts = Set.empty
     }
 
 
@@ -98,15 +101,15 @@ makeFuncIR (TopField pos [] funcType i) = withPos pos $ do
 
     appendStmt (Return $ ArgID sum)
 
+    state <- get
+    
     let funcIrHeader = FuncIrHeader
             { irRetty = RettyIR Value retType
             , irArgs  = map (ParamIR Value) argTypes
             , irFuncSymbol = funcSymbol
+            , irContexts = Set.toList (contexts state)
             }
-    state <- get
     return (funcIrHeader, irFunc state)
-
-
 
 makeFuncIR (TopInst _ [] funcType args retty inst) = do
     let (TypeDef funcSymbol, _) = unfoldType funcType
@@ -133,11 +136,16 @@ makeFuncIR (TopInst _ [] funcType args retty inst) = do
     let Just (S.Block stmts) = Map.lookup 0 (statements inst)
     mapM_ (makeStmt inst) stmts
 
+    when (symbolsCouldMatch (Sym ["builtin", "builtinContext"]) funcSymbol) $ do
+        let (_, [typ]) = unfoldType funcType
+        modify $ \s -> s { contexts = Set.insert typ (contexts s) }
+
     state <- get
     let funcIrHeader = FuncIrHeader
             { irRetty     = rettyIr
             , irArgs      = irParams
             , irFuncSymbol = funcSymbol
+            , irContexts   = Set.toList (contexts state)
             }
     return (funcIrHeader, irFunc state)
 
@@ -436,6 +444,7 @@ copy arg = do
     call (Sym ["builtin", "copy"]) [t] [arg]
 
 
+-- also adds contexts
 call :: Symbol -> [Type] -> [Arg] -> DoM FuncIRState Arg
 call symbol funcTypeArgs args = do
     ast <- gets astResolved
@@ -445,7 +454,8 @@ call symbol funcTypeArgs args = do
         [x] -> return x
     let funcType = foldType (TypeDef symbol' : funcTypeArgs)
 
-    resm <- fmap fst $ runDoMExcept ast (makeHeaderInstance funcType)
+    -- TODO makeHeaderInstantiation doesn't return contexts
+    resm <- fmap fst $ runDoMExcept ast (makeHeaderInstantiation funcType)
     irHeader <- case resm of
         Nothing -> fail $ "no instance: " ++ show funcType
         Just irHeader -> return irHeader
@@ -468,6 +478,9 @@ call symbol funcTypeArgs args = do
                 False -> copy =<< deref arg
                 
             x -> fail (show x)
+
+    -- get contexts from irHeader
+    modify $ \s -> s { contexts = Set.union (contexts s) (Set.fromList $ irContexts irHeader) }
 
     case irRetty irHeader of
         RettyIR Value  t -> fmap ArgID $ appendSSA t Value (Call funcType args')

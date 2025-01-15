@@ -101,11 +101,19 @@ data FuncIrHeader = FuncIrHeader
     { irRetty     :: RettyIR
     , irArgs      :: [ParamIR]
     , irFuncSymbol :: Symbol
+    , irContexts   :: [Type]
     }
     deriving (Eq)
 
 instance Show FuncIrHeader where
-    show (FuncIrHeader retty args symbol) = prettySymbol symbol ++ " (" ++ intercalate ", " (map show args) ++ ") " ++ show retty
+    show header@(FuncIrHeader _ _ _ _)
+        = prettySymbol (irFuncSymbol header)
+        ++ " ("
+        ++ intercalate ", " (map show $ irArgs header)
+        ++ ") "
+        ++ show (irRetty header)
+        ++ " "
+        ++ show (irContexts header)
 
 
 data FuncIR = FuncIR

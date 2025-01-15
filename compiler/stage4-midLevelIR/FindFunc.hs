@@ -63,8 +63,9 @@ getConstraintsFromTypes t1 t2 = case (t1, t2) of
     _ -> fail $ show (t1, t2)
 
 
-makeHeaderInstance :: Type -> DoM ASTResolved (Maybe FuncIrHeader)
-makeHeaderInstance callType = do
+-- this function converts to funcIrHeader (when it shouldn't)
+makeHeaderInstantiation :: Type -> DoM ASTResolved (Maybe FuncIrHeader)
+makeHeaderInstantiation callType = do
     -- In haskell, instances are globally visible, so we do not have to worry about different instances.
     let (TypeDef callSymbol, _) = unfoldType callType
     Just instances <- gets $ Map.lookup callSymbol . instancesAll
@@ -82,7 +83,7 @@ makeHeaderInstance callType = do
                     let lower = applyType subs lowerType
                     unless (applyType subs upperType == callType) (fail $ "type mismatch: " ++ show callType)
                     unless (typeFullyResolved lower) (error "propagating type vars")
-                    makeHeaderInstance lower
+                    makeHeaderInstantiation lower
 
         TopField pos generics acqType i -> do
             let genericSubs = zip (map TypeDef generics) (map Type [1..])
@@ -96,7 +97,11 @@ makeHeaderInstance callType = do
                     (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType
                     args' <- forM argTypes $ \t -> return (ParamIR Value t)
                     retty' <- return (RettyIR IR.Value retType)
-                    return $ Just $ FuncIrHeader { irFuncSymbol = symbol, irArgs = args', irRetty = retty' }
+                    return $ Just $ FuncIrHeader
+                        { irFuncSymbol = symbol
+                        , irArgs = args'
+                        , irRetty = retty'
+                        }
 
 
         TopInst pos generics implType args retty inst -> do
@@ -123,7 +128,11 @@ makeHeaderInstance callType = do
                         (Retty _, _)                     -> return (RettyIR IR.Value retType)
                         (RefRetty _, _)                  -> return (RettyIR IR.Ref retType)
 
-                    return $ Just $ FuncIrHeader { irFuncSymbol = symbol, irArgs = args', irRetty = retty' }
+                    return $ Just $ FuncIrHeader
+                        { irFuncSymbol = symbol
+                        , irArgs = args'
+                        , irRetty = retty'
+                        }
 
         _ -> return Nothing
 
@@ -133,8 +142,8 @@ makeHeaderInstance callType = do
         funcs  -> fail $ "multiple instances for: " ++ show callType
 
 
-makeInstance :: Type -> DoM ASTResolved (Maybe TopStmt)
-makeInstance callType = do
+makeInstantiation :: Type -> DoM ASTResolved (Maybe TopStmt)
+makeInstantiation callType = do
     -- In haskell, instances are globally visible, so we do not have to worry about different instances.
     let (TypeDef callSymbol, _) = unfoldType callType
     Just instances <- gets $ Map.lookup callSymbol . instancesAll
@@ -153,7 +162,7 @@ makeInstance callType = do
 
                     unless (applyType subs upperType == callType) (fail $ "type mismatch: " ++ show callType)
                     unless (typeFullyResolved lower) (error "propagating type vars")
-                    makeInstance lower
+                    makeInstantiation lower
 
         TopField pos generics acqType i -> do
             let genericSubs = zip (map TypeDef generics) (map Type [1..])

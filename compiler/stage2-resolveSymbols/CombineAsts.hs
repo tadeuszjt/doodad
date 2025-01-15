@@ -46,11 +46,13 @@ combineAsts astBuildState supply imports = fmap snd $
 
 
         -- define top-level symbols
-        forM_ (topStmts astBuildState) $ \topStmt -> case topStmt of
-            TopStmt (Typedef _ generics symbol@(SymResolved _) typ) -> modify $ \s -> s
-                { typeDefsTop = Set.insert symbol (typeDefsTop s)
-                , typeDefsAll = Map.insert symbol (generics, typ) (typeDefsAll s)
-                }
+        needsInfer <- fmap catMaybes $ forM (topStmts astBuildState) $ \topStmt -> case topStmt of
+            TopStmt (Typedef _ generics symbol@(SymResolved _) typ) -> do
+                modify $ \s -> s
+                    { typeDefsTop = Set.insert symbol (typeDefsTop s)
+                    , typeDefsAll = Map.insert symbol (generics, typ) (typeDefsAll s)
+                    }
+                return Nothing
 
             TopStmt (Enum pos generics symbol fields) -> do
                 fieldTypes <- forM fields $ \(SymResolved xs, fieldTypes) -> case fieldTypes of
@@ -78,14 +80,17 @@ combineAsts astBuildState supply imports = fmap snd $
                     { typeDefsTop = Set.insert symbol (typeDefsTop s)
                     , typeDefsAll = Map.insert symbol (generics, sumType) (typeDefsAll s)
                     }
+                return Nothing
 
 
-            TopStmt stmt@(Function _ generics _ symbol@(SymResolved _) funcType) -> modify $ \s -> s
-                { featuresTop = Set.insert symbol (featuresTop s)
-                , typeDefsTop = Set.insert symbol (typeDefsTop s)
-                , featuresAll = Map.insert symbol stmt (featuresAll s)
-                , typeDefsAll = Map.insert symbol (generics, funcType) (typeDefsAll s)
-                }
+            TopStmt stmt@(Function _ generics _ symbol@(SymResolved _) funcType) -> do
+                modify $ \s -> s
+                    { featuresTop = Set.insert symbol (featuresTop s)
+                    , typeDefsTop = Set.insert symbol (typeDefsTop s)
+                    , featuresAll = Map.insert symbol stmt (featuresAll s)
+                    , typeDefsAll = Map.insert symbol (generics, funcType) (typeDefsAll s)
+                    }
+                return Nothing
 
 
             TopStmt (Derives pos generics typ features) -> do
@@ -102,12 +107,8 @@ combineAsts astBuildState supply imports = fmap snd $
                         (Map.insert symbol' stmt' existing)
                         (instancesAll s)
                         }
+                return Nothing
 
-            _ -> return ()
-
-
-        -- predefine functions for type-check
-        symbols <- fmap catMaybes $ forM (topStmts astBuildState) $ \topStmt -> case topStmt of
             TopInst _ _ acqType _ _ _ -> do
                 let (TypeDef featureSymbol@(SymResolved xs), _) = unfoldType acqType
                 instSymbol <- genSymbol $ SymResolved $ xs ++ [typeCode acqType]
@@ -117,10 +118,9 @@ combineAsts astBuildState supply imports = fmap snd $
                     featureSymbol (Map.insert instSymbol topStmt existing) (instancesAll s) }
                 return $ Just (featureSymbol, instSymbol)
 
-            _ -> return Nothing
 
         -- infer types
-        forM_ symbols $ \(featureSymbol, symbol) -> do
+        forM_ needsInfer $ \(featureSymbol, symbol) -> do
             TopInst pos generics acqTyp params r instState <- gets $
                 (Map.! symbol) . (Map.! featureSymbol) . instancesAll
 

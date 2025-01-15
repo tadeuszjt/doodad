@@ -22,6 +22,7 @@ fn{T} swap(a &T, b &T)
 
 
 
+
 inst destroy{Char} (c&);      return
 inst destroy{Bool} (c&);      return
 inst destroy{F32} (c&);       return
@@ -41,6 +42,7 @@ inst copy{Bool} (a); return a
 inst copy{Char} (a); return a
 
 
+fn{T}       builtinContext() &T;     ${ assert(false); }
 fn{T}       builtinSwap(a &T, b &T); ${ assert(false); }
 fn{T}       builtinStore(a &T, b T); ${ assert(false); }
 fn{I, G, T} builtinField(t &T) &G;   ${ assert(false); }

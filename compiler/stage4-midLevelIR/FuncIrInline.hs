@@ -91,7 +91,7 @@ processStmt funcIr id = let Just stmt = Map.lookup id (irStmts funcIr) in case s
         callArgs' <- mapM processArg callArgs
 
         --ast <- gets astResolved
---        Just callAst <- fmap fst $ runDoMExcept ast (makeInstance callType)
+--        Just callAst <- fmap fst $ runDoMExcept ast (makeInstantiation callType)
 --        callIr0  <- fmap (snd . fst) $ runDoMExcept (IR.initFuncIRState ast) (IR.makeFuncIR callAst)
 --        callIr1  <- fmap (FuncIrDestroy.funcIr . snd) $ runDoMExcept (FuncIrDestroy.initFuncIrDestroyState ast) (FuncIrDestroy.addFuncDestroy callIr0)
 --        callIr2  <- fmap (IR.funcIr . snd) $ runDoMExcept (IR.initFuncIrUnusedState ast) (IR.funcIrUnused callIr1)

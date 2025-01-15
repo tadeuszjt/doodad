@@ -142,13 +142,15 @@ destroy id = do
         [] -> fail "builtin::destroy undefined"
         [x] -> return x
 
-    resm <- fmap fst $ runDoMExcept ast $ makeHeaderInstance (foldType [TypeDef destroySymbol, typ])
-    -- TODO get textPos here
-    [ParamIR IR.Ref argType] <- case resm of
-        Nothing -> fail ("no destroy instance for: " ++ show typ)
-        Just irHeader -> return (irArgs irHeader)
+    --resm <- fmap fst $ runDoMExcept ast $ makeHeaderInstance (foldType [TypeDef destroySymbol, typ])
+    error "makeHeaderInstance"
 
-    id1 <- appendSSA typ IR.Ref (MakeReferenceFromValue $ ArgID id)
-    void $ appendSSA Tuple Value $
-        Call (Apply (TypeDef destroySymbol) typ) [ArgID id1]
+    ---- TODO get textPos here
+    --[ParamIR IR.Ref argType] <- case resm of
+    --    Nothing -> fail ("no destroy instance for: " ++ show typ)
+    --    Just irHeader -> return (irArgs irHeader)
+
+    --id1 <- appendSSA typ IR.Ref (MakeReferenceFromValue $ ArgID id)
+    --void $ appendSSA Tuple Value $
+    --    Call (Apply (TypeDef destroySymbol) typ) [ArgID id1]
 

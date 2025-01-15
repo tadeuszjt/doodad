@@ -27,6 +27,7 @@ import Symbol
 %nonassoc  '(' ')' '[' ']' '{' '}'
 %nonassoc  '|'
 %left      '.'
+%nonassoc  '@'
 
 
 %token
@@ -308,7 +309,6 @@ expr   : literal                                 { $1 }
        | expr '.' int_c                          { Call (tokPos $2) (foldType $ [TypeDef (Sym ["builtin", "field"]), Size (read $ tokStr $3), Type 0, Type 0]) [AST.Reference (tokPos $2) $1] }
        | '&' expr                                { AST.Reference (tokPos $1) $2 }
        | expr '[' expr ']'                       { Call (tokPos $2) (TypeDef $ Sym ["container", "at"]) [AST.Reference (tokPos $2) $1, $3] }
-
        | expr '[' '..' ']'                       { Call (tokPos $2) (TypeDef $ Sym ["slice", "slice"])
             [ AST.Reference (tokPos $2) $1
             , AST.Int (tokPos $2) 0
@@ -343,12 +343,9 @@ expr   : literal                                 { $1 }
        | expr '||' expr                          { Call (tokPos $2) (TypeDef $ Sym ["boolean", "or"]) [$1, $3] } 
        | expr '<=' expr                          { Call (tokPos $2) (TypeDef $ Sym ["compare", "lessThanEqual"]) [$1, $3] } 
        | expr '>=' expr                          { Call (tokPos $2) (TypeDef $ Sym ["compare", "greaterThanEqual"]) [$1, $3] } 
---       | expr '<=' expr                          { Call (tokPos $2) (Sym ["lessEqual"]) [$1, $3] } 
---       | expr '>=' expr                          { Call (tokPos $2) (Sym ["greaterEqual"]) [$1, $3] } 
---       | expr '!=' expr                          { Call (tokPos $2) (Sym ["Boolean", "not"]) [Call (tokPos $2) (Sym ["Compare", "equal"]) [$1, $3]] } 
---       | expr '||' expr                          { Call (tokPos $2) (Sym ["Boolean", "or"]) [$1, $3] } 
        | '!' expr                                { Call (tokPos $1) (TypeDef $ Sym ["boolean", "not"]) [$2] }
        | '-' expr                                { Call (tokPos $1) (TypeDef $ Sym ["arithmetic", "negate"]) [$2] }
+       | '@' type_                               { Call (tokPos $1) (foldType [TypeDef (Sym ["builtin", "builtinContext"]), $2]) [] }
 
 
 literal : int_c                                  { Call (tokPos $1) (TypeDef $ Sym ["convert", "convert"]) [AST.Int (tokPos $1) (read $ tokStr $1)] }
@@ -356,7 +353,6 @@ literal : int_c                                  { Call (tokPos $1) (TypeDef $ S
         | char_c                                 { AST.Char (tokPos $1) (read $ tokStr $1) }
         | true                                   { AST.Bool (tokPos $1) True }
         | false                                  { AST.Bool (tokPos $1) False }
-        --| string_c                               { AST.String (tokPos $1) (processString $ tokStr $1) }
         | string_c                               { Call (tokPos $1) (TypeDef $ Sym ["slice", "makeSlice"]) [AST.String (tokPos $1) (processString $ tokStr $1)] }
 
 ---------------------------------------------------------------------------------------------------
