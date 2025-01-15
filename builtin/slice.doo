@@ -8,7 +8,7 @@ import builtin/container
 import builtin/assert
 import builtin/boolean
 
-func{T, G | T->G} slice(T, I64, I64) Slice{G}
+func{G, T | T->G} slice(T, I64, I64) Slice{G}
 func{T, S | S->T} makeSlice(Slice{T}) S
 
 
@@ -28,7 +28,7 @@ inst{T} makeSlice{T, Slice{T}} (slice)
     return slice
 
 
-inst{T} slice{Slice{T}, T} (slice, start, end)
+inst{T} slice{T, Slice{T}} (slice, start, end)
     if start < 0        ; start = 0
     if start > slice.end; start = slice.end
     if end < start      ; end = start

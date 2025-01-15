@@ -9,6 +9,7 @@ import std/option
 import std/read
 import std/binaryTree
 import std/set
+import std/stack
 
 fn testArithmetic()
     let x = 1 + 2
@@ -534,6 +535,22 @@ fn testSet()
 
     let true = [1, 2, 3, 4] : Set{I64} == [4, 3, 2, 1]
 
+    let true = "tadeusz tomoszek" : Char.Set == " adekmostuz"
+    let true = "tadeusz tomoszek" : Char.Set != " adekmotuz"
+
+
+
+fn testStack()
+    let s1 : I64.Stack{4} = [1, 2, 3]
+    let 3 = s1.len
+    let true = s1 == [1, 2, 3]
+    let false = s1 == [1, 2, 3, 4]
+    s1.pop
+    let 2 = s1.len
+    let true = s1 == [1, 2]
+    let true = s1[..] == [1, 2]
+    let true = s1.array == [1, 2, 3, 0]
+
 
 fn testCompare()
     let t1 : I64.Table = [1, 2, 3]
@@ -590,6 +607,7 @@ fn main()
     testTableRows()
     testSlice()
     testSet()
+    testStack()
     testCompare()
 
     ${ puts("langTest success"); }

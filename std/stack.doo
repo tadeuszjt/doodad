@@ -1,6 +1,5 @@
 module stack
 
-
 import builtin/all
 import std/print
 
@@ -19,7 +18,12 @@ inst{S, T} makeSlice{T, Stack{S, T}} (slice)
     return stack
 
 
-inst{S, T} len{Stack{S, T}} (s&); return s.length
+inst{S, T} slice{T, Stack{S, T}} (stack&, start, end)
+    return stack.array[start..min(stack.len, end)]
+
+
+inst{S, T} len{Stack{S, T}} (s&)
+    return s.length
 
 
 inst{S, T} at{I64, T, Stack{S, T}} (s&, idx) -> &
@@ -32,13 +36,7 @@ inst{S, T} compare::equal{Stack{S, T}} (a, b)
 
 
 inst{S, T} compare::compare{Stack{S, T}} (a, b)
-    for (0, min(a.len, b.len)) -> i
-        switch compare(a[i], b[i])
-            lt(); return lt()
-            gt(); return gt()
-            _   ;
-
-    return compare(a.len, b.len)
+    return compare(a[..], b[..])
 
 
 inst{S, T, P} print::print{P, Stack{S, T}} (p&, stack)

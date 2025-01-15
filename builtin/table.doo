@@ -33,7 +33,7 @@ fn{T} grow(t& T.Table)
     builtinTableAppend(&t)
 
 
-inst{T} slice{Table{T}, T} (t&, start, end)
+inst{T} slice{T, Table{T}} (t&, start, end)
     if start < 0
         start = 0
     if start > t.len

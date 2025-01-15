@@ -2,11 +2,13 @@ module set
 
 import builtin/all
 import std/print
+import std/io
 
 
 type{T} Set T.Table
 
-derives{T} Set{T} (copy, container::len, container::at{I64, T})
+derives{T} Set{T} (copy, container::len, container::at{I64, T}, forAt{T}, forEnd, slice{T},
+    compare, equal)
 derives{P, T} Set{T} (print{P})
 
 
@@ -23,32 +25,21 @@ fn{T} sortSet(set &T.Set)
 
         if !changed
             return
-            
 
 
 inst{T} makeSlice{T, Set{T}} (slice)
     let set
-    for (0, slice.len) -> i
-        if !set.contains(slice[i])
-            (set.pretend : T.Table).push(slice[i])
+    for slice -> elem
+        set.insert(elem)
 
-    set.sortSet
     return set
 
 
-inst{T} slice{Set{T}, T} (set, start, end)
-    return (set.pretend : T.Table).slice(start, end)
-
-
-inst{T} compare{Set{T}} (a, b)
-    return compare(a[..], b[..])
-
-
-inst{T} equal{Set{T}} (a, b)
-    return compare(a, b) == eq()
-
-
 inst{T} contains{T, Set{T}} (set, elem)
+    if set.len == 0; return false
+    if elem < set[0]; return false
+    if elem > set[set.len - 1]; return false
+
     for (0, set.len) -> i
         if set[i] == elem
             return true
@@ -56,33 +47,40 @@ inst{T} contains{T, Set{T}} (set, elem)
 
 
 fn{T} insert(set &T.Set, elem T)
-    if !set.contains(elem)
+    if set.len == 0
+        (set.pretend : T.Table).push(elem)
+    else if elem > set[set.len - 1]
+        (set.pretend : T.Table).push(elem)
+    else if !set.contains(elem)
         (set.pretend : T.Table).push(elem)
         set.sortSet
 
 
 fn{T} delete(set &T.Set, elem T)
-    let loop = true
-    for (0, set.len) -> i | loop
+    if set.len == 0
+        return
+    if elem < set[0]
+        return
+    if elem > set[set.len - 1]
+        return
+
+    for (0, set.len) -> i
         if set[i] == elem
             set[i] = set[set.len - 1]
             (set.pretend : T.Table).pop
-            loop = false
-
-    set.sortSet
+            set.sortSet
+            return
 
 
 inst{T} arithmetic::add{Set{T}} (a, b)
     let c = a
     for b[..] -> e
-        if !c.contains(e)
-            c.insert(e) 
+        c.insert(e)
     return c
 
 
 inst{T} arithmetic::subtract{Set{T}} (a, b)
     let c = a
-    for b[..] -> e
-        if c.contains(e)
-            c.delete(e)
+    for b -> elem
+        c.delete(elem)
     return c

@@ -39,7 +39,7 @@ inst{S, T} makeSlice{ T, Array{S, T} } (slice)
     return array
 
 
-inst{S, T} slice{Array{S, T}, T} (arr&, start, end)
+inst{S, T} slice{T, Array{S, T}} (arr&, start, end)
     if start < 0
         start = 0
     if start > arr.len
