@@ -11,6 +11,7 @@ import Symbol
 import Type
 import Monad
 import AstBuilder
+import InstBuilder
 
 import qualified IR
 
@@ -28,7 +29,8 @@ data ASTResolved
 
         , featuresTop          :: Set.Set Symbol
         , featuresAll          :: Map.Map Symbol Stmt
-
+        
+        , instancesTop         :: Set.Set Symbol
         , instancesAll         :: Map.Map Symbol (Map.Map Symbol TopStmt)
 
         , funcInstance         :: Map.Map Type (IR.FuncIrHeader, IR.FuncIR)
@@ -55,34 +57,30 @@ genSymbol symbol@(SymResolved str) = do
 prettyASTResolved :: ASTResolved -> IO ()
 prettyASTResolved ast = do
     putStrLn $ "module " ++ moduleName ast
-
     forM_ (includes ast) $ \str -> putStrLn $ "#include " ++ show str
     forM_ (links ast) $ \str -> putStrLn $ "link " ++ str
 
 
     putStrLn ""
-    putStrLn "typeDefsTop:"
+    putStrLn "typeDefs:"
+    forM_ (Set.toList $ typeDefsTop ast) $ \symbol -> do
+        let (generics, typ) = typeDefsAll ast Map.! symbol
+        liftIO $ putStrLn $
+                "\t"
+                ++ brcStrs (map prettySymbol generics)
+                ++ " "
+                ++ prettySymbol symbol
+                ++ " = "
+                ++ show typ
+
+    putStrLn ""
+    putStrLn "features:"
     forM_ (Set.toList $ typeDefsTop ast) $ \symbol -> do
         liftIO $ putStrLn $ "\t" ++ prettySymbol symbol
-    putStrLn "typeDefsAll:"
-    forM_ (Map.toList $ typeDefsAll ast) $ \(symbol, (generics, typ)) -> do
-        prettyStmt "\t" $ Typedef undefined generics symbol typ
 
 
-    --putStrLn ""
-    --putStrLn "instancesAll:"
-    --forM_ (Map.toList $ instancesAll ast) $ \(symbol, instances) -> do
-    --    prettyStmt "" instances
-
-
---    putStrLn ""
---    putStrLn "funcInstance:"
---    forM_ (Map.toList $ funcInstance ast) $ \(call, func) -> do
---        putStrLn $ show call ++ ":"
---        prettyStmt "\t" $ FuncInst [] func
---
---    putStrLn ""
---    putStrLn "funcInstanceImported:"
---    forM_ (Map.toList $ funcInstanceImported ast) $ \(call, func) -> do
---        putStr $ "\t" ++ show call ++ ": "
---        prettyStmt "" $ FuncInst [] func
+    putStrLn ""
+    putStrLn "instancesAll:"
+    forM_ (instancesTop ast) $ \symbol -> do
+        let topStmt = instancesAll ast Map.! symbol
+        liftIO $ putStrLn $ "\t" ++ prettySymbol symbol

@@ -42,13 +42,13 @@ inst copy{Bool} (a); return a
 inst copy{Char} (a); return a
 
 
-fn{T}       builtinContext() &T;     ${ assert(false); }
 fn{T}       builtinSwap(a &T, b &T); ${ assert(false); }
 fn{T}       builtinStore(a &T, b T); ${ assert(false); }
 fn{I, G, T} builtinField(t &T) &G;   ${ assert(false); }
 fn{T, G}    builtinConvert(a T) G;   ${ assert(false); }
 fn{T, G}    builtinPretend(a &T) &G; ${ assert(false); }
 
+fn{T}       builtinContext() &T;     ${ assert(false); }
 
 // arithmetic
 fn{T} builtinAdd(a T, b T) T;      ${ assert(false); }

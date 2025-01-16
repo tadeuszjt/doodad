@@ -26,6 +26,7 @@ initAstResolved modName imports = ASTResolved
     , featuresTop    = Set.empty
     , featuresAll    = Map.unions (map featuresAll imports)
     , fieldsAll      = Map.unions (map fieldsAll imports)
+    , instancesTop   = Set.empty
     , instancesAll   = Map.unionsWith Map.union (map instancesAll imports) 
     , funcInstance   = Map.unions (map funcInstance imports)
     , symSupply      = Map.empty
@@ -72,6 +73,7 @@ combineAsts astBuildState supply imports = fmap snd $
                         -- create constructor function
                         , typeDefsTop = Set.insert fieldSymbol (typeDefsTop s)
                         , typeDefsAll = Map.insert fieldSymbol (generics, funcType) (typeDefsAll s)
+                        , instancesTop = Set.insert instSymbol (instancesTop s)
                         , instancesAll = Map.insert fieldSymbol (Map.singleton instSymbol $ TopField pos generics acqType i) (instancesAll s)
                         , featuresAll  = Map.insert fieldSymbol (Function pos generics [] fieldSymbol funcType) (featuresAll s)
                         }
@@ -95,17 +97,18 @@ combineAsts astBuildState supply imports = fmap snd $
 
             TopStmt (Derives pos generics typ features) -> do
                 forM_ features $ \feature -> do
-                    let (TypeDef featureSymbol, _) = unfoldType feature
-                    let (TypeDef (SymResolved xs), _) = unfoldType feature
+                    let (TypeDef featureSymbol@(SymResolved xs), _) = unfoldType feature
 
-                    symbol' <- genSymbol $ SymResolved $ xs ++ [typeCode feature]
+                    instSymbol <- genSymbol $ SymResolved $ xs ++ [typeCode typ]
                     let stmt' = TopStmt (Derives pos generics typ [feature])
 
                     existing <- gets (maybe Map.empty id . Map.lookup featureSymbol . instancesAll)
-                    modify $ \s -> s { instancesAll = Map.insert
-                        featureSymbol
-                        (Map.insert symbol' stmt' existing)
-                        (instancesAll s)
+                    modify $ \s -> s
+                        { instancesAll = Map.insert
+                            featureSymbol
+                            (Map.insert instSymbol stmt' existing)
+                            (instancesAll s)
+                        , instancesTop = Set.insert instSymbol (instancesTop s)
                         }
                 return Nothing
 
@@ -114,8 +117,11 @@ combineAsts astBuildState supply imports = fmap snd $
                 instSymbol <- genSymbol $ SymResolved $ xs ++ [typeCode acqType]
 
                 existing <- gets (maybe Map.empty id . Map.lookup featureSymbol . instancesAll)
-                modify $ \s -> s { instancesAll = Map.insert
-                    featureSymbol (Map.insert instSymbol topStmt existing) (instancesAll s) }
+                modify $ \s -> s
+                    { instancesAll = Map.insert
+                        featureSymbol (Map.insert instSymbol topStmt existing) (instancesAll s)
+                    , instancesTop = Set.insert instSymbol (instancesTop s)
+                    }
                 return $ Just (featureSymbol, instSymbol)
 
 
