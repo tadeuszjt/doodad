@@ -68,7 +68,7 @@ makeHeaderInstantiation :: Type -> DoM ASTResolved (Maybe FuncIrHeader)
 makeHeaderInstantiation callType = do
     -- In haskell, instances are globally visible, so we do not have to worry about different instances.
     let (TypeDef callSymbol, _) = unfoldType callType
-    Just instances <- gets $ Map.lookup callSymbol . instancesAll
+    instances <- gets instancesAll
     results <- fmap catMaybes $ forM (Map.toList instances) $ \(symbol, stmt) -> case stmt of
         TopStmt (Derives _ generics argType [featureType]) -> do
             let genericSubs = zip (map TypeDef generics) (map Type [1..])
@@ -146,7 +146,7 @@ makeInstantiation :: Type -> DoM ASTResolved (Maybe TopStmt)
 makeInstantiation callType = do
     -- In haskell, instances are globally visible, so we do not have to worry about different instances.
     let (TypeDef callSymbol, _) = unfoldType callType
-    Just instances <- gets $ Map.lookup callSymbol . instancesAll
+    instances <- gets instancesAll
     results <- fmap catMaybes $ forM (Map.toList instances) $ \(symbol, stmt) -> case stmt of
         TopStmt (Derives _ generics argType [featureType]) -> do
             let genericSubs = zip (map TypeDef generics) (map Type [1..])

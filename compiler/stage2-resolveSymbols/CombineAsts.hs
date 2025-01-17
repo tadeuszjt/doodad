@@ -27,7 +27,7 @@ initAstResolved modName imports = ASTResolved
     , featuresAll    = Map.unions (map featuresAll imports)
     , fieldsAll      = Map.unions (map fieldsAll imports)
     , instancesTop   = Set.empty
-    , instancesAll   = Map.unionsWith Map.union (map instancesAll imports) 
+    , instancesAll   = Map.unions (map instancesAll imports) 
     , funcInstance   = Map.unions (map funcInstance imports)
     , symSupply      = Map.empty
     }
@@ -74,7 +74,7 @@ combineAsts astBuildState supply imports = fmap snd $
                         , typeDefsTop = Set.insert fieldSymbol (typeDefsTop s)
                         , typeDefsAll = Map.insert fieldSymbol (generics, funcType) (typeDefsAll s)
                         , instancesTop = Set.insert instSymbol (instancesTop s)
-                        , instancesAll = Map.insert fieldSymbol (Map.singleton instSymbol $ TopField pos generics acqType i) (instancesAll s)
+                        , instancesAll = Map.insert instSymbol (TopField pos generics acqType i) (instancesAll s)
                         , featuresAll  = Map.insert fieldSymbol (Function pos generics [] fieldSymbol funcType) (featuresAll s)
                         }
 
@@ -97,38 +97,31 @@ combineAsts astBuildState supply imports = fmap snd $
 
             TopStmt (Derives pos generics typ features) -> do
                 forM_ features $ \feature -> do
-                    let (TypeDef featureSymbol@(SymResolved xs), _) = unfoldType feature
+                    let (TypeDef (SymResolved xs), _) = unfoldType feature
 
                     instSymbol <- genSymbol $ SymResolved $ xs ++ [typeCode typ]
                     let stmt' = TopStmt (Derives pos generics typ [feature])
 
-                    existing <- gets (maybe Map.empty id . Map.lookup featureSymbol . instancesAll)
                     modify $ \s -> s
-                        { instancesAll = Map.insert
-                            featureSymbol
-                            (Map.insert instSymbol stmt' existing)
-                            (instancesAll s)
+                        { instancesAll = Map.insert instSymbol stmt' (instancesAll s)
                         , instancesTop = Set.insert instSymbol (instancesTop s)
                         }
                 return Nothing
 
             TopInst _ _ acqType _ _ _ -> do
-                let (TypeDef featureSymbol@(SymResolved xs), _) = unfoldType acqType
+                let (TypeDef (SymResolved xs), _) = unfoldType acqType
                 instSymbol <- genSymbol $ SymResolved $ xs ++ [typeCode acqType]
 
-                existing <- gets (maybe Map.empty id . Map.lookup featureSymbol . instancesAll)
                 modify $ \s -> s
-                    { instancesAll = Map.insert
-                        featureSymbol (Map.insert instSymbol topStmt existing) (instancesAll s)
+                    { instancesAll = Map.insert instSymbol topStmt (instancesAll s)
                     , instancesTop = Set.insert instSymbol (instancesTop s)
                     }
-                return $ Just (featureSymbol, instSymbol)
+                return $ Just instSymbol
 
 
         -- infer types
-        forM_ needsInfer $ \(featureSymbol, symbol) -> do
-            TopInst pos generics acqTyp params r instState <- gets $
-                (Map.! symbol) . (Map.! featureSymbol) . instancesAll
+        forM_ needsInfer $ \symbol -> do
+            TopInst pos generics acqTyp params r instState <- gets $ (Map.! symbol) . instancesAll
 
             -- annotate the call types with the number of t0s needed
             types' <- forM (types instState) $ \typ -> case unfoldType typ of
@@ -146,9 +139,7 @@ combineAsts astBuildState supply imports = fmap snd $
 
             stmt <- TopInst pos generics acqTyp params r <$>
                 infer params' retty (instState { types = types'})
-            existing <- gets $ (Map.! featureSymbol) . instancesAll
-
-            modify $ \s -> s { instancesAll = Map.insert featureSymbol (Map.insert symbol stmt existing) (instancesAll s) }
+            modify $ \s -> s { instancesAll = Map.insert symbol stmt (instancesAll s) }
 
 
 isFuncSymbol :: Symbol -> Bool

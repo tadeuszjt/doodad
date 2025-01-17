@@ -31,7 +31,7 @@ data ASTResolved
         , featuresAll          :: Map.Map Symbol Stmt
         
         , instancesTop         :: Set.Set Symbol
-        , instancesAll         :: Map.Map Symbol (Map.Map Symbol TopStmt)
+        , instancesAll         :: Map.Map Symbol TopStmt
 
         , funcInstance         :: Map.Map Type (IR.FuncIrHeader, IR.FuncIR)
 

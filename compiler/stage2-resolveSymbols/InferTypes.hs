@@ -103,12 +103,7 @@ collectCall exprType exprTypes callType = do
             Just _  -> return Nothing
             Nothing -> return (Just i) 
 
-    resm <- gets $ Map.lookup funcSymbol . instancesAll . astResolved
-    instances <- case resm of
-        --Nothing -> fail $ "no instances for: " ++ prettySymbol funcSymbol
-        Nothing -> return (Map.empty)
-        Just x -> return x
-
+    instances <- gets (instancesAll . astResolved)
     fullAcqs <- fmap catMaybes $ forM (Map.elems $ instances) $ \stmt -> do
         appliedAcqType <- case stmt of
             TopInst _ generics acqType _ _ _ -> do
