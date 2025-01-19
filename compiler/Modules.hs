@@ -28,6 +28,7 @@ import Compile as C
 import qualified ResolveAst
 import qualified CombineAsts
 import Preprocess
+import IrGenerate
 
 -- Modules are groups of .doo files with a module name header
 -- lang/lexer.doo: lexer module
@@ -107,7 +108,7 @@ buildBinaryFromModule args modPath = do
         liftIO $ putStrLn $ "linking '" ++ path ++ "'"
 
     when (printC args) $ do
-        forM_ (reverse cFiles) $ \file -> do
+        forM_ (cFiles) $ \file -> do
             liftIO $ putStrLn =<< readFile file
 
     when (printAssembly args) $ liftIO $ do
@@ -192,17 +193,26 @@ buildModule isMain args modPath = do
         --when (printAstResolved args) $ liftIO (prettyAST astResolved')
 
         astFinal <- CombineAsts.combineAsts astResolved' supply astImports
-        when (isMain && printAstFinal args ) $ liftIO (prettyASTResolved astFinal)
+        when (isMain && printAstFinal args) $ liftIO (prettyASTResolved astFinal)
+
+
+        irGenerateResult <- runIrGenerate initIrGenerateState astFinal irGenerateAst
+        astGenerated <- case irGenerateResult of
+            Right (_, astGenerated) -> return astGenerated
+            Left err                -> error (show err)
+
+
+        when (isMain && printIr args) $ liftIO (printAstIr astGenerated)
 
         -- build C ast from final ast
         when (verbose args) $ liftIO $ putStrLn "generating C file..."
-        res <- generateAst astFinal
+        res <- generateAst astGenerated
         (((), something), cBuilderState) <- case res of
             Right x -> return x
             Left e -> throwError e
 
         -- optimise C builder state
-        let includePaths = includes astFinal
+        let includePaths = includes astGenerated
         let finalBuilderState = cBuilderState
 
         -- write builder state to C file
@@ -216,3 +226,4 @@ buildModule isMain args modPath = do
         
         let astCompiled = C.astResolved something
         modify $ \s -> s { moduleMap = Map.insert absoluteModPath astCompiled (moduleMap s) }
+        --modify $ \s -> s { moduleMap = Map.insert absoluteModPath astGenerated (moduleMap s) }

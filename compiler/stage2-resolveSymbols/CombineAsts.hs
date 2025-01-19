@@ -28,7 +28,8 @@ initAstResolved modName imports = ASTResolved
     , fieldsAll      = Map.unions (map fieldsAll imports)
     , instancesTop   = Set.empty
     , instancesAll   = Map.unions (map instancesAll imports) 
-    , funcInstance   = Map.unions (map funcInstance imports)
+    , instantiations = Map.unions (map instantiations imports)
+    , instantiationsTop = Set.empty
     , symSupply      = Map.empty
     }
 

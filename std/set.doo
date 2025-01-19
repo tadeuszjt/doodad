@@ -8,7 +8,7 @@ import std/io
 type{T} Set T.Table
 
 derives{T} Set{T} (copy, container::len, container::at{I64, T}, forAt{T}, forEnd, slice{T},
-    compare, equal)
+    compare, equal, destroy)
 derives{P, T} Set{T} (print{P})
 
 

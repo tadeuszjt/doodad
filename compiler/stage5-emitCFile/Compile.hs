@@ -9,20 +9,16 @@ import Control.Monad.State
 import CGenerate
 import CAst as C
 import CBuilder as C
-import Type as Type
+import Type
 import ASTResolved
 import Symbol
 import Error
 import Builtin
 import FindFunc
 import Monad
-import qualified MakeFuncIR as IR
-import qualified IR
-import qualified FuncIrDestroy as IR
-import qualified FuncIrUnused as IrUnused
-import qualified FuncIrInline as IrInline
-import qualified FuncIrConst as IrConst
-import qualified FuncIrChecker as IrChecker
+
+import Ir2
+
 
 
 generateAst :: MonadIO m => ASTResolved -> m (Either Error (((), GenerateState), BuilderState))
@@ -33,108 +29,78 @@ generate :: Generate ()
 generate = withErrorPrefix "generate: " $ do
     ast <- gets astResolved
 
-    -- generate imported function externs
-    forM_ (Map.toList $ funcInstance ast) $ \(funcType, (header, _)) -> do
-        crt <- case IR.irRetty header of
-            IR.RettyIR IR.Value t -> cTypeOf t
-            IR.RettyIR IR.Ref t -> cRefTypeOf t
-            IR.RettyIR IR.Slice t -> cTypeOf (Apply Type.Slice t)
+    -- generate all function headers
+    forM_ (Map.toList $ instantiations ast) $ \(funcType, funcIr) -> do
+        let (TypeDef funcSymbol, _) = unfoldType funcType
+        case funcSymbol of
+            SymResolved ("builtin" : ('b':'u':'i':'l':'t':'i':'n':_) : _) -> return ()
+            _ -> do
+                (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf funcType
+                unless (length argTypes == length (irArgs funcIr)) (error "arg mismatch")
 
-        cats <- forM (IR.irArgs header) $ \param -> case param of
-            IR.ParamIR IR.Slice t -> cTypeOf (Apply Type.Slice t)
-            IR.ParamIR IR.Value t -> cTypeOf t
-            IR.ParamIR IR.Ref t -> cRefTypeOf t
-        appendExtern (showSymGlobal $ IR.irFuncSymbol header) crt cats [C.Extern]
+                cReturnType <- case irReturn funcIr of
+                    ParamValue _ -> cTypeOf retType
+                    ParamModify _ -> cRefTypeOf retType
+                    x -> error (show x)
 
+                cArgTypes <- forM (zip argTypes $ irArgs funcIr) $ \(argType, arg) -> case arg of
+                    ParamModify _ -> cRefTypeOf argType
+                    ParamValue _ -> cTypeOf argType
 
-    forM_ (featuresTop ast) $ \symbol -> let Just acq = Map.lookup symbol (featuresAll ast) in do
-        let Just (generics, _) = Map.lookup symbol (typeDefsAll ast)
-        when (generics == []) $ do
-            header <- generateFunc (TypeDef symbol)
-            when (symbolsCouldMatch (Sym ["main"]) (IR.irFuncSymbol header)) $ do
-                id <- newFunction
-                    Cint
-                    "main"  
-                    [ C.Param "argc" Cint, C.Param "argv" (Cpointer (Cpointer Cchar)) ]
+                appendExtern (showSymGlobal $ irSymbol funcIr) cReturnType cArgTypes [C.Extern]
+
+    -- generate top function definitions
+    forM_ (instantiationsTop ast) $ \instType -> do
+        let Just funcIr = Map.lookup instType (instantiations ast)
+        let (TypeDef funcSymbol, _) = unfoldType instType
+        case funcSymbol of
+            SymResolved ("builtin" : ('b':'u':'i':'l':'t':'i':'n':_) : _) -> return ()
+
+            s | symbolsCouldMatch s (Sym [ASTResolved.moduleName ast, "main"]) -> do
+                generateFuncIr funcIr
+                mainId <- newFunction C.Cint "main"
+                    [C.Param "argc" C.Cint, C.Param "argv" (C.Cpointer $ C.Cpointer C.Cchar)]
                     []
-
-                withCurID id $ do
-                    (Type.Func, mainRetType : mainArgTypes) <- unfoldType <$> baseTypeOf (TypeDef symbol)
-
+                withCurID mainId $ do
+                    (Type.Func, mainRetType : mainArgTypes) <- unfoldType <$> baseTypeOf instType
                     cts <- mapM cTypeOf mainArgTypes
                     args <- forM mainArgTypes $ \argType -> do
                         cType <- cTypeOf argType
                         name <- fresh "mainArg"
+                        base <- baseTypeOf argType
                         appendAssign cType name $ C.Initialiser [C.Int 0]
                         return (C.Ident name)
 
-                    void $ appendElem $ C.ExprStmt $ C.Call
-                        (showSymGlobal $ IR.irFuncSymbol header)
-                        args
+                    appendElem $ C.ExprStmt $ C.Call (showSymGlobal $ irSymbol funcIr) args
+                    appendElem $ C.Return (C.Int 0)
 
-                    void $ appendElem $ C.Return $ C.Int 0
-                withCurID globalID (append id)
+                withCurID globalID (append mainId)
 
 
-
-generateFunc :: Type.Type -> Generate IR.FuncIrHeader
-generateFunc funcType = do
-    let (TypeDef symbol, typeArgs) = unfoldType funcType
-    isInstance <- gets (Map.member funcType . funcInstance . astResolved)
-    if isInstance then gets $ fst . fromJust . Map.lookup funcType . funcInstance . astResolved
-    else do
-        ast <- gets astResolved
-        Just funcInst <- fmap fst $ runDoMExcept ast (makeInstantiation funcType)
-        (funcIrHeader, funcIr') <- fmap fst $ runDoMExcept (IR.initFuncIRState ast) (IR.makeFuncIR funcInst)
-
-        --void $ runDoMExcept (IrChecker.initFuncIrCheckerState ast) (IrChecker.funcIrChecker funcIr')
-
-        --funcIr'' <- fmap fst $ runDoMExcept () $ IR.addFuncDestroy ast funcIr'
-        ((funcIr, n), _) <- runDoMExcept () $ runDoMUntilSameResult funcIr' $ \funcIr -> do
-            --funcIr' <- fmap (IrUnused.funcIr . snd) $ runDoMExcept (IrUnused.initFuncIrUnusedState ast) (IrUnused.funcIrUnused funcIr)
-            --funcIr'' <- fmap (IrInline.funcIr . snd) $ runDoMExcept (IrInline.initFuncIrInlineState ast) (IrInline.funcIrInline funcIr')
-            --funcIr''' <- fmap (IrConst.funcIr . snd) $ runDoMExcept (IrConst.initFuncIrConstState ast) (IrConst.funcIrConst funcIr'')
-            return funcIr
-
-        --liftIO $ putStrLn (show n)
-        --liftIO $ putStrLn $ show funcIrHeader
-        --liftIO $ IR.prettyIR "" funcIr'
-
-        generatedSymbol <- CGenerate.genSymbol (SymResolved [typeCode funcType])
-        --liftIO $ putStrLn $ "generating: " ++ prettySymbol generatedSymbol
-        let header' = (funcIrHeader) { IR.irFuncSymbol = generatedSymbol }
-
-        modify $ \s -> s { astResolved = (astResolved s)
-            { funcInstance = Map.insert funcType (header', funcIr) (funcInstance $ astResolved s) } }
-
-        args <- forM (zip (IR.irArgs funcIrHeader) [1..]) $ \(arg, i) -> case arg of
-            IR.ParamIR IR.Value typ -> C.Param (idName i) <$> cTypeOf typ
-            IR.ParamIR IR.Ref typ   -> C.Param (idName i) <$> cRefTypeOf typ
-            IR.ParamIR IR.Slice typ -> C.Param (idName i) <$> cTypeOf (Apply Type.Slice typ)
-
-            x -> error (show x)
-
-        cRettyType <- case IR.irRetty funcIrHeader of
-            IR.RettyIR IR.Value typ -> cTypeOf typ
-            IR.RettyIR IR.Ref   typ -> cRefTypeOf typ
-            IR.RettyIR IR.Slice typ -> cTypeOf (Apply Type.Slice typ)
-            x -> error (show x)
-
-        appendExtern (showSymGlobal $ generatedSymbol) cRettyType (map C.cType args) []
-        funcId <- newFunction cRettyType (showSymGlobal $ generatedSymbol) args []
-        withCurID funcId $ do
-            (generateStmt funcIr 0)
-
-        withCurID globalID (append funcId)
-        return header'
+            _ -> generateFuncIr funcIr
 
 
-idName :: IR.ID -> String
+generateFuncIr :: FuncIr2 -> Generate ()
+generateFuncIr funcIr = do
+    cArgs <- forM (zip (irArgs funcIr) [1..]) $ \(arg, i) -> case arg of
+        ParamModify typ -> C.Param (idName i) <$> cRefTypeOf typ
+        ParamValue  typ -> C.Param (idName i) <$> cTypeOf typ
+
+    cReturn <- case irReturn funcIr of
+        ParamValue typ -> cTypeOf typ
+        ParamModify typ -> cRefTypeOf typ
+
+    funcId <- newFunction cReturn (showSymGlobal $ irSymbol funcIr) cArgs []
+    withCurID funcId (generateStmt funcIr 0)
+    withCurID globalID (append funcId)
+    return ()
+
+
+idName :: Ir2.ID -> String
 idName x = "_" ++ show x
 
 
-
-processCEmbed :: [(String, IR.ID)] -> String -> Generate String
+processCEmbed :: [(String, Ir2.ID)] -> String -> Generate String
 processCEmbed strMap str = case str of
     ('$':x:xs) -> do
         unless (isAlpha x) (fail "invalid identifier following '$' token")
@@ -151,47 +117,65 @@ processCEmbed strMap str = case str of
     []     -> return ""
 
 
-generateArg :: IR.Arg -> Generate C.Expression
-generateArg (IR.ArgID id) = return $ C.Ident (idName id)
-generateArg (IR.ArgConst typ const) = case const of
-    IR.ConstBool b -> return (C.Bool b)
-    IR.ConstChar c -> return (C.Char c)
-    IR.ConstInt  n -> return (C.Int n)
-    IR.ConstString s -> return (C.String s)
-    IR.ConstFloat f  -> return (C.Float f)
-    IR.ConstTuple [] -> return (C.Int 0)
-    x -> error (show x)
+generateArg :: FuncIr2 -> Arg -> Generate C.Expression
+generateArg funcIr arg = do
+    base <- baseTypeOf arg
+    case unfoldType base of
+        (Slice, [t]) -> case arg of
+            ArgValue _ id -> return $ C.Ident (idName id)
+            ArgModify _ id -> return $ C.Ident (idName id)
+        _ -> case arg of
+            ArgValue typ id -> case Map.lookup id (irIdArgs funcIr) of
+                Just (ArgValue _ _) -> return $ C.Ident (idName id)
+                Just (ArgModify _ _) -> deref typ $ C.Ident (idName id)
+                Nothing -> error (show id)
+
+            ArgModify typ id -> case Map.lookup id (irIdArgs funcIr) of
+                Just (ArgModify _ _) -> return $ C.Ident (idName id)
+                Just (ArgValue _ _ ) -> stackRef typ $ C.Ident (idName id)
+
+            x -> error (show x)
 
 
+generateStmt :: FuncIr2 -> Ir2.ID -> Generate ()
+generateStmt funcIr id = case (irStmts funcIr) Map.! id of
+    Block ids          -> mapM_ (generateStmt funcIr) ids
+    Ir2.Return Nothing -> do
+        -- TODO return void
+        cType <- cTypeOf Tuple
+        name <- fresh "empty"
+        appendElem $ C.Assign cType name (C.Initialiser [])
+        void $ appendElem (C.Return $ C.Ident name)
 
+    Ir2.Call typ args  -> generateCall funcIr typ id args
 
-generateStmt :: IR.FuncIR -> IR.ID -> Generate ()
-generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
-    IR.Break -> void $ appendElem $ C.Break
-    IR.Block ids -> mapM_ (generateStmt funcIr) ids
-    IR.EmbedC strMap str  -> void $ appendElem . C.Embed =<< processCEmbed strMap str
-    IR.Return arg -> void $ appendElem . C.Return =<< generateArg arg
+    Ir2.Return (Just id) -> case irReturn funcIr of
+        ParamValue typ -> void $ appendElem . C.Return =<< generateArg funcIr (ArgValue typ id)
+        ParamModify typ -> void $ appendElem . C.Return =<< generateArg funcIr (ArgModify typ id)
 
-    IR.Loop ids -> do
-        forId <- appendElem $ C.For Nothing Nothing Nothing []
-        withCurID forId $ mapM_ (generateStmt funcIr) ids
-
-    IR.If arg ids -> do
-        val <- generateArg arg
+    Ir2.If id ids -> do
+        val <- generateArg funcIr (ArgValue Type.Bool id)
         ifId <- appendElem (C.If val [])
         withCurID ifId $ mapM_ (generateStmt funcIr) ids
 
-    IR.SSA operation -> do
-        let Just (ssaTyp, ssaRefTyp) = Map.lookup id (IR.irTypes funcIr)
-        case operation of
-            IR.Call callType args -> generateCall funcIr id
-            IR.MakeSlice args -> do
-                exprs <- mapM generateArg args
-                cType <- C.Carray (length args) <$> cTypeOf ssaTyp
-                name <- fresh "slice"
-                void $ appendAssign cType name $ C.Initialiser exprs
+    Ir2.Loop ids -> do
+        forId <- appendElem $ C.For Nothing Nothing Nothing []
+        withCurID forId $ mapM_ (generateStmt funcIr) ids
 
-                cSlice <- cTypeOf (Apply Type.Slice ssaTyp)
+    Ir2.Break -> void (appendElem C.Break)
+
+    Ir2.EmbedC strMap str-> void $ appendElem . C.Embed =<< processCEmbed strMap str
+
+    Ir2.MakeSlice typ args -> do
+        cs <- mapM (generateArg funcIr) args
+
+        base <- baseTypeOf typ
+        case unfoldType base of
+            (Slice, [t]) -> do
+                cType <- C.Carray (length args) <$> cTypeOf t
+                name <- fresh "slice"
+                appendAssign cType name (C.Initialiser cs)
+                cSlice <- cTypeOf typ
                 void $ appendAssign cSlice (idName id) $ C.Initialiser
                     [ C.Ident name                       --  ptr
                     , C.Int 0                            -- cap
@@ -199,258 +183,117 @@ generateStmt funcIr id = case (IR.irStmts funcIr) Map.! id of
                     , C.Int (fromIntegral $ length args) -- end
                     ]
 
-            IR.InitVar marg -> do
-                cType <- cTypeOf ssaTyp
-                cexpr <- case marg of
-                    Nothing -> return (C.Initialiser [C.Int 0])
-                    Just arg -> generateArg arg
-
-                void $ appendAssign cType (idName id) cexpr
-
-            IR.MakeString str -> do
-                unless (ssaRefTyp == IR.Slice) (error "wasn't a slice")
-                cType <- cTypeOf (Apply Type.Slice ssaTyp)
-                let len = fromIntegral (length str)
-                void $ appendAssign cType (idName id) $ C.Initialiser
-                    [ C.String str -- ptr
-                    , C.Int len    -- cap
-                    , C.Int 0      -- start
-                    , C.Int len    -- end
-                    ]
-
-
-            IR.MakeReferenceFromValue (IR.ArgID argId) -> case (IR.irTypes funcIr) Map.! argId of
-                (typ, IR.Value) -> do
-                    cexpr <- generateArg (IR.ArgID argId)
-                    base <- baseTypeOf typ
-                    case unfoldType base of
-                        (Tuple, ts) -> do
-                            cRefType <- cRefTypeOf typ
-                            void $ appendAssign cRefType (idName id) $ C.Initialiser [C.Address cexpr, C.Int 0, C.Int 1]
-                        (_, _) -> do
-                            cRefType <- cRefTypeOf typ
-                            void $ appendAssign cRefType (idName id) (C.Address cexpr)
-
-                x -> error (show x)
-
-            IR.MakeValueFromReference (IR.ArgID argId) -> case (IR.irTypes funcIr) Map.! argId of
-                (typ, IR.Ref) -> do
-                    cType <- cTypeOf typ
-                    cRef <- deref typ =<< generateArg (IR.ArgID argId)
-                    void $ appendElem $ C.Assign cType (idName id) cRef
-
-                x -> error (show x)
-
+            x -> error (show x)
 
     x -> error (show x)
 
 
-generateCall :: IR.FuncIR -> IR.ID -> Generate ()
-generateCall funcIr id = do
-    let Just (IR.SSA (IR.Call callType args)) = Map.lookup id (IR.irStmts funcIr)
-    let (TypeDef funcSymbol, _) = unfoldType callType
-    let Just (ssaTyp, ssaRefTyp) = Map.lookup id (IR.irTypes funcIr)
-
+generateCall :: FuncIr2 -> Type.Type -> Ir2.ID -> [Ir2.Arg] -> Generate ()
+generateCall funcIr funcType id args = do
+    let (TypeDef funcSymbol, _) = unfoldType funcType
     case funcSymbol of
-        x | symbolsCouldMatch x (Sym ["builtin", "builtinAdd"]) -> do
-            [cexpr1, cexpr2] <- mapM generateArg args
-            cType <- cTypeOf ssaTyp
-            void $ appendAssign cType (idName id) $ C.Infix C.Plus cexpr1 cexpr2
+        s | symbolsCouldMatch s (Sym ["builtin", "builtinAdd"]) -> do
+            [ca, cb] <- mapM (generateArg funcIr) args
+            [ta, tb] <- mapM cTypeOf args
+            unless (ta == tb) (error "")
+            void $ appendAssign ta (idName id) (C.Infix C.Plus ca cb)
 
-        x | symbolsCouldMatch x (Sym ["builtin", "builtinSubtract"]) -> do
-            [cexpr1, cexpr2] <- mapM generateArg args
-            cType <- cTypeOf ssaTyp
-            void $ appendAssign cType (idName id) $ C.Infix C.Minus cexpr1 cexpr2
+        s | symbolsCouldMatch s (Sym ["builtin", "builtinSubtract"]) -> do
+            [ca, cb] <- mapM (generateArg funcIr) args
+            [ta, tb] <- mapM cTypeOf args
+            unless (ta == tb) (error "")
+            void $ appendAssign ta (idName id) (C.Infix C.Minus ca cb)
 
-        x | symbolsCouldMatch x (Sym ["builtin", "builtinMultiply"]) -> do
-            [cexpr1, cexpr2] <- mapM generateArg args
-            cType <- cTypeOf ssaTyp
-            void $ appendAssign cType (idName id) $ C.Infix C.Times cexpr1 cexpr2
+        s | symbolsCouldMatch s (Sym ["builtin", "builtinMultiply"]) -> do
+            [ca, cb] <- mapM (generateArg funcIr) args
+            [ta, tb] <- mapM cTypeOf args
+            unless (ta == tb) (error "")
+            void $ appendAssign ta (idName id) (C.Infix C.Times ca cb)
 
-        x | symbolsCouldMatch x (Sym ["builtin", "builtinDivide"]) -> do
-            [cexpr1, cexpr2] <- mapM generateArg args
-            cType <- cTypeOf ssaTyp
-            void $ appendAssign cType (idName id) $ C.Infix C.Divide cexpr1 cexpr2
+        s | symbolsCouldMatch s (Sym ["builtin", "builtinDivide"]) -> do
+            [ca, cb] <- mapM (generateArg funcIr) args
+            [ta, tb] <- mapM cTypeOf args
+            unless (ta == tb) (error "")
+            void $ appendAssign ta (idName id) (C.Infix C.Divide ca cb)
 
-        x | symbolsCouldMatch x (Sym ["builtin", "builtinModulo"]) -> do
-            [cexpr1, cexpr2] <- mapM generateArg args
-            cType <- cTypeOf ssaTyp
-            void $ appendAssign cType (idName id) $ C.Infix C.Modulo cexpr1 cexpr2
+        s | symbolsCouldMatch s (Sym ["builtin", "builtinModulo"]) -> do
+            [ca, cb] <- mapM (generateArg funcIr) args
+            [ta, tb] <- mapM cTypeOf args
+            unless (ta == tb) (error "")
+            void $ appendAssign ta (idName id) (C.Infix C.Modulo ca cb)
 
-        x | symbolsCouldMatch x (Sym ["builtin", "builtinEqual"]) -> do
-            [cexpr1, cexpr2] <- mapM generateArg args
-            cType <- cTypeOf ssaTyp
-            void $ appendAssign cType (idName id) $ C.Infix C.EqEq cexpr1 cexpr2
+        s | symbolsCouldMatch s (Sym ["builtin", "builtinEqual"]) -> do
+            [ca, cb] <- mapM (generateArg funcIr) args
+            [ta, tb] <- mapM cTypeOf args
+            unless (ta == tb) (error "")
+            void $ appendAssign C.Cbool (idName id) (C.Infix C.EqEq ca cb)
 
-        x | symbolsCouldMatch x (Sym ["builtin", "builtinLessThan"]) -> do
-            [cexpr1, cexpr2] <- mapM generateArg args
-            cType <- cTypeOf ssaTyp
-            void $ appendAssign cType (idName id) $ C.Infix C.LT cexpr1 cexpr2
+        s | symbolsCouldMatch s (Sym ["builtin", "builtinLessThan"]) -> do
+            [ca, cb] <- mapM (generateArg funcIr) args
+            [ta, tb] <- mapM cTypeOf args
+            unless (ta == tb) (error "")
+            void $ appendAssign C.Cbool (idName id) (C.Infix C.LT ca cb)
 
-        x | symbolsCouldMatch x (Sym ["builtin", "builtinGreaterThan"]) -> do
-            [cexpr1, cexpr2] <- mapM generateArg args
-            cType <- cTypeOf ssaTyp
-            void $ appendAssign cType (idName id) $ C.Infix C.GT cexpr1 cexpr2
+        s | symbolsCouldMatch s (Sym ["builtin", "builtinNot"]) -> do
+            [cexpr] <- mapM (generateArg funcIr) args
+            void $ appendAssign C.Cbool (idName id) (C.Infix C.EqEq cexpr $ C.Bool False)
 
-        x | symbolsCouldMatch x (Sym ["builtin", "builtinAnd"]) -> do
-            [cexpr1, cexpr2] <- mapM generateArg args
-            cType <- cTypeOf ssaTyp
-            void $ appendAssign cType (idName id) $ C.Infix C.AndAnd cexpr1 cexpr2
-
-        x | symbolsCouldMatch x (Sym ["builtin", "builtinOr"]) -> do
-            [cexpr1, cexpr2] <- mapM generateArg args
-            cType <- cTypeOf ssaTyp
-            void $ appendAssign cType (idName id) $ C.Infix C.OrOr cexpr1 cexpr2
-
-        x | symbolsCouldMatch x (Sym ["builtin", "builtinNot"]) -> do
-            [cexpr1] <- mapM generateArg args
-            cType <- cTypeOf ssaTyp
-            void $ appendAssign cType (idName id) $ C.Not cexpr1
-
-        x | symbolsCouldMatch x (Sym ["builtin", "builtinTableAppend"]) -> do
-            unless (length args == 1) (error "arg length mismatch")
-            let (IR.ArgID argId) = head args
-            let (argType, IR.Ref) = (IR.irTypes funcIr) Map.! argId
-            cexpr <- generateArg (head args)
-            builtinTableAppend argType cexpr
-
-        x | symbolsCouldMatch x (Sym ["builtin", "builtinStore"]) -> do
-            let (TypeDef _, [typ]) = unfoldType callType
-            [cexpr1, cexpr2] <- mapM generateArg args
-            base <- baseTypeOf typ
-            ct <- cTypeOf base
-            case unfoldType base of
-                (Tuple, ts) -> do
-                    forM_ (zip ts [0..]) $ \(t, i) -> do
-                        ci <- cTypeOf t
-                        let off = C.Offsetof ct ("m" ++ show i)
-                        let cap = C.Member cexpr1 "cap"
-                        let idx = C.Member cexpr1 "idx"
-                        let ptr = C.Cast (Cpointer Cvoid) (C.Member cexpr1 "ptr")
-                        let size = C.SizeofType ci
-                        let offset = C.Infix C.Plus (C.Infix C.Times cap off) (C.Infix C.Times idx size)
-                        let fieldP = C.Cast (Cpointer ci) (C.Infix C.Plus ptr offset)
-
-                        void $ appendElem $ C.Set (C.Deref fieldP) $ C.Member cexpr2 ("m" ++ show i)
-
-                _ ->  void $ appendElem $ C.Set  (C.Deref cexpr1) cexpr2
-                x -> error (show x) 
-
-            --void $ appendElem $ C.Set (C.Deref cexpr1) cexpr2
-
-        x | symbolsCouldMatch x (Sym ["builtin", "builtinConvert"]) -> do
-            unless (length args == 1) (error "arg length mismatch")
-            --let (IR.ArgID argId) = head args
-
-            argType <- case head args of
-                IR.ArgID argId -> return $ fst $ (IR.irTypes funcIr) Map.! argId
-                IR.ArgConst typ _ -> return typ
-
-            cexpr <- generateArg (head args)
-            cType <- cTypeOf argType
+        s | symbolsCouldMatch s (Sym ["builtin", "builtinConvert"]) -> do
+            [cexpr] <- mapM (generateArg funcIr) args
+            [cType] <- mapM cTypeOf args
             void $ appendAssign cType (idName id) cexpr
 
-        x | symbolsCouldMatch x (Sym ["builtin", "builtinTableLen"]) -> do
-            [cexpr] <- mapM generateArg args
-            void $ appendAssign C.Cint64_t (idName id) (C.PMember cexpr "len")
+        s | symbolsCouldMatch s (Sym ["builtin", "builtinArrayLen"]) -> do
+            [(Type.Array, [Size n, t])] <- map unfoldType <$> mapM baseTypeOf args
+            void $ appendAssign C.Cint64_t (idName id) (C.Int $ fromIntegral n)
 
-        x | symbolsCouldMatch x (Sym ["builtin", "builtinArrayLen"]) -> do
-            unless (length args == 1) (error "arg length mismatch")
-            let (IR.ArgID argId) = (args !! 0)
-            let (argType, IR.Ref) = (IR.irTypes funcIr) Map.! argId
-            base <- baseTypeOf argType
+        s | symbolsCouldMatch s (Sym ["builtin", "builtinSlice"]) -> do
+            [cexpr, cstart, cend] <- mapM (generateArg funcIr) args
+
+            base <- baseTypeOf (args !! 0)
             case unfoldType base of
-                (Type.Array, [Size n, t]) -> do
-                    void $ appendAssign C.Cint64_t (idName id) (C.Int $ fromIntegral n)
-                x -> error (show x)
-
-        x | symbolsCouldMatch x (Sym ["builtin", "builtinSumReset"]) -> do
-            unless (length args == 2) (error "arg length mismatch")
-            let (IR.ArgID argId) = (args !! 0)
-            let (argType, IR.Ref) = (IR.irTypes funcIr) Map.! argId
-
-            (Sum, _) <- unfoldType <$> baseTypeOf argType
-            [cref, cidx] <- mapM generateArg args
-            appendElem $ C.ExprStmt $ C.Call "memset" [ cref , C.Int 0, C.Sizeof (C.Deref $ cref) ]
-            appendElem $ C.Set (C.PMember cref "en") cidx
-            return ()
-
-        x | symbolsCouldMatch x (Sym ["builtin", "builtinSumEnum"]) -> do
-            [cexpr] <- mapM generateArg args
-            void $ appendAssign C.Cint64_t (idName id) $ C.PMember cexpr "en"
-
-        x | symbolsCouldMatch x (Sym ["builtin", "builtinSlice"]) -> do
-            [cexpr, cstart, cend] <- mapM generateArg args
-
-            let (IR.ArgID argId) = args !! 0
-            let (argType, _) = (IR.irTypes funcIr) Map.! argId
-
-            unless (ssaRefTyp == IR.Slice) (error "not IR.Slice")
-
-            base <- baseTypeOf argType
-            case unfoldType base of
-                    
-                (Table, [_]) -> do
-                    cType <- cTypeOf (Apply Slice ssaTyp)
+                (Table, [t]) -> do
+                    cType <- cTypeOf (Apply Slice t)
                     void $ appendAssign cType (idName id) $ C.Initialiser
                         [ C.PMember cexpr "r0" , C.PMember cexpr "cap" , cstart , cend ]
 
                 (Array, [Size n, t]) -> do
-                    cType <- cTypeOf (Apply Slice ssaTyp)
+                    cType <- cTypeOf (Apply Slice t)
                     void $ appendAssign cType (idName id) $ C.Initialiser
                         [ C.PMember cexpr "arr" , C.Int 0 , cstart , cend ]
 
-                _ -> do
-                    cType <- cTypeOf (Apply Slice ssaTyp)
+                (Slice, [t]) -> do
+                    cType <- cTypeOf (Apply Slice t)
                     void $ appendAssign cType (idName id) $ C.Initialiser
                         [ C.Member cexpr "ptr", C.Member cexpr "cap", cstart, cend ]
 
-                    
-
-        x | symbolsCouldMatch x (Sym ["builtin", "builtinSliceLen"]) -> do
-            [cexpr] <- mapM generateArg args
+        s | symbolsCouldMatch s (Sym ["builtin", "builtinSliceLen"]) -> do
+            [cexpr] <- mapM (generateArg funcIr) args
             void $ appendAssign C.Cint64_t (idName id) $ C.Infix C.Minus
                 (C.Member cexpr "end")
                 (C.Member cexpr "start")
 
-        x | symbolsCouldMatch x (Sym ["builtin", "builtinPretend"]) -> do
-            [cexpr] <- mapM generateArg args
-            cRefType <- cRefTypeOf ssaTyp
+        s | symbolsCouldMatch s (Sym ["builtin", "builtinPretend"]) -> do
+            [cexpr] <- mapM (generateArg funcIr) args
+            cRefType <- cRefTypeOf (args !! 0)
             void $ appendAssign cRefType (idName id) cexpr
 
-        x | symbolsCouldMatch x (Sym ["builtin", "builtinArrayAt"]) -> do
-            [carg, cidx] <- mapM generateArg args
+        s | symbolsCouldMatch s (Sym ["builtin", "builtinArrayAt"]) -> do
+            [carg, cidx] <- mapM (generateArg funcIr) args
             let cref = C.Address $ C.Subscript (C.PMember carg "arr") cidx
 
-            base <- baseTypeOf ssaTyp
-            cRefType <- cRefTypeOf ssaTyp
+            (Array, [Size n, t]) <- unfoldType <$> baseTypeOf (args !! 0)
+            base <- baseTypeOf t
+            cRefType <- cRefTypeOf t
             case unfoldType base of
                 (Tuple, (_:_)) -> void $ appendAssign cRefType (idName id) $ C.Initialiser [cref, C.Int 0, C.Int 1]
                 _              -> void $ appendAssign cRefType (idName id) cref
 
-        x | symbolsCouldMatch x (Sym ["builtin", "builtinTableAt"]) -> do
-            unless (length args == 2) (error "arg length mismatch")
-            [cexpr, cidx] <- mapM generateArg args
-
-            let (IR.ArgID argId) = args !! 0
-            let (argType, IR.Ref) = (IR.irTypes funcIr) Map.! argId
-            Apply Table t <- baseTypeOf argType
+        s | symbolsCouldMatch s (Sym ["builtin", "builtinSliceAt"]) -> do
+            [cexpr, cidx] <- mapM (generateArg funcIr) args
+            (Slice, [t]) <- unfoldType <$> baseTypeOf (args !! 0)
             base <- baseTypeOf t
             cRefType <- cRefTypeOf t
-            case unfoldType base of
-                (Tuple, ts) -> void $ appendAssign cRefType (idName id) $
-                    C.Initialiser [C.PMember cexpr "r0", cidx, C.PMember cexpr "cap"]
-                _ -> void $ appendAssign cRefType (idName id) $
-                    C.Address $ C.Subscript (C.PMember cexpr "r0") cidx
-
-        x | symbolsCouldMatch x (Sym ["builtin", "builtinSliceAt"]) -> do
-            [cexpr, cidx] <- mapM generateArg args
-
-            let IR.ArgID argId = args !! 0
-            let (argType, IR.Slice) = (IR.irTypes funcIr) Map.! argId
-
-            cRefType <- cRefTypeOf argType
-            base <- baseTypeOf argType
 
             -- ptr = ptr + (cap ? 0 : sizeof(struct) * (idx + start)
             -- idx = cap ? (idx + start) : 0
@@ -473,21 +316,92 @@ generateCall funcIr id = do
                 (_, _) -> void $ appendAssign cRefType (idName id) $ C.Address $
                     C.Subscript (C.Member cexpr "ptr") (C.Infix C.Plus start cidx)
 
+        s | symbolsCouldMatch s (Sym ["builtin", "builtinStore"]) -> do
+            let (TypeDef _, [typ]) = unfoldType funcType
+            [cexpr1, cexpr2] <- mapM (generateArg funcIr) args
+            base <- baseTypeOf typ
+            ct <- cTypeOf base
+            case unfoldType base of
+                (Tuple, ts) -> do
+                    forM_ (zip ts [0..]) $ \(t, i) -> do
+                        ci <- cTypeOf t
+                        let off = C.Offsetof ct ("m" ++ show i)
+                        let cap = C.Member cexpr1 "cap"
+                        let idx = C.Member cexpr1 "idx"
+                        let ptr = C.Cast (Cpointer Cvoid) (C.Member cexpr1 "ptr")
+                        let size = C.SizeofType ci
+                        let offset = C.Infix C.Plus (C.Infix C.Times cap off) (C.Infix C.Times idx size)
+                        let fieldP = C.Cast (Cpointer ci) (C.Infix C.Plus ptr offset)
 
-        x | symbolsCouldMatch x (Sym ["builtin", "builtinField"]) -> do
-            [cexpr] <- mapM generateArg args
-            let (TypeDef _, [Size i, _, _]) = unfoldType callType
+                        void $ appendElem $ C.Set (C.Deref fieldP) $ C.Member cexpr2 ("m" ++ show i)
 
-            let (IR.ArgID argId) = (args !! 0)
-            let (argType, IR.Ref) = (IR.irTypes funcIr) Map.! argId
+                _ ->  void $ appendElem $ C.Set  (C.Deref cexpr1) cexpr2
+                x -> error (show x) 
 
-            cType <- cTypeOf argType
-            cRefType <- cRefTypeOf argType
-            base <- baseTypeOf argType
+        s | symbolsCouldMatch s (Sym ["builtin", "builtinSumReset"]) -> do
+            [ca, cb] <- mapM (generateArg funcIr) args
+            (Sum, _) <- unfoldType <$> baseTypeOf (args !! 0)
+            appendElem $ C.ExprStmt $ C.Call "memset" [ca, C.Int 0, C.Sizeof (C.Deref ca)]
+            appendElem $ C.Set (C.PMember ca "en") cb
+            return ()
+
+        x | symbolsCouldMatch x (Sym ["builtin", "builtinSumEnum"]) -> do
+            [cexpr] <- mapM (generateArg funcIr) args
+            void $ appendAssign C.Cint64_t (idName id) (C.PMember cexpr "en")
+
+        s | symbolsCouldMatch s (Sym ["builtin", "builtinTableAppend"]) -> do
+            [cexpr] <- mapM (generateArg funcIr) args
+            builtinTableAppend (typeof $ args !! 0) cexpr
+
+        s | symbolsCouldMatch s (Sym ["builtin", "builtinTableLen"]) -> do
+            [cexpr] <- mapM (generateArg funcIr) args
+            void $ appendAssign C.Cint64_t (idName id) (C.PMember cexpr "len")
+
+        s | symbolsCouldMatch s (Sym ["builtin", "builtinTableAt"]) -> do
+            [cexpr, cidx] <- mapM (generateArg funcIr) args
+            Apply Table t <- baseTypeOf (args !! 0)
+            base <- baseTypeOf t
+            cRefType <- cRefTypeOf t
+            case unfoldType base of
+                (Tuple, ts) -> void $ appendAssign cRefType (idName id) $
+                    C.Initialiser [C.PMember cexpr "r0", cidx, C.PMember cexpr "cap"]
+                _ -> void $ appendAssign cRefType (idName id) $
+                    C.Address $ C.Subscript (C.PMember cexpr "r0") cidx
+
+        s | symbolsCouldMatch s (Sym ["builtin", "builtinInit"]) -> do
+            let [ArgConst typ const] = args
+            cType <- cTypeOf typ
+            base <- baseTypeOf typ
+            cexpr <- case (unfoldType base, const) of
+                ((I64, []), ConstInt n)               -> return (C.Int n)
+                ((F64, []), ConstFloat f)             -> return (C.Float f)
+                ((Type.Bool, []), ConstBool b)        -> return (C.Bool b)
+                ((Type.Char, []), ConstChar c)        -> return (C.Char c)
+                ((Tuple, []), ConstZero)              -> return $ C.Initialiser []
+                ((Sum, _), ConstZero)                 -> return $ C.Initialiser [C.Int 0]
+                ((Tuple, _), ConstZero)               -> return $ C.Initialiser [C.Int 0]
+                ((_, _), ConstZero)                   -> return $ C.Initialiser [C.Int 0]
+                ((Slice, [Type.Char]), ConstString s) -> do
+                    return $ C.Initialiser
+                        [ C.String s
+                        , C.Int 0
+                        , C.Int 0
+                        , C.Int (fromIntegral $ length s)
+                        ]
+                x -> error (show x)
+
+            void $ appendAssign cType (idName id) cexpr
+
+        s | symbolsCouldMatch s (Sym ["builtin", "builtinField"]) -> do
+            [cexpr] <- mapM (generateArg funcIr) args
+            let (TypeDef _, [Size i, _, _]) = unfoldType funcType
+
+            cType <- cTypeOf (args !! 0)
+            cRefType <- cRefTypeOf (args !! 0)
+            base <- baseTypeOf (args !! 0)
 
             case unfoldType base of
                 (Sum, ts) -> do
-                    let IR.Ref = ssaRefTyp
                     let ptr = C.Address (C.PMember cexpr $ "u" ++ show i)
                     base <- baseTypeOf (ts !! i)
                     cRefType <- cRefTypeOf (ts !! i)
@@ -497,7 +411,6 @@ generateCall funcIr id = do
                         (_, ts) -> void $ appendAssign cRefType (idName id) ptr
 
                 (Table, [t]) -> do
-                    let IR.Ref = ssaRefTyp
                     baseT <- baseTypeOf t
 
                     case unfoldType baseT of
@@ -517,7 +430,6 @@ generateCall funcIr id = do
                                 ]
 
                 (Tuple, ts) -> do
-                    let IR.Ref = ssaRefTyp
                     cts <- mapM cTypeOf ts
                     ct <- cTypeOf base
 
@@ -526,42 +438,30 @@ generateCall funcIr id = do
                     let idx = C.Member cexpr "idx"
                     let cap = C.Member cexpr "cap"
 
-                    case ssaRefTyp of
-                        IR.Ref -> do
-                            let ptr' = C.Cast (Cpointer $ cts !! i) $ C.Infix C.Plus ptr $ C.Infix Plus
-                                        (C.Infix C.Times cap off)
-                                        (C.Infix C.Times idx $ C.SizeofType $ cts !! i)
+                    let ptr' = C.Cast (Cpointer $ cts !! i) $ C.Infix C.Plus ptr $ C.Infix Plus
+                                (C.Infix C.Times cap off)
+                                (C.Infix C.Times idx $ C.SizeofType $ cts !! i)
 
-                            baseField <- baseTypeOf (ts !! i)
-                            cRefTypeField <- cRefTypeOf (ts !! i)
-                            case unfoldType baseField of
-                                (Tuple, _) -> do
-                                    void $ appendAssign cRefTypeField (idName id) $ C.Initialiser [ptr', C.Int 0, C.Int 1]
-                                (_, _) -> do
-                                    void $ appendAssign cRefTypeField (idName id) ptr'
+                    baseField <- baseTypeOf (ts !! i)
+                    cRefTypeField <- cRefTypeOf (ts !! i)
+                    case unfoldType baseField of
+                        (Tuple, _) -> do
+                            void $ appendAssign cRefTypeField (idName id) $ C.Initialiser [ptr', C.Int 0, C.Int 1]
+                        (_, _) -> do
+                            void $ appendAssign cRefTypeField (idName id) ptr'
 
                         x -> error (show x)
                 
                 x -> error (show x)
 
+        s -> do
+            Just callIr <- gets $ Map.lookup funcType . instantiations . astResolved
+            cRetTy <- case irReturn callIr of
+                ParamModify typ -> cRefTypeOf typ
+                ParamValue typ  -> cTypeOf typ
 
-        x -> do
-            header <- generateFunc callType
-            cArgs <- mapM generateArg args
-            let cCall = C.Call (showSymGlobal $ IR.irFuncSymbol header) cArgs
+            void $ appendAssign cRetTy (idName id) =<<
+                C.Call (showSymGlobal $ irSymbol callIr) <$> mapM (generateArg funcIr) args
 
-            case (IR.irTypes funcIr) Map.! id of
-                --(Tuple, IR.Const) -> void $ appendElem (C.ExprStmt cCall)
-                (typ, IR.Value) -> do
-                    cType <- cTypeOf typ
-                    void $ appendAssign cType (idName id) cCall
-
-                (typ, IR.Ref) -> do
-                    cRefType <- cRefTypeOf typ
-                    void $ appendAssign cRefType (idName id) cCall
-
-                (typ, IR.Slice) -> do
-                    cType <- cTypeOf (Apply Type.Slice typ)
-                    void $ appendAssign cType (idName id) cCall
-
-                x -> error (show x)
+        x -> error (show x)
+        

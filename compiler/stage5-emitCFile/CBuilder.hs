@@ -87,13 +87,30 @@ modifyElement id f = do
 
 appendElem :: MonadBuilder m => Element -> m ID
 appendElem elem = do
-    id <- newElement elem
+    elem' <- case elem of
+        ExprStmt expr -> return $ ExprStmt (optimise expr)
+        Set expr1 expr2 -> return $ Set (optimise expr1) (optimise expr2)
+        Assign t s expr   -> return $ Assign t s (optimise expr)
+        _ -> return elem
+
+    id <- newElement elem'
     append id
     return id
 
 
+optimise :: Expression -> Expression
+optimise expr = case expr of
+    PMember (Address expr') str -> Member (optimise expr') str
+    Deref (Address expr')       -> optimise expr'
+    Call s exprs                -> Call s (map optimise exprs)
+    Sizeof expr                 -> Sizeof (optimise expr)
+    Initialiser exprs           -> Initialiser (map optimise exprs)
+
+    _ -> expr
+
+
 appendIf :: MonadBuilder m => Expression -> m ID
-appendIf cnd = appendElem $ If { ifExpr = cnd, ifStmts = [] }
+appendIf cnd = appendElem $ If { ifExpr = (optimise cnd), ifStmts = [] }
 
 
 appendElse :: MonadBuilder m => m ID
@@ -107,7 +124,7 @@ appendPrintf fmt exprs = do
 
 appendAssign :: MonadBuilder m => Type -> String -> Expression -> m ID
 appendAssign ctyp name expr = do
-    appendElem $ Assign ctyp name expr
+    appendElem $ Assign ctyp name (optimise expr)
 
 
 

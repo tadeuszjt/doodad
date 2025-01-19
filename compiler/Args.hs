@@ -12,6 +12,7 @@ data Args = Args
     , printAstInferred :: Bool
     , printSymbols :: Bool
     , printAstFinal :: Bool
+    , printIr       :: Bool
     , printC        :: Bool
     , printAssembly :: Bool
     , modPaths    :: [String]
@@ -29,6 +30,7 @@ initArgs = Args
     , printAstInferred = False
     , printSymbols = False
     , printAstFinal = False
+    , printIr = False
     , printC = False
     , printAssembly = False
     , modPaths  = []
@@ -51,6 +53,7 @@ parseArgs args argStrs = case argStrs of
     ["--print-symbols"] -> args { printSymbols = True }
     ["--print-c"] -> args { printC = True }
     ["--print-assembly"] -> args { printAssembly = True }
+    ["--print-ir"] -> args { printIr = True }
     [str]  -> args { modPaths  = (modPaths args) ++ [str] }
     (a:as) -> parseArgs (parseArgs args [a]) as
 

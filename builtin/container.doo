@@ -6,6 +6,7 @@ import builtin/assert
 import builtin/convert
 import builtin/compare
 import builtin/boolean
+import builtin/tuple
 
 // basic container
 func{T}                    len(T) I64

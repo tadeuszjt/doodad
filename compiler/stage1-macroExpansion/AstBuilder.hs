@@ -13,7 +13,7 @@ import Type
 
 data TopStmt
     = TopStmt Stmt
-    | TopInst TextPos Generics Type [Param] Retty InstBuilderState
+    | TopInst TextPos Generics Type [Param] Bool InstBuilderState
     | TopField TextPos Generics Type Int
 
 data AstBuilderState = AstBuilderState

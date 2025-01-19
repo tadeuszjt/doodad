@@ -49,7 +49,7 @@ executable doodad
         compiler/stage0-parseAST,
         compiler/stage1-macroExpansion,
         compiler/stage2-resolveSymbols,
-        compiler/stage3-typeInference,
+        compiler/stage3-generateMidLevelIr,
         compiler/stage4-midLevelIR,
         compiler/stage5-emitCFile
     default-language:  Haskell2010
@@ -88,12 +88,7 @@ executable doodad
         Preprocess,
         InstBuilder,
         FindFunc,
-        MakeFuncIR,
-        IR,
-        FuncIrDestroy,
-        FuncIrUnused,
-        FuncIrInline,
-        FuncIrConst,
-        FuncIrChecker,
         AstBuilder,
-        InferTypes
+        InferTypes,
+        Ir2,
+        IrGenerate

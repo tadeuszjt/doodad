@@ -1,5 +1,7 @@
 module limits
 
+import builtin/builtin
+
 include <stdint.h>
 
 

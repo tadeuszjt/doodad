@@ -75,27 +75,28 @@ buildTopStatement statement = case statement of
             -- write instance
             let typ = foldType (TypeDef symbol : map TypeDef generics)
             let acq = foldType [TypeDef fieldSymbol, typ, fieldType]
-            addTopStmt . TopInst pos generics acq [Param pos (Sym ["x"]) (Apply Type.Ref Tuple)] (RefRetty Tuple) =<<
+            addTopStmt . TopInst pos generics acq [Param pos (Sym ["x"]) (Apply Type.Ref Tuple)] True =<<
                 buildInst (appendStmt $ Return pos . Just $ field fieldType i (Ident pos $ Sym ["x"]))
 
             let acq2 = foldType [TypeDef fieldSymbol, Apply Table typ, Apply Slice fieldType]
-            addTopStmt . TopInst pos generics acq2 [Param pos (Sym ["x"]) (Apply Ref Tuple)] (Retty Tuple) =<<
+            addTopStmt . TopInst pos generics acq2 [Param pos (Sym ["x"]) (Apply Ref Tuple)] False =<<
                 buildInst (appendStmt $ Return pos . Just $ field (Apply Slice fieldType) i (Ident pos $ Sym ["x"]))
 
     Instance pos generics typ args isRef (Block stmts) -> do
-        retty <- case isRef of
-            False -> return (Retty Tuple)
-            True  -> return (RefRetty Tuple)
-        addTopStmt . TopInst pos generics typ args retty =<< buildInst (mapM_ buildStmt stmts)
+        addTopStmt . TopInst pos generics typ args isRef =<< buildInst (mapM_ buildStmt stmts)
 
     FuncInst pos generics symbol params retty (Block stmts) -> do
         argTypes <- forM params $ \param -> case param of
             Param pos symbol (Apply Type.Ref t) -> return t
             Param pos symbol t                  -> return t
 
+        isRef <- case retty of
+            RefRetty _ -> return True
+            Retty _    -> return False
+
         addTopStmt $ TopStmt $ Function pos generics [] symbol $ foldType (Type.Func : typeof retty : argTypes)
         inst' <- buildInst (mapM_ buildStmt stmts)
-        addTopStmt $ TopInst pos generics (foldl Apply (TypeDef symbol) $ map TypeDef generics) params retty inst'
+        addTopStmt $ TopInst pos generics (foldl Apply (TypeDef symbol) $ map TypeDef generics) params isRef inst'
 
 
     Enum pos generics symbol cases -> do

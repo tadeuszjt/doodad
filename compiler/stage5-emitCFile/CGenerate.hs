@@ -35,17 +35,6 @@ initGenerateState ast
         }
 
 
-genSymbol :: Symbol -> Generate Symbol
-genSymbol symbol@(SymResolved str) = do  
-    ast <- gets astResolved
-    let modName = (ASTResolved.moduleName ast)
-    let im = (Map.lookup symbol $ symSupply ast)
-    let n = maybe 0 (id) im
-
-    modify $ \s -> s { astResolved = ast { symSupply = Map.insert symbol (n + 1) (symSupply ast) } }
-    return $ SymResolved ([modName] ++ str ++ [show n])
-
-
 newtype Generate a = Generate { unGenerate :: StateT GenerateState (StateT BuilderState (ExceptT Error IO)) a }
     deriving (Functor, Applicative, Monad, MonadState GenerateState, MonadIO, MonadError Error)
 
@@ -95,12 +84,24 @@ if_ cnd f = do
     withCurID id f
 
 
+stackRef :: Type.Type -> C.Expression -> Generate C.Expression
+stackRef typ cexpr = do
+    base <- baseTypeOf typ
+    case unfoldType base of
+        (Tuple, ts) -> assignRef "ref" typ $ C.Initialiser [C.Address cexpr, C.Int 0, C.Int 1]
+        (_, _)      -> case cexpr of
+            C.Ident s -> return (C.Address cexpr)
+            _         -> assignRef "ref" typ (C.Address cexpr)
+
+
 deref :: Type.Type -> C.Expression -> Generate C.Expression
 deref typ expr = do
     base <- baseTypeOf typ
     case unfoldType base of
         (Tuple, ts) -> do -- {ptr, idx, cap}
-            tup <- assignVal "deref" typ $ C.Initialiser [C.Int 0]
+            tup <- assignVal "deref" typ $ case ts of
+                [] -> C.Initialiser []
+                _  -> C.Initialiser [C.Int 0]
             cts <- mapM cTypeOf ts
             ct <- cTypeOf base
             forM_ (zip ts [0..]) $ \(t, i) -> do
@@ -148,7 +149,7 @@ cTypeOf a = case typeof a of
     F32            -> return Cfloat
     Type.Bool      -> return Cbool
     Type.Char      -> return Cchar
-    Type.Tuple     -> return Cint64_t
+    Type.Tuple     -> getTypedef "Tuple" =<< cTypeNoDef (typeof a)
 
     TypeDef s -> do
         (xs, typ) <- (Map.! s) <$> getTypeDefs
@@ -185,7 +186,7 @@ cTypeOf a = case typeof a of
             F32 -> return Cfloat
             Type.Bool -> return Cbool
             Type.Char -> return Cchar
-            Tuple -> return Cint64_t
+            Tuple -> return $ Cstruct []
 
             Apply Type.Slice t -> do
                 cType <- cTypeOf t

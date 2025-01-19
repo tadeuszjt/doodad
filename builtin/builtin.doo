@@ -14,7 +14,7 @@ fn{T, G} pretend(a &T) &G
 
 fn{T} store(a &T, b T)
     a.destroy
-    a.builtinStore(b)
+    a.builtinStore(b.copy)
 
 
 fn{T} swap(a &T, b &T)
@@ -42,6 +42,7 @@ inst copy{Bool} (a); return a
 inst copy{Char} (a); return a
 
 
+fn{T}       builtinInit() T;         ${ assert(false); }
 fn{T}       builtinSwap(a &T, b &T); ${ assert(false); }
 fn{T}       builtinStore(a &T, b T); ${ assert(false); }
 fn{I, G, T} builtinField(t &T) &G;   ${ assert(false); }
@@ -61,9 +62,6 @@ fn{T} builtinModulo(a T, b T) T;   ${ assert(false); }
 // boolean
 fn{T} builtinEqual(a T, b T)       Bool; ${ assert(false); }
 fn{T} builtinLessThan(a T, b T)    Bool; ${ assert(false); }
-fn{T} builtinGreaterThan(a T, b T) Bool; ${ assert(false); }
-fn{T} builtinAnd(a T, b T) T;            ${ assert(false); }
-fn{T} builtinOr(a T, b T)  T;            ${ assert(false); }
 fn{T} builtinNot(a T)      T;            ${ assert(false); }
 
 
