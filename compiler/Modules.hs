@@ -29,6 +29,7 @@ import qualified ResolveAst
 import qualified CombineAsts
 import Preprocess
 import IrGenerate
+import IrContextPass
 
 -- Modules are groups of .doo files with a module name header
 -- lang/lexer.doo: lexer module
@@ -198,8 +199,9 @@ buildModule isMain args modPath = do
 
         irGenerateResult <- runIrGenerate initIrGenerateState astFinal irGenerateAst
         astGenerated <- case irGenerateResult of
-            Right (_, astGenerated) -> return astGenerated
             Left err                -> error (show err)
+            Right (_, astGenerated) -> do
+                fmap snd $ runDoMExcept astGenerated irContextPass
 
 
         when (isMain && printIr args) $ liftIO (printAstIr astGenerated)

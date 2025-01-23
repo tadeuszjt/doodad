@@ -582,6 +582,11 @@ fn testCompare()
     let true = o1 > o2
 
 
+fn testContext()
+    //let x = @I64 + 1
+    return
+
+
 fn main()
     testArithmetic()
     testFloats()
@@ -609,6 +614,7 @@ fn main()
     testSet()
     testStack()
     testCompare()
+    testContext()
 
     ${ puts("langTest success"); }
     return

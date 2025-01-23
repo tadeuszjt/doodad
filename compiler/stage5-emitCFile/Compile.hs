@@ -2,6 +2,8 @@ module Compile where
 
 import Data.Maybe
 import Data.Char
+import Data.List
+import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Control.Monad
 import Control.Monad.State
@@ -18,7 +20,6 @@ import FindFunc
 import Monad
 
 import Ir2
-
 
 
 generateAst :: MonadIO m => ASTResolved -> m (Either Error (((), GenerateState), BuilderState))
@@ -47,7 +48,13 @@ generate = withErrorPrefix "generate: " $ do
                     ParamModify _ -> cRefTypeOf argType
                     ParamValue _ -> cTypeOf argType
 
-                appendExtern (showSymGlobal $ irSymbol funcIr) cReturnType cArgTypes [C.Extern]
+                cCtxTypes <- forM (Set.toList $ fromJust $ irContexts funcIr) $ \typ -> cRefTypeOf typ
+                appendExtern
+                    (showSymGlobal $ irSymbol funcIr)
+                    cReturnType
+                    (cArgTypes ++ cCtxTypes)
+                    [C.Extern]
+
 
     -- generate top function definitions
     forM_ (instantiationsTop ast) $ \instType -> do
@@ -86,11 +93,14 @@ generateFuncIr funcIr = do
         ParamModify typ -> C.Param (idName i) <$> cRefTypeOf typ
         ParamValue  typ -> C.Param (idName i) <$> cTypeOf typ
 
+    cCtxs <- forM (zip [0..] $ Set.toList $ fromJust $ irContexts funcIr) $ \(i, typ) -> do
+        C.Param ("_ctx" ++ show i) <$> cRefTypeOf typ
+
     cReturn <- case irReturn funcIr of
         ParamValue typ -> cTypeOf typ
         ParamModify typ -> cRefTypeOf typ
 
-    funcId <- newFunction cReturn (showSymGlobal $ irSymbol funcIr) cArgs []
+    funcId <- newFunction cReturn (showSymGlobal $ irSymbol funcIr) (cArgs ++ cCtxs) []
     withCurID funcId (generateStmt funcIr 0)
     withCurID globalID (append funcId)
     return ()
@@ -246,6 +256,12 @@ generateCall funcIr funcType id args = do
         s | symbolsCouldMatch s (Sym ["builtin", "builtinArrayLen"]) -> do
             [(Type.Array, [Size n, t])] <- map unfoldType <$> mapM baseTypeOf args
             void $ appendAssign C.Cint64_t (idName id) (C.Int $ fromIntegral n)
+
+        s | symbolsCouldMatch s (Sym ["builtin", "builtinContext"]) -> do
+            let (TypeDef symbol, [t]) = unfoldType funcType
+            let Just i = elemIndex t (Set.toList $ fromJust $ irContexts funcIr)
+            cRefType <- cRefTypeOf t
+            void $ appendAssign cRefType (idName id) (C.Ident $ "_ctx" ++ show i)
 
         s | symbolsCouldMatch s (Sym ["builtin", "builtinSlice"]) -> do
             [cexpr, cstart, cend] <- mapM (generateArg funcIr) args

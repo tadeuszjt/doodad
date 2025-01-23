@@ -91,4 +91,5 @@ executable doodad
         AstBuilder,
         InferTypes,
         Ir2,
-        IrGenerate
+        IrGenerate,
+        IrContextPass

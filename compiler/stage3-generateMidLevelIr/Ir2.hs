@@ -1,6 +1,6 @@
 module Ir2 where
 
-
+import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Control.Monad
 import Control.Monad.State
@@ -97,6 +97,7 @@ instance Show Stmt where
 data FuncIr2 = FuncIr2
     { irStmts     :: Map.Map ID Stmt
     , irIdArgs    :: Map.Map ID Arg
+    , irContexts  :: Maybe (Set.Set Type)
     , irArgs      :: [IrParam]
     , irReturn    :: IrParam
     , irSymbol    :: Symbol
@@ -112,6 +113,7 @@ initFuncIr2 = FuncIr2
     , irIdArgs    = Map.empty
     , irTextPos   = Map.empty
     , irReturn    = ParamValue Tuple
+    , irContexts  = Nothing
     , irSymbol    = Sym []
     , irIdSupply  = 1
     , irCurrentId = 0
