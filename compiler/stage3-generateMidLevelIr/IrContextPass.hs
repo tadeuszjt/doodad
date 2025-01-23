@@ -17,7 +17,6 @@ import ASTResolved
 irContextPass :: DoM ASTResolved ()
 irContextPass = do
     mapM irContextAdd . Set.toList =<< gets instantiationsTop
-
     return ()
 
 

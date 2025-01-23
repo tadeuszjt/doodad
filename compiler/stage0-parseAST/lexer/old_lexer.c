@@ -233,22 +233,13 @@ bool isKeyword(char *s) {
         "type",
         "func",
         "inst",
+        "with",
         "false",
-        "const",
         "tuple",
         "while",
         "return",
         "switch",
         "derives",
-        "I8",
-        "U8",
-        "I64",
-        "I32",
-        "I16",
-        "F64",
-        "F32",
-        "Char",
-        "Bool",
         NULL
     };
     for (int i = 0; keywords[i] != NULL; i++) {

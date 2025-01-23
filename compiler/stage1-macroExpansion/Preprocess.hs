@@ -156,4 +156,9 @@ buildStmt statement = withPos statement $ case statement of
         withCurId id (mapM buildStmt stmts)
         void $ appendStmt $ While pos expr (Stmt id)
 
+    With pos exprs (Block stmts) -> do
+        id <- newStmt (Block [])
+        withCurId id (mapM buildStmt stmts)
+        void $ appendStmt $ With pos exprs (Stmt id)
+
     x -> error (show x)

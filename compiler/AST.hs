@@ -94,6 +94,7 @@ instance Typeof Pattern where
 data Stmt
     = Stmt        Int
     | Let         TextPos Pattern (Maybe Expr) (Maybe Stmt)
+    | With        TextPos [Expr] Stmt
     | ExprStmt    Expr
     | Return      TextPos (Maybe Expr)
     | Block       [Stmt]

@@ -243,26 +243,21 @@ irGenerateStmt inst (AST.Stmt id) = case Inst.statements inst Map.! id of
             AST.PatIdent _ symbol -> do
                 let typ = Inst.typeOfPat inst (AST.Pattern patId)
                 stmtm <- getStmt id
-                case stmtm of
+                define symbol =<< case stmtm of
                     Just (Call _ _) -> do
                         callArg <- getIdArg id
                         case callArg of
-                            ArgValue _ _ -> define symbol id
-                            _ -> do
-                                value <- initVar typ ConstZero
-                                call ["builtin", "store"] [typ] [value, id]
-                                define symbol value
-                    Nothing -> do
-                        value <- initVar typ ConstZero
-                        call ["builtin", "store"] [typ] [value, id]
-                        define symbol value
-
-                    x -> error (show x)
+                            ArgValue _ _ -> return id
+                            _            -> call ["builtin", "copy"] [typ] [id]
+                    Nothing              -> call ["builtin", "copy"] [typ] [id]
 
             _ -> do
                 curId <- getCurrentId
                 b <- irGeneratePattern inst curId (AST.Pattern patId) id
                 void $ call ["assert", "assert"] [] [b]
+
+    AST.With pos exprs blk -> do
+        error "with"
 
 
     AST.Switch _ expr cases -> do

@@ -254,6 +254,7 @@ collect retty params state = do
         ExprStmt _ -> return ()
         EmbedC _ _ _ -> return ()
         Let _ pat Nothing Nothing -> return ()
+        With _ _ _ -> return ()
         Return _ Nothing -> return ()
         Return _ (Just expr) -> constraint (typeOfExpr state expr) retty
         Let _ pat (Just expr) Nothing -> constraint (typeOfPat state pat) (typeOfExpr state expr)

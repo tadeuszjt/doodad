@@ -227,6 +227,15 @@ resolveRetty retty = case retty of
 resolveType :: Type -> DoM ResolveState Type
 resolveType typ = case typ of
     TypeDef s      -> case s of
+        Sym ["U8"]    -> return U8
+        Sym ["I8"]    -> return I8
+        Sym ["I16"]   -> return I16
+        Sym ["I32"]   -> return I32
+        Sym ["I64"]   -> return I64
+        Sym ["F32"]   -> return F32
+        Sym ["F64"]   -> return F64
+        Sym ["Char"]  -> return Type.Char
+        Sym ["Bool"]  -> return Type.Bool
         Sym ["Array"] -> return Type.Array
         Sym ["Table"] -> return Table
         Sym ["Sum"]   -> return Sum
@@ -349,10 +358,14 @@ resolveStmt instState (Stmt id) = do
             mexpr'   <- traverse (resolveExpr instState) mexpr
             void $ appendStmt $ Let pos pattern' mexpr' Nothing
 
+        With pos exprs blk -> do
+            exprs' <- mapM (resolveExpr instState) exprs
+            id <- resolveBlock instState blk
+            void $ appendStmt $ With pos exprs' (Stmt id)
+
         If pos expr stmt melse -> do
             pushSymbolTable
             expr' <- resolveExpr instState expr
-
             trueId <- resolveBlock instState stmt
             popSymbolTable
             pushSymbolTable

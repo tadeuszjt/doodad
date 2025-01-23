@@ -75,6 +75,7 @@ import Symbol
     true       { Token _ Token.Reserved "true" }
     false      { Token _ Token.Reserved "false" }
     for        { Token _ Token.Reserved "for" }
+    with       { Token _ Token.Reserved "with" }
     func       { Token _ Token.Reserved "func" }
     inst       { Token _ Token.Reserved "inst" }
     derives    { Token _ Token.Reserved "derives" }
@@ -82,16 +83,6 @@ import Symbol
     import     { TokenImport _ _ _ _ _ }
     include    { Token _ Token.CInclude _ }
     link       { Token _ Token.CLink _ }
-
-    U8         { Token _ Token.Reserved "U8" }
-    I8         { Token _ Token.Reserved "I8" }
-    I16        { Token _ Token.Reserved "I16" }
-    I32        { Token _ Token.Reserved "I32" }
-    I64        { Token _ Token.Reserved "I64" }
-    F32        { Token _ Token.Reserved "F32" }
-    F64        { Token _ Token.Reserved "F64" }
-    Bool       { Token _ Token.Reserved "Bool" }
-    Char       { Token _ Token.Reserved "Char" }
 
     int_c      { Token _ Token.Int _ }
     float_c    { Token _ Token.Float _ }
@@ -227,6 +218,7 @@ block : if_                               { $1 }
       | let pattern in scope              { Let (tokPos $1) $2 Nothing (Just $4) }
       | fnDef                             { $1 }
       | instDef                           { $1 }
+      | with '(' exprs ')' scope          { With (tokPos $1) $3 $5 }
 
 if_   : if condition scope else_          { If (tokPos $1) $2 $3 $4 }
       | if condition 'N' else_            { If (tokPos $1) $2 (Block []) $4 }
@@ -381,21 +373,10 @@ types1 : type__                             { [$1] }
 typeArgs : '{' types  '}'          { $2 }
     
 
-type_     : ordinal_t                      { $1 }
-          | '(' types ')'                  { foldl Apply Tuple $2 }
-          | Symbol                         { TypeDef (snd $1) }
-          | Symbol typeArgs                { foldl Apply (TypeDef $ snd $1) $2 }
-          | type_ '.' type_                  { Apply $3 $1 }
-
-ordinal_t   : Bool                         { Type.Bool }
-            | U8                           { U8 }
-            | I8                           { I8 }
-            | I16                          { I16 }
-            | I32                          { I32 }
-            | I64                          { I64 }
-            | F32                          { F32 }
-            | F64                          { F64 }
-            | Char                         { Type.Char }
+type_  : '(' types ')'                  { foldl Apply Tuple $2 }
+       | Symbol                         { TypeDef (snd $1) }
+       | Symbol typeArgs                { foldl Apply (TypeDef $ snd $1) $2 }
+       | type_ '.' type_                { Apply $3 $1 }
 
 {
 parse :: MonadError Error m => [Token] -> m AST
