@@ -37,13 +37,17 @@ addContexts set = modify $ \s -> s
 irContextPass :: DoM ASTResolved ()
 irContextPass = do
     irContextAddHeaderCtx
-    --irContextAddInstructionCtx
+
+    --top <- gets instantiationsTop
+    --forM_ (Set.toList top) $ \instType -> do
+    --    Just funcIr <- gets (Map.lookup instType . instantiations)
+    --    (_, ir') <- runDoMExcept funcIr . irContextAddInstructionCtx =<< get
+    --    return ()
 
 
-irContextAddInstructionCtx :: DoM ASTResolved ()
-irContextAddInstructionCtx = do
-    top <- gets instantiationsTop
-    forM_ (Set.toList top) $ \instType -> do
+irContextAddInstructionCtx :: ASTResolved -> DoM FuncIr2 ()
+irContextAddInstructionCtx ast = do
+    forM_ (Set.toList $ instantiationsTop ast) $ \instType -> do
         error (show instType)
         
 
@@ -56,6 +60,7 @@ irContextAddHeaderCtx = do
         Just funcIr <- gets (Map.lookup instType . instantiations)
         return (irContexts funcIr)
 
+    -- TODO refactor
     forM_ (Set.toList top) $ \instType -> do
         set <- case isBuiltinContext instType of
             Just typ -> return (Set.singleton typ)

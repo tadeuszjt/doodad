@@ -5,6 +5,7 @@ import Data.Char
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Monad.State
+import Control.Monad.Except
 
 import ASTResolved
 import AST
@@ -138,8 +139,9 @@ combineAsts astBuildState supply imports = fmap snd $
                 Param pos symbol typ -> return (Param pos symbol argType)
                 RefParam pos symbol typ -> return (RefParam pos symbol argType)
 
-            stmt <- TopInst pos generics acqTyp params r <$>
-                infer params' retty (instState { types = types'})
+            ast <- get
+            inst' <- liftEither $ runExcept $ infer ast params' retty (instState { types = types' })
+            let stmt = TopInst pos generics acqTyp params r inst'
             modify $ \s -> s { instancesAll = Map.insert symbol stmt (instancesAll s) }
 
 

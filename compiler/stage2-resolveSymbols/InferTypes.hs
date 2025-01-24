@@ -1,15 +1,16 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module InferTypes where
 
 import Data.Maybe
 import Data.List
-import Data.Char
 import Control.Monad
+import Control.Monad.Reader
+import Control.Monad.Except
 import Control.Monad.State
 import qualified Data.Map as Map
 
 import Type hiding (typeOfExpr)
-import Monad
 import InstBuilder
 import ASTResolved
 import Symbol
@@ -18,12 +19,43 @@ import Error
 import AstBuilder
 
 
-annotate :: InstBuilderState -> DoM Int InstBuilderState
+data CollectState = CollectState
+    { collected :: [Constraint]
+    , symbolTable :: Map.Map Symbol Type
+    }
+
+
+initCollectState = CollectState
+    { collected = []
+    , symbolTable = Map.empty
+    }
+
+
+newtype Collect a = Collect
+    { unCollect :: StateT CollectState (ReaderT ASTResolved (Except Error)) a }
+    deriving (Functor, Applicative, Monad, MonadState CollectState, MonadError Error,
+        MonadReader ASTResolved)
+
+
+instance MonadFail Collect where
+    fail s = throwError (ErrorStr s)
+
+
+instance TypeDefs Collect where
+    getTypeDefs = typeDefsAll <$> ask
+
+
+runCollect :: CollectState -> ASTResolved -> Collect a -> Except Error (a, CollectState)
+runCollect collectState ast f =
+    runReaderT (runStateT (unCollect f) collectState) ast
+
+
+annotate :: InstBuilderState -> State Int InstBuilderState
 annotate state = do
     types' <- forM (types state) (mapTypeM f)
     return state { types = types' }
     where
-        f :: Type -> DoM Int Type
+        f :: Type -> State Int Type
         f typ = case typ of
             Type 0 -> do
                 n <- get
@@ -47,45 +79,31 @@ data Constraint
     deriving (Eq, Ord, Show)
 
 
-data CollectState = CollectState
-    { collected :: [Constraint]
-    , astResolved :: ASTResolved
-    , symbolTable :: Map.Map Symbol Type
-    }
-
-initCollectState ast = CollectState
-    { collected = []
-    , astResolved = ast
-    , symbolTable = Map.empty
-    }
-
-instance TypeDefs (DoM CollectState) where
-    getTypeDefs = gets (typeDefsAll . astResolved)
-
-
-define :: Symbol -> Type -> DoM CollectState ()
+define :: Symbol -> Type -> Collect ()
 define symbol typ = do
-    resm <- gets $ Map.lookup symbol . symbolTable
+    resm <- gets (Map.lookup symbol . symbolTable)
     unless (isNothing resm) (fail $ "symbol already defined: " ++ prettySymbol symbol)
     modify $ \s -> s { symbolTable = Map.insert symbol typ (symbolTable s) }
 
-look :: Symbol -> DoM CollectState Type
+
+look :: Symbol -> Collect Type
 look symbol = do
     resm <- gets $ Map.lookup symbol . symbolTable
     unless (isJust resm) (fail $ "undefined symbol: " ++ prettySymbol symbol)
     return (fromJust resm)
 
 
-constraint :: Type -> Type -> DoM CollectState ()
+constraint :: Type -> Type -> Collect ()
 constraint t1 t2 = do
     modify $ \s -> s { collected = (ConsEq t1 t2) : (collected s) }
 
-constraintDefault :: Type -> Type -> DoM CollectState ()
+
+constraintDefault :: Type -> Type -> Collect ()
 constraintDefault t1 t2 = do
     modify $ \s -> s { collected = (ConsDefault t1 t2) : (collected s) }
 
 
-collectCall :: Type -> [Type] -> Type -> DoM CollectState ()
+collectCall :: Type -> [Type] -> Type -> Collect ()
 collectCall exprType exprTypes callType = do
     let (TypeDef funcSymbol, callTypeArgs) = unfoldType callType
     (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType
@@ -96,42 +114,35 @@ collectCall exprType exprTypes callType = do
     -- functional dependencies. If the independent variables fully describe the call type,
     -- it can be said that no other overlapping definition could conflict with it so we can
     -- type check.
-    Just (Function _ featureGenerics funDeps _ _) <- gets $ Map.lookup funcSymbol . featuresAll . astResolved
+    Just (Function _ featureGenerics funDeps _ _) <- Map.lookup funcSymbol . featuresAll <$> ask
     unless (length callTypeArgs == length featureGenerics) (error "xs needs to be > 0")
     indices <- fmap catMaybes $ forM (zip featureGenerics [0..]) $ \(g, i) -> do
         case findIndex (g ==) (map snd funDeps) of
             Just _  -> return Nothing
             Nothing -> return (Just i) 
 
-    instances <- gets (instancesAll . astResolved)
-    fullAcqs <- fmap catMaybes $ forM (Map.elems $ instances) $ \stmt -> do
-        appliedAcqType <- case stmt of
-            TopInst _ generics acqType _ _ _ -> do
-                let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
-                return (applyType genericsToVars acqType)
+    instances <- instancesAll <$> ask
 
-            TopStmt (Derives pos generics argType [featureType]) -> do
-                let acqType = Apply featureType argType
-                let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
-                return (applyType genericsToVars acqType)
-
-            TopField _ generics acqType i -> do
-                let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
-                return (applyType genericsToVars acqType)
-
-        case typesCouldMatch appliedAcqType callType of
+    appliedInstTypes <- fmap catMaybes $ forM (Map.elems instances) $ \stmt -> do
+        (generics, typ) <- case stmt of
+            TopInst _ generics typ _ _ _ -> return (generics, typ)
+            TopField _ generics typ _ -> return (generics, typ)
+            TopStmt (Derives _ generics argType [featureType]) ->
+                return (generics, Apply featureType argType)
+        let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
+        let appliedType = applyType genericsToVars typ
+        case typesCouldMatch appliedType callType of
             False -> return Nothing
-            True -> do
-                let (TypeDef _, acqTypeArgs) = unfoldType appliedAcqType
-                let b = all id $ map (\i -> typeFullyDescribes (acqTypeArgs !! i) (callTypeArgs !! i)) indices
-                case b of
-                    True -> return (Just appliedAcqType) 
-                    False -> return Nothing
+            True  -> return (Just appliedType)
+
+    fullAcqs <- (flip filterM) appliedInstTypes $ \appliedInstType -> do
+        let (TypeDef _, acqTypeArgs) = unfoldType appliedInstType
+        return $ all id $ map (\i -> typeFullyDescribes (acqTypeArgs !! i) (callTypeArgs !! i)) indices
 
     case fullAcqs of
         [] -> return ()
         [acq] -> do
-            subs <- unify =<< getConstraintsFromTypes acq callType
+            let Right subs = runExcept $ unify =<< getConstraintsFromTypes acq callType
             (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf (applyType subs acq)
             constraint callType (applyType subs acq)
             constraint exprType retType
@@ -143,7 +154,7 @@ collectCall exprType exprTypes callType = do
     zipWithM_ constraint argTypes exprTypes
 
 
-collectDefault :: [Param] -> InstBuilderState -> DoM CollectState ()
+collectDefault :: [Param] -> InstBuilderState -> Collect ()
 collectDefault params state = do
     forM_ (Map.toList $ expressions state) $ \(id, expression) -> do
         let Just exprType = Map.lookup id (types state)
@@ -171,15 +182,15 @@ collectDefault params state = do
             _ -> return ()
             
 
-getSymbol :: Symbol -> DoM CollectState Symbol
+getSymbol :: Symbol -> Collect Symbol
 getSymbol symbol = do
-    xs <- gets $ filter (symbolsCouldMatch symbol) . Map.keys . typeDefsAll . astResolved
+    xs <- filter (symbolsCouldMatch symbol) . Map.keys . typeDefsAll <$> ask
     case xs of
         [x] -> return x
         _ -> error (prettySymbol symbol)
 
 
-collect :: Type -> [Param] -> InstBuilderState -> DoM CollectState ()
+collect :: Type -> [Param] -> InstBuilderState -> Collect ()
 collect retty params state = do
     forM_ params $ \param -> case param of
         RefParam _ symbol typ -> define symbol typ
@@ -229,7 +240,7 @@ collect retty params state = do
                 constraint patType (typeOfPat state pat)
 
             PatField _ symbol pat -> do
-                Just (sumSym, i) <- gets (Map.lookup symbol . fieldsAll . astResolved)
+                Just (sumSym, i) <- (Map.lookup symbol . fieldsAll) <$> ask
                 resm <- baseTypeOfm patType
                 case resm of
                     Nothing -> return ()
@@ -273,7 +284,7 @@ collect retty params state = do
         x -> error (show x)
 
 
-unifyOne :: MonadFail m => Constraint -> m [(Type, Type)]
+unifyOne :: Constraint -> Except Error [(Type, Type)]
 unifyOne constraint = case constraint of
     ConsEq t1 t2 -> case (t1, t2) of
         _ | t1 == t2             -> return []
@@ -285,7 +296,7 @@ unifyOne constraint = case constraint of
             subs2 <- unifyOne (ConsEq a2 b2)
             return (subs1 ++ subs2)
             
-        _ -> fail $ "type mismatch: " ++ show (t1, t2)
+        _ -> throwError $ ErrorStr $ "type mismatch: " ++ show (t1, t2)
 
     ConsDefault t1 t2 -> case (t1, t2) of
         _ | t1 == t2 -> return []
@@ -295,7 +306,7 @@ unifyOne constraint = case constraint of
     x -> error "invalid constraint"
 
 
-unify :: MonadFail m => [Constraint] -> m [(Type, Type)]
+unify :: [Constraint] -> Except Error [(Type, Type)]
 unify []     = return []
 unify (x:xs) = do
     subs <- unify xs
@@ -311,53 +322,7 @@ applyConstraint subs constraint = case constraint of
         rf = applyType subs
 
 
-inferTypes :: [Param] -> Type -> InstBuilderState -> DoM ASTResolved InstBuilderState
-inferTypes params retty state = withErrorPrefix "type inference: " $ do
-    (instAnnotated, _) <- runDoMExcept 0 (annotate state)
-    deAnnotate <$> inferTypes' instAnnotated
-    where
-        inferTypes' :: InstBuilderState -> DoM ASTResolved InstBuilderState
-        inferTypes' inst = do
-            ast <- get
-            (_, collectState)  <- runDoMExcept
-                (initCollectState ast)
-                (collect retty params inst)
-
-            subs <- unify (collected collectState)
-            let types' = Map.map (applyType subs) (types inst)
-
-            if types' == types inst then return inst
-            else inferTypes' $ inst { types = types' }
-
-
-inferDefaults :: [Param] -> Type -> InstBuilderState -> DoM ASTResolved InstBuilderState
-inferDefaults params retty state = do
-    (instAnnotated, _) <- runDoMExcept 0 (annotate state)
-    deAnnotate <$> inferTypes' instAnnotated
-    where
-        inferTypes' :: InstBuilderState -> DoM ASTResolved InstBuilderState
-        inferTypes' inst = do
-            ast <- get
-            (_, collectState)  <- runDoMExcept
-                (initCollectState ast)
-                (collectDefault params inst)
-
-            subs <- unify (collected collectState)
-            let types' = Map.map (applyType subs) (types inst)
-
-            if types' == types inst then return inst
-            else inferTypes' $ inst { types = types' }
-
-
-
-infer :: [Param] -> Type -> InstBuilderState -> DoM ASTResolved InstBuilderState
-infer params retty state = do
-    state' <- inferDefaults params retty =<< inferTypes params retty state
-    if types state' == types state then return state'
-    else infer params retty state'
-
-
-getConstraintsFromTypes :: MonadFail m => Type -> Type -> m [Constraint]
+getConstraintsFromTypes :: Type -> Type -> Except Error [Constraint]
 getConstraintsFromTypes t1 t2 = case (t1, t2) of
     (a, b) | a == b  -> return [] 
     (Type _, _)      -> return [ConsEq t1 t2]
@@ -368,4 +333,44 @@ getConstraintsFromTypes t1 t2 = case (t1, t2) of
         subs2 <- getConstraintsFromTypes a2 b2
         return (subs1 ++ subs2)
 
-    _ -> fail $ show (t1, t2)
+    _ -> throwError $ ErrorStr $ show (t1, t2)
+
+
+inferTypes :: ASTResolved -> [Param] -> Type -> InstBuilderState -> Except Error InstBuilderState
+inferTypes ast params retty state = do
+    fmap deAnnotate $ inferTypes' $ evalState (annotate state) 0
+    where
+        inferTypes' :: InstBuilderState -> Except Error InstBuilderState
+        inferTypes' inst = do
+            (_, collectState) <- runCollect initCollectState ast (collect retty params inst)
+            subs <- unify (collected collectState)
+            let types' = Map.map (applyType subs) (types inst)
+            if types' == types inst then
+                return inst
+            else
+                inferTypes' inst{ types = types' }
+
+
+inferDefaults :: ASTResolved -> [Param] -> Type -> InstBuilderState -> Except Error InstBuilderState
+inferDefaults ast params retty state = do
+    fmap deAnnotate $ inferTypes' $ evalState (annotate state) 0
+    where
+        inferTypes' :: InstBuilderState -> Except Error InstBuilderState
+        inferTypes' inst = do
+            (_, collectState) <- runCollect initCollectState ast (collectDefault params inst)
+            subs <- unify (collected collectState)
+            let types' = Map.map (applyType subs) (types inst)
+            if types' == types inst then
+                return inst
+            else
+                inferTypes'  inst{ types = types' }
+
+
+infer :: ASTResolved -> [Param] -> Type -> InstBuilderState -> Except Error InstBuilderState
+infer ast params retty state = do
+    state' <- inferDefaults ast params retty =<< inferTypes ast params retty state
+    if types state' == types state then
+        return state'
+    else
+        infer ast params retty state'
+

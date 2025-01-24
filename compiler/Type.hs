@@ -9,6 +9,7 @@ type TypeDefsMap = Map.Map Symbol ([Symbol], Type)
 
 class Monad m => TypeDefs m where getTypeDefs :: m TypeDefsMap
 
+
 class Typeof a where typeof :: a -> Type
 instance Typeof Type where typeof = id
 

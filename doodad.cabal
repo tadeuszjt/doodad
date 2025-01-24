@@ -23,6 +23,7 @@ executable doodad
     main-is:           Main.hs
 
 -- HOW TO PROFILE
+-- cabal configure --enable-profiling
 -- install ghc-prof (sudo apt-get install ghc-prof)
 -- enable the options below.
 -- run as usual (cabal run doodad -- main2)
