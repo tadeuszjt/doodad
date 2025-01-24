@@ -6,7 +6,7 @@ import Data.List
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Control.Monad
-import Control.Monad.State
+import Control.Monad.Reader
 
 import CGenerate
 import CAst as C
@@ -16,19 +16,18 @@ import ASTResolved
 import Symbol
 import Error
 import Builtin
-import FindFunc
-import Monad
 
 import Ir2
 
 
-generateAst :: MonadIO m => ASTResolved -> m (Either Error (((), GenerateState), BuilderState))
-generateAst ast = runGenerate (initGenerateState ast) C.initBuilderState generate
+generateAst :: ASTResolved -> Either Error (((), GenerateState), BuilderState)
+generateAst ast = runGenerate ast
+    (initGenerateState $ ASTResolved.moduleName ast) C.initBuilderState generate
 
 
 generate :: Generate ()
 generate = withErrorPrefix "generate: " $ do
-    ast <- gets astResolved
+    ast <- ask
 
     -- generate all function headers
     forM_ (Map.toList $ instantiations ast) $ \(funcType, funcIr) -> do
@@ -471,7 +470,7 @@ generateCall funcIr funcType id args = do
                 x -> error (show x)
 
         s -> do
-            Just callIr <- gets $ Map.lookup funcType . instantiations . astResolved
+            Just callIr <- Map.lookup funcType . instantiations <$> ask
             cRetTy <- case irReturn callIr of
                 ParamModify typ -> cRefTypeOf typ
                 ParamValue typ  -> cTypeOf typ

@@ -1,11 +1,11 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Preprocess where
 
 import Data.Char
 import Control.Monad.Identity
 import Control.Monad.State
 
-import Monad
 import AST
 import Symbol
 import InstBuilder
@@ -13,12 +13,41 @@ import AstBuilder
 import Error
 import Type
 
-preprocess :: AST -> DoM s AstBuilderState
+
+newtype PreprocessInst a = PreprocessInst
+    { unPreprocessInst :: State InstBuilderState a }
+    deriving (Functor, Applicative, Monad, MonadState InstBuilderState)
+
+
+instance MonadInstBuilder PreprocessInst where
+    liftInstBuilderState (StateT s) = PreprocessInst (StateT s)
+
+
+runPreprocessInst :: InstBuilderState -> PreprocessInst a -> (a, InstBuilderState)
+runPreprocessInst instBuilderState f
+    = runState (unPreprocessInst f) instBuilderState
+
+
+newtype PreprocessAst a = PreprocessAst
+    { unPreprocessAst :: State AstBuilderState a }
+    deriving (Functor, Applicative, Monad, MonadState AstBuilderState)
+
+
+instance MonadAstBuilder PreprocessAst where
+    liftAstBuilderState (StateT s) = PreprocessAst (StateT s)
+
+
+runPreprocessAst :: AstBuilderState -> PreprocessAst a -> (a, AstBuilderState)
+runPreprocessAst astBuilderState f
+    = runState (unPreprocessAst f) astBuilderState
+
+
+
+preprocess :: AST -> AstBuilderState
 preprocess ast = do
-    ((), buildState) <- runDoMExcept (initBuildState (astModuleName ast) (astImports ast)) preprocess'
-    return (astBuilderState buildState)
+    snd $ runPreprocessAst (initAstBuilderState (astModuleName ast) (astImports ast)) preprocess'
     where
-        preprocess' :: DoM BuildState ()
+        preprocess' :: PreprocessAst ()
         preprocess' = forM_ (astStmts ast) $ \stmt -> case stmt of
             Function _ _ _ _ _ -> addTopStmt (TopStmt stmt)
             Derives _ _ _ _     -> addTopStmt (TopStmt stmt)
@@ -26,43 +55,12 @@ preprocess ast = do
             x                   -> buildTopStatement x
 
 
-data BuildState = BuildState 
-    { astBuilderState :: AstBuilderState
-    , instBuilderState :: InstBuilderState
-    , supply          :: Int
-    }
-
-
-initBuildState name imports = BuildState
-    { astBuilderState = initAstBuilderState name imports
-    , instBuilderState = initInstBuilderState
-    , supply = 0
-    }
-
-
-instance MonadAstBuilder (DoM BuildState) where
-    liftAstBuilderState (StateT s) = do
-        astState <- gets astBuilderState
-        let (a, astState') = runIdentity (s astState)
-        modify $ \s -> s { astBuilderState = astState' }
-        return a
-
-instance MonadInstBuilder (DoM BuildState) where
-    liftInstBuilderState (StateT s) = do
-        instState <- gets instBuilderState
-        let (a, instState') = runIdentity (s instState)
-        modify $ \s -> s { instBuilderState = instState' }
-        return a
-
-
-buildInst :: DoM BuildState a -> DoM BuildState InstBuilderState
+buildInst :: PreprocessInst a -> PreprocessAst InstBuilderState
 buildInst f = do
-    modify $ \s -> s { instBuilderState = initInstBuilderState }
-    withCurId 0 (void f)
-    gets instBuilderState
+    return $ snd $ runPreprocessInst initInstBuilderState (withCurId 0 $ void f)
 
 
-buildTopStatement :: Stmt -> DoM BuildState ()
+buildTopStatement :: Stmt -> PreprocessAst ()
 buildTopStatement statement = case statement of
     MacroTuple pos generics symbol fields -> do
         void $ addTopStmt $ TopStmt $ Typedef pos generics symbol (foldl Apply Tuple $ map snd fields)
@@ -110,7 +108,7 @@ field fieldType i expr = AExpr fieldType $ Call (textPos expr) typ [expr]
         typ = foldType [TypeDef (Sym ["builtin", "builtinField"]), Size (fromIntegral i), Type 0, Type 0]
     
 
-buildBlock :: Stmt -> DoM BuildState ID
+buildBlock :: Stmt -> PreprocessInst ID
 buildBlock (Block stmts) = do
     id <- newStmt (Block [])
     withCurId id $ mapM buildStmt stmts
@@ -121,8 +119,8 @@ buildBlock stmt = do
     return id
 
 
-buildStmt :: Stmt -> DoM BuildState ()
-buildStmt statement = withPos statement $ case statement of
+buildStmt :: Stmt -> PreprocessInst ()
+buildStmt statement = case statement of
     ExprStmt expr     -> void $ appendStmt (ExprStmt expr)
     EmbedC _ _ _      -> void $ appendStmt statement
     Return pos mexpr  -> void $ appendStmt statement

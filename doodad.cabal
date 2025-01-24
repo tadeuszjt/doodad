@@ -70,7 +70,6 @@ executable doodad
         Args,
         Error,
         Modules,
-        Monad,
         Parser,
         SymTab,
         Type,

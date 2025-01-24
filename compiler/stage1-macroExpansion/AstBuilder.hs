@@ -1,11 +1,9 @@
-{-# LANGUAGE FlexibleInstances #-}
 module AstBuilder where
 
 import Control.Monad.State
 import Control.Monad.Identity
 
 import AST
-import Monad
 import InstBuilder
 import Error
 import Type
@@ -16,22 +14,20 @@ data TopStmt
     | TopInst TextPos Generics Type [Param] Bool InstBuilderState
     | TopField TextPos Generics Type Int
 
+
 data AstBuilderState = AstBuilderState
     { topStmts :: [TopStmt]
     , abModuleName :: String
     , abImports    :: [Import]
     }
 
-class (Monad m, MonadFail m) => MonadAstBuilder m where
+
+class (Monad m) => MonadAstBuilder m where
     liftAstBuilderState :: State AstBuilderState a -> m a
 
 
-instance MonadAstBuilder (DoM AstBuilderState) where
-    liftAstBuilderState (StateT s) = DoM $ StateT (pure . runIdentity . s)
-
-
 initAstBuilderState name imports = AstBuilderState
-    { topStmts = []
+    { topStmts     = []
     , abModuleName = name
     , abImports    = imports
     }

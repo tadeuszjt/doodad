@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module CPretty where
 
 import Prelude hiding (print)
@@ -6,68 +7,62 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Control.Monad
 import Control.Monad.State
+import Control.Monad.Reader
 import System.IO hiding (print)
 
-import Monad
 import CBuilder
 import CAst
 
 
-data CPrettyState
-    = CPrettyState
-    { indent :: Int
-    , fileHandle :: Handle
-    , builder :: BuilderState
-    }
-
-initCPrettyState handle builder
-    = CPrettyState
-        { indent = 0
-        , fileHandle = handle
-        , builder = builder
-        }
+newtype CPretty a = CPretty
+    { unCPretty :: ReaderT (BuilderState, Handle) (StateT Int IO) a }
+    deriving (Functor, Applicative, Monad, MonadReader (BuilderState, Handle), MonadState Int, MonadIO)
 
 
+runCPretty :: MonadIO m => BuilderState -> Handle -> CPretty a -> m a
+runCPretty builderState handle f =
+    fmap fst $ liftIO $ runStateT (runReaderT (unCPretty f) (builderState, handle)) 0
 
-print :: String -> DoM CPrettyState ()
+
+print :: String -> CPretty ()
 print s = do
     printIndent
-    handle <- gets fileHandle
-    liftIO $ hPutStr handle s
+    handle <- snd <$> ask
+    liftIO (hPutStr handle s)
 
-printLn :: String -> DoM CPrettyState ()
+printLn :: String -> CPretty ()
 printLn s = do
     printIndent
-    handle <- gets fileHandle
-    liftIO $ hPutStrLn handle s
+    handle <- snd <$> ask 
+    liftIO (hPutStrLn handle s)
 
 
-printIndent :: DoM CPrettyState ()
+printIndent :: CPretty ()
 printIndent = do
-    level <- gets indent
-    handle <- gets fileHandle
+    level <- get
+    handle <- snd <$> ask
     void $ replicateM level $ liftIO $ hPutStr handle "    "
 
-pushIndent :: DoM CPrettyState ()
-pushIndent = modify $ \s -> s { indent = indent s + 1 }
+pushIndent :: CPretty ()
+pushIndent = modify (+1)
 
-popIndent :: DoM CPrettyState ()
-popIndent = modify $ \s -> s { indent = (indent s - 1) }
+popIndent :: CPretty ()
+popIndent = modify $ \s -> s - 1
 
 
-cPretty :: Set.Set String -> DoM CPrettyState ()
+cPretty :: Set.Set String -> CPretty ()
 cPretty includePaths = do
     printLn "#include \"doodad.h\""
 
     forM_ includePaths $ \includePath -> printLn $ "#include " ++ includePath
 
-    typeDefs <- gets $ typeDefs . builder
+    typeDefs <- typeDefs . fst <$> ask
     mapM_ cPrettyElem (reverse typeDefs)
 
-    externs <- gets $ externs . builder
+    externs <- externs . fst <$> ask
     mapM_ cPrettyElem (reverse externs)
 
-    elems <- elements <$> gets builder
+    elems <- elements . fst <$> ask
     let global = elems Map.! (ID 0)
     forM_ (globalBody global) $ \id -> do
         cPrettyElem (elems Map.! id)
@@ -75,7 +70,7 @@ cPretty includePaths = do
     printLn ""
 
 
-cPrettyElem :: Element -> DoM CPrettyState ()
+cPrettyElem :: Element -> CPretty ()
 cPrettyElem elem = case elem of
     Return expr         -> printLn $ "return " ++ showNoParens expr ++ ";"
     ReturnVoid          -> printLn $ "return;"
@@ -153,8 +148,8 @@ cPrettyElem elem = case elem of
 
     _ -> error (show elem) 
     where 
-        printElems :: [ID] -> DoM CPrettyState ()
+        printElems :: [ID] -> CPretty ()
         printElems ids = do
             forM_ ids $ \id -> do
-                elem <- (Map.! id) . elements <$> gets builder
+                elem <- (Map.! id) . elements . fst <$> ask
                 cPrettyElem elem

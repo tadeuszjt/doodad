@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
 module ASTResolved where
 
 import Control.Monad.IO.Class
@@ -10,9 +9,7 @@ import qualified Data.Set as Set
 import AST
 import Symbol
 import Type
-import Monad
 import AstBuilder
-import InstBuilder
 
 import qualified Ir2
 
@@ -39,10 +36,6 @@ data ASTResolved
 
         , symSupply            :: Map.Map Symbol Int              
         }
-
-
-instance TypeDefs (DoM ASTResolved) where
-    getTypeDefs = gets typeDefsAll
 
 
 -- works assuming unique module name

@@ -14,7 +14,6 @@ import Error
 import Type
 import Ir2
 import ASTResolved
-import Monad
 import Symbol
 import AstBuilder
 import FindFunc
@@ -82,7 +81,7 @@ instance MonadFuncIr2 (IrGenerate) where
         return a
 
 
-instance TypeDefs (IrGenerate) where
+instance MonadTypeDefs (IrGenerate) where
     getTypeDefs = liftAstState (gets typeDefsAll)
 
 
@@ -104,7 +103,7 @@ irGenerateInstance callType = evalWithNewIrState $ do
     ast <- liftAstState get
     case isNothing (Map.lookup callType $ instantiations ast) of
         True -> do
-            Just topStmt <- fmap fst $ runDoMExcept ast (makeInstantiation callType)
+            let Right (Just topStmt) = runExcept (makeInstantiation ast callType)
             instType <- case topStmt of
                 TopInst _ [] typ _ _ _ -> return typ
                 TopField _ [] typ _    -> return typ

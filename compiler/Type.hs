@@ -1,17 +1,38 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Type where
 
 import Control.Monad
+import Control.Monad.Reader
+import Control.Monad.Except
 import qualified Data.Map as Map
 import Symbol
 import Data.List
 
 type TypeDefsMap = Map.Map Symbol ([Symbol], Type)
 
-class Monad m => TypeDefs m where getTypeDefs :: m TypeDefsMap
-
+class MonadFail m => MonadTypeDefs m where getTypeDefs :: m TypeDefsMap
 
 class Typeof a where typeof :: a -> Type
 instance Typeof Type where typeof = id
+
+
+newtype TypeDefsMonad a = TypeDefsMonad
+    { unTypeDefsMonad :: ReaderT TypeDefsMap (Except String) a }
+    deriving (Functor, Applicative, Monad, MonadReader TypeDefsMap, MonadError String)
+
+
+instance MonadFail TypeDefsMonad where
+    fail = throwError
+
+
+instance MonadTypeDefs TypeDefsMonad where
+    getTypeDefs = ask
+
+
+runTypeDefsMonad :: TypeDefsMap -> TypeDefsMonad a -> Either String a
+runTypeDefsMonad typeDefs f =
+    runExcept $ runReaderT (unTypeDefsMonad f) typeDefs
+
 
 data Type
     = Type Int
@@ -142,7 +163,7 @@ applyTypeM argSymbols argTypes typ = do
     return $ foldType $ (x : xs) ++ drop (length argSymbols) argTypes
 
 
-baseTypeOf :: (MonadFail m, TypeDefs m, Typeof a) => a -> m Type
+baseTypeOf :: (MonadTypeDefs m, Typeof a) => a -> m Type
 baseTypeOf a = do
     resm <- baseTypeOfm a
     case resm of
@@ -150,7 +171,7 @@ baseTypeOf a = do
         Just x  -> return x
 
 
-baseTypeOfm :: (MonadFail m, TypeDefs m, Typeof a) => a -> m (Maybe Type)
+baseTypeOfm :: (MonadTypeDefs m, Typeof a) => a -> m (Maybe Type)
 baseTypeOfm a = case unfoldType (typeof a) of
     (Type _, _) -> return Nothing
 
@@ -164,7 +185,7 @@ baseTypeOfm a = case unfoldType (typeof a) of
     (_, _) -> return $ Just (typeof a)
 
 
-lowerTypeOfm :: (MonadFail m, TypeDefs m, Typeof a) => a -> m (Maybe Type) 
+lowerTypeOfm :: (MonadTypeDefs m, Typeof a) => a -> m (Maybe Type) 
 lowerTypeOfm a = case unfoldType (typeof a) of
     (Type _, _) -> return Nothing
     (TypeDef s, ts) -> do

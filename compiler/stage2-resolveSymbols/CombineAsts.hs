@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module CombineAsts where
 
 import Data.Maybe
@@ -9,13 +10,30 @@ import Control.Monad.Except
 
 import ASTResolved
 import AST
-import Monad
 import Symbol
 import Error
 import Type
 import AstBuilder
 import InstBuilder
 import InferTypes
+
+
+
+newtype Combine a = Combine
+    { unCombine :: StateT ASTResolved (Except Error) a }
+    deriving (Functor, Applicative, Monad, MonadState ASTResolved, MonadError Error)
+
+
+instance MonadFail Combine where
+    fail = throwError . ErrorStr
+
+instance MonadTypeDefs Combine where
+    getTypeDefs = typeDefsAll <$> get
+
+
+runCombine :: ASTResolved -> Combine a -> Either Error (a, ASTResolved)
+runCombine ast f =
+    runExcept $ runStateT (unCombine f) ast
 
  
 initAstResolved modName imports = ASTResolved
@@ -35,9 +53,10 @@ initAstResolved modName imports = ASTResolved
     }
 
 
-combineAsts :: AstBuilderState -> Map.Map Symbol Int -> [(Import, ASTResolved)] -> DoM s ASTResolved
-combineAsts astBuildState supply imports = fmap snd $
-    runDoMExcept (initAstResolved (abModuleName astBuildState) (map snd imports)) $ do
+
+combineAsts :: AstBuilderState -> Map.Map Symbol Int -> [(Import, ASTResolved)] -> Either Error ASTResolved
+combineAsts astBuildState supply imports =
+    fmap snd $ runCombine (initAstResolved (abModuleName astBuildState) (map snd imports)) $ do
         forM_ imports $ \(Import isExport _ _ _, imprt) -> when isExport $ do
             modify $ \s -> s { typeDefsTop = Set.union (typeDefsTop s) (typeDefsTop imprt) }
 

@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleInstances #-}
 module InstBuilder where
 
 import qualified Data.Map as Map
@@ -6,7 +5,6 @@ import Control.Monad.State
 import Control.Monad.Identity
 
 import AST
-import Monad
 import Type
 
 
@@ -23,12 +21,8 @@ data InstBuilderState = InstBuilderState
     , curId         :: ID
     }
 
-class (Monad m, MonadFail m) => MonadInstBuilder m where
+class (Monad m) => MonadInstBuilder m where
     liftInstBuilderState :: State InstBuilderState a -> m a
-
-
-instance MonadInstBuilder (DoM InstBuilderState) where
-    liftInstBuilderState (StateT s) = DoM $ StateT (pure . runIdentity . s)
 
 
 initInstBuilderState = InstBuilderState
@@ -68,7 +62,8 @@ getCurId = do
 appendId :: MonadInstBuilder m => ID -> m ()
 appendId id = do
     curId <- liftInstBuilderState (gets curId)
-    True <- liftInstBuilderState $ gets (Map.member curId . statements)
+    b <- liftInstBuilderState $ gets (Map.member curId . statements)
+    unless (b) (error "")
     stmt <- liftInstBuilderState $ gets $ (Map.! curId) . statements
     stmt' <- case stmt of
         Block ids -> return $ Block (ids ++ [Stmt id])

@@ -41,7 +41,7 @@ instance MonadFail Collect where
     fail s = throwError (ErrorStr s)
 
 
-instance TypeDefs Collect where
+instance MonadTypeDefs Collect where
     getTypeDefs = typeDefsAll <$> ask
 
 

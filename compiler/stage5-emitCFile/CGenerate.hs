@@ -4,6 +4,7 @@ module CGenerate where
 
 import Control.Monad.Except
 import Control.Monad.Identity
+import Control.Monad.Reader
 import qualified Data.Map as Map
 
 import Symbol
@@ -22,36 +23,36 @@ data GenerateState
         , structs      :: Map.Map C.Type String
         , supply      :: Map.Map String Int
         , curFnIsRef  :: Bool
-        , astResolved :: ASTResolved
         }
 
-initGenerateState ast
+initGenerateState moduleName
     = GenerateState
-        { moduleName = ASTResolved.moduleName ast
+        { moduleName = moduleName
         , structs = Map.empty
         , supply = Map.empty
         , curFnIsRef = False
-        , astResolved = ast
         }
 
 
-newtype Generate a = Generate { unGenerate :: StateT GenerateState (StateT BuilderState (ExceptT Error IO)) a }
-    deriving (Functor, Applicative, Monad, MonadState GenerateState, MonadIO, MonadError Error)
+newtype Generate a = Generate
+    { unGenerate :: ReaderT ASTResolved (StateT GenerateState (StateT BuilderState (Except Error))) a }
+    deriving (Functor, Applicative, Monad, MonadState GenerateState, MonadReader ASTResolved,
+        MonadError Error)
 
 instance MonadBuilder Generate where
-    liftBuilderState (StateT s) = Generate $ lift $ StateT $ pure . runIdentity . s
+    liftBuilderState (StateT s) = Generate $ lift $ lift $ StateT $ pure . runIdentity . s
 
 instance MonadFail Generate where
     fail s = throwError (ErrorStr s)
 
-instance TypeDefs Generate where
-    getTypeDefs = gets (typeDefsAll . astResolved)
+instance MonadTypeDefs Generate where
+    getTypeDefs = typeDefsAll <$> ask
 
 
 
-runGenerate :: MonadIO m => GenerateState -> BuilderState -> Generate a -> m (Either Error ((a, GenerateState), BuilderState))
-runGenerate generateState builderState generate =
-    liftIO $ runExceptT $ runStateT (runStateT (unGenerate generate) generateState) builderState
+runGenerate :: ASTResolved -> GenerateState -> BuilderState -> Generate a -> Either Error ((a, GenerateState), BuilderState)
+runGenerate ast generateState builderState generate =
+    runExcept $ runStateT (runStateT (runReaderT (unGenerate generate) ast) generateState) builderState
 
 
 fresh :: String -> Generate String

@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Modules where
 
 import System.Process
@@ -18,11 +19,9 @@ import qualified Data.Set as Set
 
 import qualified AST as S
 import qualified Parser as P
-import Monad
 import Args
 import ASTResolved
 import CPretty as C
-import CGenerate as C
 import Lexer
 import Compile as C
 import qualified ResolveAst
@@ -30,34 +29,44 @@ import qualified CombineAsts
 import Preprocess
 import IrGenerate
 import IrContextPass
+import Error
 
 -- Modules are groups of .doo files with a module name header
 -- lang/lexer.doo: lexer module
 
 
-data Modules
-    = Modules
+newtype Modules a = Modules
+    { unModules :: StateT ModulesState (ExceptT Error IO) a }
+    deriving (Functor, Applicative, Monad, MonadState ModulesState, MonadError Error, MonadIO)
+
+
+runModules :: ModulesState -> Modules a -> IO (Either Error (a, ModulesState))
+runModules modulesState f
+    = runExceptT $ runStateT (unModules f) modulesState
+
+
+data ModulesState
+    = ModulesState
         { moduleMap :: Map.Map FilePath ASTResolved
         , cFileMap  :: Map.Map FilePath FilePath
         , doodadPath :: FilePath
         }
 
 
-initModulesState doodadPath
-    = Modules
-        { moduleMap = Map.empty
-        , cFileMap  = Map.empty
-        , doodadPath = doodadPath
-        }
+initModulesState doodadPath = ModulesState
+    { moduleMap = Map.empty
+    , cFileMap  = Map.empty
+    , doodadPath = doodadPath
+    }
 
 
-getDoodadFilesInDirectory :: FilePath -> DoM s [FilePath]
+getDoodadFilesInDirectory :: FilePath -> IO [FilePath]
 getDoodadFilesInDirectory dir = do
     list <- liftIO (listDirectory dir)
     return [ dir ++ "/" ++ f | f <- list, isSuffixOf ".doo" f ]
 
 
-readModuleName :: FilePath -> DoM s (Maybe String)
+readModuleName :: FilePath -> IO (Maybe String)
 readModuleName filePath = do 
     firstLine <- liftIO $ do
         handle <- openFile filePath ReadMode
@@ -72,7 +81,7 @@ readModuleName filePath = do
         _ -> return Nothing
 
 
-getSpecificModuleFiles :: Args -> String -> [FilePath] -> DoM s [FilePath]
+getSpecificModuleFiles :: Args -> String -> [FilePath] -> IO [FilePath]
 getSpecificModuleFiles args name []     = return []
 getSpecificModuleFiles args name (f:fs) = do
     source <- liftIO (readFile f)
@@ -85,18 +94,21 @@ getSpecificModuleFiles args name (f:fs) = do
 
 -- parse a file into an AST.
 -- Throw an error on failure.
-parse :: Args -> FilePath -> DoM s S.AST
+parse :: Args -> FilePath -> IO S.AST
 parse args file = do
     newTokens <- liftIO $ lexFile (printTokens args) file
     when (printTokens args) $ do
         liftIO $ mapM_ (putStrLn . show) newTokens
-    P.parse newTokens
+    case runExcept (P.parse newTokens) of
+        Right ast -> return ast
 
 
-buildBinaryFromModule :: Args -> FilePath -> DoM s ()
+buildBinaryFromModule :: Args -> FilePath -> IO ()
 buildBinaryFromModule args modPath = do
-    doodadPath <- liftIO $ getEnv "DOODAD_PATH"
-    state <- fmap snd $ runDoMExcept (initModulesState doodadPath) (buildModule True args modPath)
+    doodadPath <- getEnv "DOODAD_PATH"
+    stateEither <- runModules (initModulesState doodadPath) (buildModule True args modPath)
+    state <- case stateEither of
+        Right (_, state) -> return state
 
     let hDoodad   = joinPath [doodadPath, "include"]
     --let cDoodad   = joinPath [doodadPath, "include/doodad.c"]
@@ -106,13 +118,13 @@ buildBinaryFromModule args modPath = do
     let linkPaths = Set.toList $ Set.unions (map links $ Map.elems $ moduleMap state)
 
     forM_ linkPaths $ \path -> do
-        liftIO $ putStrLn $ "linking '" ++ path ++ "'"
+        putStrLn $ "linking '" ++ path ++ "'"
 
     when (printC args) $ do
         forM_ (cFiles) $ \file -> do
-            liftIO $ putStrLn =<< readFile file
+            putStrLn =<< readFile file
 
-    when (printAssembly args) $ liftIO $ do
+    when (printAssembly args) $ do
         locs <- forM cFiles $ \cFile -> do
             let asmPath = dropExtension cFile <.> ".s"
             exitCode <- rawSystem "gcc" $ ["-O3"] ++ ["-S"] ++ ["-I", hDoodad] ++ [cFile] ++ ["-o", asmPath]
@@ -129,19 +141,19 @@ buildBinaryFromModule args modPath = do
         forM_ locs $ \(loc, cFile) -> putStrLn $ show loc ++ " lines of ASM for: " ++ show cFile
 
 
-    exitCode <- liftIO $ rawSystem "gcc" $
+    exitCode <- rawSystem "gcc" $
         ["-I", hDoodad] ++ cFiles ++ map ("-l" ++) linkPaths ++ ["-o", binFile]
     case exitCode of
         ExitSuccess -> return ()
         ExitFailure s -> fail $ "gcc failed: " ++ (show s)
 
-    liftIO $ putStrLn $ "wrote bin: " ++ binFile
+    putStrLn $ "wrote bin: " ++ binFile
 
     forM_ (Map.toList $ cFileMap state) $ \(_, cFile) -> do
-        liftIO $ removeFile cFile
+        removeFile cFile
 
 
-getCanonicalModPath :: FilePath -> DoM Modules FilePath
+getCanonicalModPath :: FilePath -> Modules FilePath
 getCanonicalModPath path = do
     doodadPath <- gets doodadPath
     let isRelative = isPrefixOf "../" path || isPrefixOf "./" path
@@ -149,7 +161,7 @@ getCanonicalModPath path = do
     liftIO (canonicalizePath modPath')
 
 
-buildModule :: Bool -> Args -> FilePath -> DoM Modules ()
+buildModule :: Bool -> Args -> FilePath -> Modules ()
 buildModule isMain args modPath = do
     --doodadPath <- gets doodadPath
     absoluteModPath <- getCanonicalModPath modPath
@@ -160,13 +172,13 @@ buildModule isMain args modPath = do
         let modDirectory = takeDirectory absoluteModPath
 
         -- get files and parse asts
-        files <- getSpecificModuleFiles args modName =<< getDoodadFilesInDirectory modDirectory
+        files <- liftIO $ getSpecificModuleFiles args modName =<< getDoodadFilesInDirectory modDirectory
         file <- case files of
-            [] -> fail ("module file not found in path: " ++ absoluteModPath)
+            [] -> throwError $ ErrorStr ("module file not found in path: " ++ absoluteModPath)
             [x] -> return x
-            _  -> fail ("multiple matching module files found in path: " ++ absoluteModPath)
+            _  -> throwError $ ErrorStr ("multiple matching module files found in path: " ++ absoluteModPath)
 
-        ast_ <- parse args file
+        ast_ <- liftIO (parse args file)
         when (printAst args) $ liftIO (S.prettyAST ast_)
 
         -- read imports and compile imported modules first
@@ -175,7 +187,7 @@ buildModule isMain args modPath = do
                 path' <- getCanonicalModPath path
                 return (stmt, path')
 
-        ast <- preprocess ast_
+        let ast = preprocess ast_
         mapM_ (buildModule False args) (map snd imports)
 
         -- compile this module
@@ -193,25 +205,21 @@ buildModule isMain args modPath = do
 
         --when (printAstResolved args) $ liftIO (prettyAST astResolved')
 
-        astFinal <- CombineAsts.combineAsts astResolved' supply astImports
+        astFinal <- liftEither (CombineAsts.combineAsts astResolved' supply astImports)
         when (isMain && printAstFinal args) $ liftIO (prettyASTResolved astFinal)
-
 
         irGenerateResult <- runIrGenerate initIrGenerateState astFinal irGenerateAst
         astGenerated <- case irGenerateResult of
             Left err                -> error (show err)
-            Right (_, astGenerated) -> do
-                fmap snd $ runDoMExcept astGenerated irContextPass
+            Right (_, astGenerated) -> 
+                liftEither $ fmap snd $ runIrContextPass astGenerated irContextPass
 
 
         when (isMain && printIr args) $ liftIO (printAstIr astGenerated)
 
         -- build C ast from final ast
         when (verbose args) $ liftIO $ putStrLn "generating C file..."
-        res <- generateAst astGenerated
-        (((), something), cBuilderState) <- case res of
-            Right x -> return x
-            Left e -> throwError e
+        cBuilderState <- fmap snd $ liftEither (generateAst astGenerated)
 
         -- optimise C builder state
         let includePaths = includes astGenerated
@@ -221,11 +229,9 @@ buildModule isMain args modPath = do
         cFilePath <- liftIO $ writeSystemTempFile (modName ++ ".c") ""
         modify $ \s -> s { cFileMap = Map.insert absoluteModPath cFilePath (cFileMap s) }
         cHandle <- liftIO $ openFile cFilePath WriteMode
-        void $ runDoMExcept (initCPrettyState cHandle finalBuilderState) (cPretty includePaths)
+        runCPretty finalBuilderState cHandle (cPretty includePaths)
         void $ liftIO $ hClose cHandle
         count <- liftIO $ length . lines <$> readFile cFilePath
         when (verbose args) $ liftIO $ putStrLn $ "wrote c:   " ++ cFilePath ++ " LOC:" ++ show count
         
-        let astCompiled = C.astResolved something
-        modify $ \s -> s { moduleMap = Map.insert absoluteModPath astCompiled (moduleMap s) }
-        --modify $ \s -> s { moduleMap = Map.insert absoluteModPath astGenerated (moduleMap s) }
+        modify $ \s -> s { moduleMap = Map.insert absoluteModPath astGenerated (moduleMap s) }

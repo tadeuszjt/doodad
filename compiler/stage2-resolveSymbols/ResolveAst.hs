@@ -1,17 +1,17 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module ResolveAst where
 
 import Prelude hiding (mod)
 
 import qualified Data.Map as Map
 import Control.Monad.State
+import Control.Monad.Except
 import Control.Monad.Identity
 import Data.Maybe
 import Data.Char
 
 import Type
 import AST
-import Monad
 import Error
 import Symbol
 import ASTResolved hiding (genSymbol)
@@ -32,43 +32,41 @@ data ResolveState
         { modName   :: String
         , supply    :: Map.Map Symbol Int
         , symTab    :: MySymTab
-        , instBuilder :: InstBuilderState
         }
 
 initResolveState = ResolveState
     { modName = ""
     , symTab = [Map.empty]
     , supply = Map.empty
-    , instBuilder = initInstBuilderState
     }
 
 
-instance MonadInstBuilder (DoM ResolveState) where
-    liftInstBuilderState (StateT s) = do
-        state <- gets instBuilder
-        let (a, state') = runIdentity $ runStateT (StateT s) state
-        modify $ \s -> s { instBuilder = state' }
-        return a
+newtype Resolve a = Resolve
+    { unResolve :: StateT ResolveState (StateT InstBuilderState (Except Error)) a }
+    deriving (Functor, Applicative, Monad, MonadState ResolveState, MonadError Error)
 
 
-pushSymbolTable :: DoM ResolveState ()
+instance MonadFail Resolve where
+    fail = throwError . ErrorStr
+
+
+instance MonadInstBuilder Resolve where
+    liftInstBuilderState (StateT s) = Resolve $ lift $ StateT (pure . runIdentity . s)
+
+
+runResolve :: ResolveState -> InstBuilderState -> Resolve a -> Either Error ((a, ResolveState), InstBuilderState)
+runResolve resolveState instBuilderState f = do
+    runExcept $ runStateT (runStateT (unResolve f) resolveState) instBuilderState
+
+
+pushSymbolTable :: Resolve ()
 pushSymbolTable = do
     modify $ \s -> s { symTab = Map.empty : symTab s }
 
 
-popSymbolTable :: DoM ResolveState ()
+popSymbolTable :: Resolve ()
 popSymbolTable = do
     modify $ \s -> s { symTab = tail (symTab s) }
-
-
-printSymbolTable :: DoM ResolveState ()
-printSymbolTable = do
-    symTab <- gets symTab
-    liftIO $ do
-        forM_ symTab $ \mp -> do
-            putStrLn "scope:"
-            forM_ (Map.toList mp) $ \(s, k) -> do
-                putStrLn $ "\t" ++ show k ++ " " ++ show s
 
 
 lookupSymTab :: Symbol -> SymKey -> MySymTab -> [Symbol]
@@ -87,7 +85,7 @@ lookupSymTab symbol key (s : ss) =
             x                  -> error (show x)
 
 
-lookm :: Symbol -> SymKey -> DoM ResolveState (Maybe Symbol)
+lookm :: Symbol -> SymKey -> Resolve (Maybe Symbol)
 lookm symbol key = do
     ress <- gets $ lookupSymTab symbol key . symTab
     case ress of
@@ -96,7 +94,7 @@ lookm symbol key = do
         _   -> fail ("multiple definitions for: " ++ prettySymbol symbol)
     
 
-lookHeadm :: Symbol -> SymKey -> DoM ResolveState (Maybe Symbol)
+lookHeadm :: Symbol -> SymKey -> Resolve (Maybe Symbol)
 lookHeadm symbol key = do
     symTabHead <- gets (head . symTab)
     case lookupSymTab symbol key [symTabHead] of
@@ -105,7 +103,7 @@ lookHeadm symbol key = do
         _   -> fail ("multiple definitions for: " ++ prettySymbol symbol)
 
 
-look :: Symbol -> SymKey -> DoM ResolveState Symbol
+look :: Symbol -> SymKey -> Resolve Symbol
 look symbol key = do
     resm <- lookm symbol key
     unless (isJust resm) $ do
@@ -113,7 +111,7 @@ look symbol key = do
     return (fromJust resm)
 
 
-define :: Symbol -> SymKey -> Symbol -> Bool -> DoM ResolveState ()
+define :: Symbol -> SymKey -> Symbol -> Bool -> Resolve ()
 define symbol@(SymResolved _) key symbol2 isQualified = do
     --liftIO $ putStrLn $ "defining: " ++ prettySymbol symbol
     resm <- lookHeadm symbol key
@@ -121,7 +119,7 @@ define symbol@(SymResolved _) key symbol2 isQualified = do
     modify $ \s -> s { symTab = (Map.insert (symbol, key, isQualified) symbol2 $ head $ symTab s) : (tail $ symTab s) }
 
 
-genGeneric :: Symbol -> DoM ResolveState Symbol
+genGeneric :: Symbol -> Resolve Symbol
 genGeneric symbol@(SymResolved str) = do
     modName <- gets modName
     resm <- gets (Map.lookup symbol . supply)
@@ -131,7 +129,7 @@ genGeneric symbol@(SymResolved str) = do
         0 -> return $ SymResolved $ [modName] ++ str
         n -> return $ SymResolved $ [modName] ++ str ++ [show n]
 
-genSymbol :: Symbol -> DoM ResolveState Symbol
+genSymbol :: Symbol -> Resolve Symbol
 genSymbol symbol@(SymResolved str) = do
     modName <- gets modName
     resm <- gets (Map.lookup symbol . supply)
@@ -142,10 +140,12 @@ genSymbol symbol@(SymResolved str) = do
         n -> return $ SymResolved $ [modName] ++ str ++ [show n]
 
 
-resolveAst :: AstBuilderState -> [(Import, ASTResolved)] -> DoM s (AstBuilderState, Map.Map Symbol Int)
-resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' ast)
+resolveAst :: Monad m => AstBuilderState -> [(Import, ASTResolved)] -> m (AstBuilderState, Map.Map Symbol Int)
+resolveAst ast imports = do
+    let Right x = runResolve initResolveState initInstBuilderState (resolveAst' ast)
+    return $ fst (fst x)
     where
-        resolveAst' :: AstBuilderState -> DoM ResolveState (AstBuilderState, Map.Map Symbol Int)
+        resolveAst' :: AstBuilderState -> Resolve (AstBuilderState, Map.Map Symbol Int)
         resolveAst' ast = do
             modify $ \s -> s { modName = AstBuilder.abModuleName ast }
 
@@ -194,14 +194,14 @@ resolveAst ast imports = fmap fst $ runDoMExcept initResolveState (resolveAst' a
             return (ast { topStmts = topStmts'' }, supply)
 
 
-defineGenerics :: [Symbol] -> DoM ResolveState [Symbol]
+defineGenerics :: [Symbol] -> Resolve [Symbol]
 defineGenerics generics = forM generics $ \(Sym str) -> do
     symbol <- genGeneric $ SymResolved str
     define symbol KeyType symbol False
     return symbol
 
 
-resolveParam :: Param -> DoM ResolveState Param
+resolveParam :: Param -> Resolve Param
 resolveParam param = withPos param $ case param of
     Param pos (Sym sym) (Apply Ref t) -> do
         symbol <- genSymbol (SymResolved sym)
@@ -218,13 +218,13 @@ resolveParam param = withPos param $ case param of
         RefParam pos symbol <$> resolveType typ
 
 
-resolveRetty :: Retty -> DoM ResolveState Retty
+resolveRetty :: Retty -> Resolve Retty
 resolveRetty retty = case retty of
     RefRetty typ -> RefRetty <$> resolveType typ
     Retty typ    -> Retty <$> resolveType typ
 
 
-resolveType :: Type -> DoM ResolveState Type
+resolveType :: Type -> Resolve Type
 resolveType typ = case typ of
     TypeDef s      -> case s of
         Sym ["U8"]    -> return U8
@@ -252,7 +252,7 @@ resolveType typ = case typ of
     _ -> return typ
 
 
-resolveTopStmt :: TopStmt -> DoM ResolveState TopStmt
+resolveTopStmt :: TopStmt -> Resolve TopStmt
 resolveTopStmt statement = case statement of
     TopStmt (Function pos generics funDeps symbol funcType) -> do
         unless (symbolIsResolved symbol) (fail "feature symbol wasn't resolved")
@@ -317,15 +317,15 @@ resolveTopStmt statement = case statement of
     TopStmt x -> error (show x)
 
 
-resolveInstState :: InstBuilderState -> DoM ResolveState InstBuilderState
+resolveInstState :: InstBuilderState -> Resolve InstBuilderState
 resolveInstState instState = do
-    modify $ \s -> s { instBuilder = initInstBuilderState }
+    liftInstBuilderState $ modify $ \s -> initInstBuilderState
     let Just (Block stmts) = Map.lookup 0 (statements instState)
     withCurId 0 $ mapM (resolveStmt instState) stmts
-    gets instBuilder
+    liftInstBuilderState $ get
 
 
-resolveBlock :: InstBuilderState -> Stmt -> DoM ResolveState ID
+resolveBlock :: InstBuilderState -> Stmt -> Resolve ID
 resolveBlock instState (Stmt id) = do
     let Just stmt = Map.lookup id (statements instState)
     case stmt of
@@ -337,7 +337,7 @@ resolveBlock instState (Stmt id) = do
             return id
 
 
-resolveStmt :: InstBuilderState -> Stmt -> DoM ResolveState ()
+resolveStmt :: InstBuilderState -> Stmt -> Resolve ()
 resolveStmt instState (Stmt id) = do
     let Just statement = Map.lookup id (statements instState)
     case statement of
@@ -404,7 +404,7 @@ resolveStmt instState (Stmt id) = do
         x -> error (show x)
 
 
-resolvePattern :: InstBuilderState -> Pattern -> DoM ResolveState Pattern
+resolvePattern :: InstBuilderState -> Pattern -> Resolve Pattern
 resolvePattern instState pattern = withPos pattern $ fmap Pattern $ case pattern of
     PatAnnotated pat typ -> do
         Pattern id <- resolvePattern instState pat
@@ -434,7 +434,7 @@ resolvePattern instState pattern = withPos pattern $ fmap Pattern $ case pattern
         newType id (Type 0)
 
 
-resolveExpr :: InstBuilderState -> Expr -> DoM ResolveState Expr
+resolveExpr :: InstBuilderState -> Expr -> Resolve Expr
 resolveExpr state expression = withPos expression $ fmap Expr $ case expression of
     AExpr typ expr -> do
         expr'@(Expr id) <- resolveExpr state expr
@@ -466,7 +466,7 @@ resolveExpr state expression = withPos expression $ fmap Expr $ case expression 
         newType id (Type 0)
                     
 
-processCEmbed :: String -> DoM ResolveState [(String, Symbol)]
+processCEmbed :: String -> Resolve [(String, Symbol)]
 processCEmbed ('$':xs) = do
     let ident = takeWhile (\c -> isAlpha c || isDigit c || c == '_') xs
     check (length ident > 0)     "invalid identifier following '$' token"
