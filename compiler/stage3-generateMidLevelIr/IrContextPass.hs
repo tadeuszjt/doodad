@@ -13,48 +13,102 @@ import Monad
 import ASTResolved
 
 
+data IrContextState = IrContextState
+    { astResolved  :: ASTResolved
+    , contextStack :: [Set.Set Type]
+    , currentInst  :: Type
+    , nothingFlag  :: Bool
+    }
+
+initIrContextState ast typ = IrContextState
+    { astResolved = ast
+    , contextStack = [Set.empty]
+    , currentInst  = typ
+    , nothingFlag  = False
+    }
+
+
+
+addContexts :: Set.Set Type -> DoM IrContextState ()
+addContexts set = modify $ \s -> s
+    { contextStack = (Set.union set $ head $ contextStack s ) : tail (contextStack s) }
+
 
 irContextPass :: DoM ASTResolved ()
 irContextPass = do
-    mapM irContextAdd . Set.toList =<< gets instantiationsTop
-    return ()
+    irContextAddHeaderCtx
+    --irContextAddInstructionCtx
 
 
+irContextAddInstructionCtx :: DoM ASTResolved ()
+irContextAddInstructionCtx = do
+    top <- gets instantiationsTop
+    forM_ (Set.toList top) $ \instType -> do
+        error (show instType)
+        
 
-irContextAdd :: Type -> DoM ASTResolved ()
-irContextAdd instType = do
-    modify $ \s -> s { instantiations = Map.insert
-        instType
-        ((instantiations s Map.! instType) { irContexts = Just (Set.empty) })
-        (instantiations s) }
 
+irContextAddHeaderCtx :: DoM ASTResolved ()
+irContextAddHeaderCtx = do
+    top <- gets instantiationsTop
+
+    contextsPrev <- forM (Set.toList top) $ \instType -> do
+        Just funcIr <- gets (Map.lookup instType . instantiations)
+        return (irContexts funcIr)
+
+    forM_ (Set.toList top) $ \instType -> do
+        set <- case isBuiltinContext instType of
+            Just typ -> return (Set.singleton typ)
+            Nothing  -> irContextInst instType
+        modify $ \s -> s { instantiations = Map.insert
+            instType
+            (instantiations s Map.! instType) { irContexts = Just set }
+            (instantiations s)
+            }
+
+    contextsNew <- forM (Set.toList top) $ \instType -> do
+        Just funcIr <- gets (Map.lookup instType . instantiations)
+        return (irContexts funcIr)
+
+    unless (contextsPrev == contextsNew) irContextAddHeaderCtx
+
+
+irContextInst :: Type -> DoM ASTResolved (Set.Set Type)
+irContextInst instType = do
     Just funcIr <- gets (Map.lookup instType . instantiations)
+    ast <- get
 
-    contexts <- fmap (Set.fromList . concat) $ forM (irStmts funcIr) $ \stmt -> do
-        case stmt of
-            Call typ args -> case isBuiltinContext typ of
-                Just t -> return [t]
-                Nothing -> do
-                    callContexts <- gets $ irContexts . (Map.! typ) . instantiations
-                    case callContexts of
-                        Nothing -> do
-                            irContextAdd typ
-                            Just callIr' <- gets (Map.lookup typ . instantiations)
-                            return $ maybe [] Set.toList (irContexts callIr')
+    (_, state') <- runDoMExcept (initIrContextState ast instType) (irContextStmt funcIr 0)
+    let [set] = contextStack state'
+    return set
 
-                        Just xs -> return (Set.toList xs)
 
-            _ -> return []
 
-    modify $ \s -> s { instantiations = Map.insert
-        instType
-        ((instantiations s Map.! instType) { irContexts = Just contexts })
-        (instantiations s) }
+irContextStmt :: FuncIr2 -> ID -> DoM IrContextState ()
+irContextStmt funcIr id = case irStmts funcIr Map.! id of
+    Block ids  -> mapM_ (irContextStmt funcIr) ids
+    Return _   -> return ()
+    EmbedC _ _ -> return ()
 
-    --liftIO $ putStrLn $ show instType ++ " " ++ show contexts
 
-    return ()
-            
+    Call callType _ -> do
+        curInst <- gets currentInst
+        case callType == curInst of
+            True -> return ()
+            False -> do
+                Just callIr <- gets (Map.lookup callType . instantiations . astResolved)
+                case irContexts callIr of
+                    Just contexts -> addContexts contexts
+                    Nothing       -> do
+                        modify $ \s -> s { nothingFlag = True }
+
+    If _ ids -> mapM_ (irContextStmt funcIr) ids
+    Loop ids -> mapM_ (irContextStmt funcIr) ids
+    Break    -> return ()
+    MakeSlice _ _ -> return ()
+
+    x -> error (show x)
+
 
 isBuiltinContext :: Type -> Maybe Type
 isBuiltinContext typ = let (TypeDef symbol, ts) = unfoldType typ in

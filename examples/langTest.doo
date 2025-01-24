@@ -583,7 +583,8 @@ fn testCompare()
 
 
 fn testContext()
-    //let x
+    let x : I64
+    //x = x + @I64
     //with(2); x = x + @I64
     return
 

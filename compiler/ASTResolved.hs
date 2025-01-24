@@ -96,5 +96,6 @@ printAstIr ast = do
     forM_ (instantiationsTop ast) $ \callType -> do
         let Just funcIr = Map.lookup callType (instantiations ast)
         putStrLn ""
+        putStrLn $ show (Ir2.irContexts funcIr) 
         putStrLn $ show callType ++ " " ++ show (Ir2.irArgs funcIr)
         Ir2.prettyFuncIr "\t" funcIr
