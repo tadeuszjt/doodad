@@ -9,7 +9,6 @@ import qualified Data.Map as Map
 
 import Symbol
 import ASTResolved hiding (moduleName)
-import qualified ASTResolved
 import CBuilder as C hiding (moduleName)
 import CAst as C
 import Control.Monad.State

@@ -1,8 +1,6 @@
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Preprocess where
 
-import Data.Char
 import Control.Monad.Identity
 import Control.Monad.State
 

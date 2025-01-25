@@ -1,9 +1,7 @@
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module InferTypes where
 
 import Data.Maybe
-import Data.List
 import Control.Monad
 import Control.Monad.Reader
 import Control.Monad.Except
@@ -33,7 +31,12 @@ initCollectState = CollectState
 
 newtype Collect a = Collect
     { unCollect :: StateT CollectState (ReaderT ASTResolved (Except Error)) a }
-    deriving (Functor, Applicative, Monad, MonadState CollectState, MonadError Error,
+    deriving (
+        Functor,
+        Applicative,
+        Monad,
+        MonadState CollectState,
+        MonadError Error,
         MonadReader ASTResolved)
 
 
@@ -116,28 +119,27 @@ collectCall exprType exprTypes callType = do
     -- type check.
     Just (Function _ featureGenerics funDeps _ _) <- Map.lookup funcSymbol . featuresAll <$> ask
     unless (length callTypeArgs == length featureGenerics) (error "xs needs to be > 0")
-    indices <- fmap catMaybes $ forM (zip featureGenerics [0..]) $ \(g, i) -> do
-        case findIndex (g ==) (map snd funDeps) of
-            Just _  -> return Nothing
-            Nothing -> return (Just i) 
+    let indices = map snd $ filter
+            (\(g, _) -> not $ elem g $ map snd funDeps)
+            (zip featureGenerics [0..])
 
     instances <- instancesAll <$> ask
 
-    appliedInstTypes <- fmap catMaybes $ forM (Map.elems instances) $ \stmt -> do
-        (generics, typ) <- case stmt of
-            TopInst _ generics typ _ _ _ -> return (generics, typ)
-            TopField _ generics typ _ -> return (generics, typ)
-            TopStmt (Derives _ generics argType [featureType]) ->
-                return (generics, Apply featureType argType)
-        let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..])
-        let appliedType = applyType genericsToVars typ
-        case typesCouldMatch appliedType callType of
-            False -> return Nothing
-            True  -> return (Just appliedType)
+    let appliedInstTypes = filter (typesCouldMatch callType) $
+            (flip map) (Map.elems instances) $ \stmt -> do
+            let (generics, typ) = case stmt of
+                    TopInst _ generics typ _ _ _                       -> (generics, typ)
+                    TopField _ generics typ _                          -> (generics, typ)
+                    TopStmt (Derives _ generics argType [featureType]) ->
+                        (generics, Apply featureType argType) in
 
-    fullAcqs <- (flip filterM) appliedInstTypes $ \appliedInstType -> do
-        let (TypeDef _, acqTypeArgs) = unfoldType appliedInstType
-        return $ all id $ map (\i -> typeFullyDescribes (acqTypeArgs !! i) (callTypeArgs !! i)) indices
+                let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..]) in 
+                    applyType genericsToVars typ
+
+
+    let fullAcqs = (flip filter) appliedInstTypes $ \appliedInstType ->
+            let (TypeDef _, acqTypeArgs) = unfoldType appliedInstType in
+                all id $ map (\i -> typeFullyDescribes (acqTypeArgs !! i) (callTypeArgs !! i)) indices
 
     case fullAcqs of
         [] -> return ()

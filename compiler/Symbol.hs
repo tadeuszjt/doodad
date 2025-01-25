@@ -21,10 +21,6 @@ dropLevels :: [String] -> [String]
 dropLevels = filter (\s -> not $ isDigit $ head s)
 
 
-symbolModule :: Symbol -> String
-symbolModule (SymResolved s) = head s
-
-
 showSymLocal :: Symbol -> String
 showSymLocal symbol@(SymResolved s) = intercalate "_" (s)
 

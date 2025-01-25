@@ -1,5 +1,4 @@
 {
-{-# LANGUAGE FlexibleContexts #-}
 module Parser where
 import Token
 import Error
@@ -379,7 +378,7 @@ type_  : '(' types ')'                  { foldl Apply Tuple $2 }
        | type_ '.' type_                { Apply $3 $1 }
 
 {
-parse :: MonadError Error m => [Token] -> m AST
+parse :: [Token] -> Except Error AST
 parse tokens = do
     case (parseTokens tokens) 0 of
         ParseFail pos -> throwError (ErrorPos pos "parse error")
