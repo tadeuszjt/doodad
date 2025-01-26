@@ -584,8 +584,8 @@ fn testCompare()
 
 fn testContext()
     let x : I64
-    //x = x + @I64
     //with(2); x = x + @I64
+    //@Io.stdout.printLn(x)
     return
 
 

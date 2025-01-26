@@ -74,6 +74,7 @@ data Stmt
     = Block [ID]
     | Loop [ID]
     | If ID [ID]
+    | With [Arg] [ID]
     | Break
     | Return (Maybe ID)
     | EmbedC [(String, ID)] String
@@ -92,6 +93,7 @@ instance Show Stmt where
         Break         -> "break"
         Return mid    -> "return"
         EmbedC map st -> "embedC"
+        With _ _      -> "with"
         
 
 data FuncIr2 = FuncIr2
@@ -191,6 +193,7 @@ appendStmt stmt = do
         Block xs -> return (Block $ xs ++ [id])
         Loop ids -> return (Loop $ ids ++ [id])
         If arg ids -> return (If arg $ ids ++ [id])
+        With args ids -> return (With args $ ids ++ [id])
         x -> error (show x)
 
     liftFuncIrState $ modify $ \s -> s { irStmts = Map.insert curId curStmt' (irStmts s) }
@@ -261,6 +264,10 @@ prettyIrStmt pre funcIr id = case irStmts funcIr Map.! id of
 
     If arg ids -> do
         putStrLn $ pre ++ "if " ++ show arg ++ ":"
+        forM_ ids $ prettyIrStmt (pre ++ "\t") funcIr
+
+    With args ids -> do
+        putStrLn $ pre ++ "with " ++ show args ++ ":"
         forM_ ids $ prettyIrStmt (pre ++ "\t") funcIr
 
     Call callType args -> 

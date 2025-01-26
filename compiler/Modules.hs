@@ -28,7 +28,7 @@ import qualified ResolveAst
 import qualified CombineAsts
 import Preprocess
 import IrGenerate
-import IrContextPass
+import IrContextHeaderPass
 import Error
 
 -- Modules are groups of .doo files with a module name header
@@ -212,7 +212,7 @@ buildModule isMain args modPath = do
         astGenerated <- case irGenerateResult of
             Left err                -> error (show err)
             Right (_, astGenerated) -> 
-                liftEither $ fmap snd $ runIrContextPass astGenerated irContextPass
+                liftEither $ fmap snd (runIrContextPass astGenerated irContextHeaderPass)
 
 
         when (isMain && printIr args) $ liftIO (printAstIr astGenerated)

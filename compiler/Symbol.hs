@@ -8,7 +8,6 @@ import Data.Char
 data Symbol
     = Sym          { symStr :: [String] }
     | SymResolved  { symStr :: [String] }
-    | SymCandidates [Symbol]
     deriving (Eq, Ord, Show)
 
 

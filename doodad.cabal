@@ -92,4 +92,4 @@ executable doodad
         InferTypes,
         Ir2,
         IrGenerate,
-        IrContextPass
+        IrContextHeaderPass

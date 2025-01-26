@@ -212,6 +212,16 @@ irGenerateStmt inst (AST.Stmt id) = case Inst.statements inst Map.! id of
             return (s, id')
         void $ appendStmt (EmbedC strMap' str)
 
+    AST.With _ exprs blk -> do
+        args <- forM exprs $ \expr -> do
+            id <- irGenerateExpr inst expr
+            let typ = Inst.typeOfExpr inst expr 
+            return $ ArgModify typ id
+
+        withId <- appendStmt (With args [])
+        withCurrentId withId $ irGenerateStmt inst blk
+
+
     AST.If _ cnd true mfalse -> do
         curId <- getCurrentId
         arg <- irGenerateCondition inst curId cnd 
