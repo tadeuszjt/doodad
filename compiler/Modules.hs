@@ -208,12 +208,8 @@ buildModule isMain args modPath = do
         astFinal <- liftEither (CombineAsts.combineAsts astResolved' supply astImports)
         when (isMain && printAstFinal args) $ liftIO (prettyASTResolved astFinal)
 
-        irGenerateResult <- runIrGenerate initIrGenerateState astFinal irGenerateAst
-        astGenerated <- case irGenerateResult of
-            Left err                -> error (show err)
-            Right (_, astGenerated) -> 
-                liftEither $ fmap snd (runIrContextPass astGenerated irContextHeaderPass)
-
+        (_, astIrGenerated) <- liftEither $ runIrGenerate initIrGenerateState astFinal irGenerateAst
+        let ((), astGenerated) = (runState irContextHeaderPass astIrGenerated)
 
         when (isMain && printIr args) $ liftIO (printAstIr astGenerated)
 

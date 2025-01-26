@@ -17,7 +17,7 @@ import Symbol
 import Error
 import Builtin
 
-import Ir2
+import Ir
 
 
 generateAst :: ASTResolved -> Either Error (((), GenerateState), BuilderState)
@@ -105,11 +105,11 @@ generateFuncIr funcIr = do
     return ()
 
 
-idName :: Ir2.ID -> String
+idName :: Ir.ID -> String
 idName x = "_" ++ show x
 
 
-processCEmbed :: [(String, Ir2.ID)] -> String -> Generate String
+processCEmbed :: [(String, Ir.ID)] -> String -> Generate String
 processCEmbed strMap str = case str of
     ('$':x:xs) -> do
         unless (isAlpha x) (fail "invalid identifier following '$' token")
@@ -146,36 +146,36 @@ generateArg funcIr arg = do
             x -> error (show x)
 
 
-generateStmt :: FuncIr2 -> Ir2.ID -> Generate ()
+generateStmt :: FuncIr2 -> Ir.ID -> Generate ()
 generateStmt funcIr id = case (irStmts funcIr) Map.! id of
     Block ids          -> mapM_ (generateStmt funcIr) ids
-    Ir2.Return Nothing -> do
+    Ir.Return Nothing -> do
         -- TODO return void
         cType <- cTypeOf Tuple
         name <- fresh "empty"
         appendElem $ C.Assign cType name (C.Initialiser [])
         void $ appendElem (C.Return $ C.Ident name)
 
-    Ir2.Call typ args  -> generateCall funcIr typ id args
+    Ir.Call typ args  -> generateCall funcIr typ id args
 
-    Ir2.Return (Just id) -> case irReturn funcIr of
+    Ir.Return (Just id) -> case irReturn funcIr of
         ParamValue typ -> void $ appendElem . C.Return =<< generateArg funcIr (ArgValue typ id)
         ParamModify typ -> void $ appendElem . C.Return =<< generateArg funcIr (ArgModify typ id)
 
-    Ir2.If id ids -> do
+    Ir.If id ids -> do
         val <- generateArg funcIr (ArgValue Type.Bool id)
         ifId <- appendElem (C.If val [])
         withCurID ifId $ mapM_ (generateStmt funcIr) ids
 
-    Ir2.Loop ids -> do
+    Ir.Loop ids -> do
         forId <- appendElem $ C.For Nothing Nothing Nothing []
         withCurID forId $ mapM_ (generateStmt funcIr) ids
 
-    Ir2.Break -> void (appendElem C.Break)
+    Ir.Break -> void (appendElem C.Break)
 
-    Ir2.EmbedC strMap str-> void $ appendElem . C.Embed =<< processCEmbed strMap str
+    Ir.EmbedC strMap str-> void $ appendElem . C.Embed =<< processCEmbed strMap str
 
-    Ir2.MakeSlice typ args -> do
+    Ir.MakeSlice typ args -> do
         cs <- mapM (generateArg funcIr) args
 
         base <- baseTypeOf typ
@@ -197,7 +197,7 @@ generateStmt funcIr id = case (irStmts funcIr) Map.! id of
     x -> error (show x)
 
 
-generateCall :: FuncIr2 -> Type.Type -> Ir2.ID -> [Ir2.Arg] -> Generate ()
+generateCall :: FuncIr2 -> Type.Type -> Ir.ID -> [Ir.Arg] -> Generate ()
 generateCall funcIr funcType id args = do
     let (TypeDef funcSymbol, _) = unfoldType funcType
     case funcSymbol of

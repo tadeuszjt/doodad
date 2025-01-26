@@ -11,7 +11,7 @@ import Symbol
 import Type
 import AstBuilder
 
-import qualified Ir2
+import qualified Ir
 
 
 data ASTResolved
@@ -32,7 +32,7 @@ data ASTResolved
         , instancesAll         :: Map.Map Symbol TopStmt
         
         , instantiationsTop    :: Set.Set Type
-        , instantiations       :: Map.Map Type Ir2.FuncIr2
+        , instantiations       :: Map.Map Type Ir.FuncIr2
 
         , symSupply            :: Map.Map Symbol Int              
         }
@@ -89,6 +89,6 @@ printAstIr ast = do
     forM_ (instantiationsTop ast) $ \callType -> do
         let Just funcIr = Map.lookup callType (instantiations ast)
         putStrLn ""
-        putStrLn $ show (Ir2.irContexts funcIr) 
-        putStrLn $ show callType ++ " " ++ show (Ir2.irArgs funcIr)
-        Ir2.prettyFuncIr "\t" funcIr
+        putStrLn $ show (Ir.irContexts funcIr) 
+        putStrLn $ show callType ++ " " ++ show (Ir.irArgs funcIr)
+        Ir.prettyFuncIr "\t" funcIr

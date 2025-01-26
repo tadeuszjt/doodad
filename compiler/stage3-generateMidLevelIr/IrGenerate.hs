@@ -11,7 +11,7 @@ import Control.Monad.Except
 
 import Error
 import Type
-import Ir2
+import Ir
 import ASTResolved
 import Symbol
 import AstBuilder
@@ -34,20 +34,21 @@ initIrGenerateState = IrGenerateState
 
 
 newtype IrGenerate a = IrGenerate
-    { unIrGenerate :: StateT IrGenerateState (StateT ASTResolved (ExceptT Error IO)) a }
-    deriving (Functor, Applicative, Monad, MonadState IrGenerateState, MonadIO, MonadError Error)
+    { unIrGenerate :: StateT IrGenerateState (StateT ASTResolved (Except Error)) a }
+    deriving (Functor, Applicative, Monad, MonadState IrGenerateState, MonadError Error)
 
 
 liftAstState :: StateT ASTResolved Identity a -> IrGenerate a
-liftAstState (StateT s) = IrGenerate $ lift $ StateT $ pure . runIdentity . s
+liftAstState (StateT s) = IrGenerate $ lift $ StateT (pure . runIdentity . s)
+
 
 instance MonadFail IrGenerate where
     fail s = throwError (ErrorStr s)
 
 
-runIrGenerate :: MonadIO m => IrGenerateState -> ASTResolved -> IrGenerate a -> m (Either Error ((a, IrGenerateState), ASTResolved))
+runIrGenerate :: IrGenerateState -> ASTResolved -> IrGenerate a -> Either Error ((a, IrGenerateState), ASTResolved)
 runIrGenerate irGenerateState ast f =
-    liftIO $ runExceptT $ runStateT (runStateT (unIrGenerate f) irGenerateState) ast
+    runExcept $ runStateT (runStateT (unIrGenerate f) irGenerateState) ast
 
 
 evalWithNewIrState :: IrGenerate a -> IrGenerate a

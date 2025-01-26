@@ -90,6 +90,7 @@ executable doodad
         FindFunc,
         AstBuilder,
         InferTypes,
-        Ir2,
+        Ir,
         IrGenerate,
-        IrContextHeaderPass
+        IrContextHeaderPass,
+        IrContextCallPass

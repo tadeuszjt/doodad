@@ -12,36 +12,21 @@ import Control.Monad.State
 import Error
 import Type
 import Symbol
-import Ir2
+import Ir
 import ASTResolved
 
 
 type ContextStack = [Set.Set Type]
 
 
-newtype IrContextPass a = IrContextPass
-    { unIrContextPass :: StateT ASTResolved (Except Error) a }
-    deriving (Functor, Applicative, Monad, MonadState ASTResolved, MonadError Error)
-
-
-
 newtype IrContextHeader a = IrContextHeader
-    { unIrContextHeader :: StateT ContextStack (StateT ASTResolved (Except Error)) a }
-    deriving (Functor, Applicative, Monad, MonadState ContextStack, MonadError Error)
+    { unIrContextHeader :: StateT ContextStack (State ASTResolved) a }
+    deriving (Functor, Applicative, Monad, MonadState ContextStack)
 
 
-instance MonadFail IrContextHeader where
-    fail = throwError . ErrorStr
-
-
-runIrContextPass :: ASTResolved -> IrContextPass a -> Either Error (a, ASTResolved)
-runIrContextPass astResolved f =
-    runExcept $ runStateT (unIrContextPass f) astResolved
-
-
-runIrContextHeader :: IrContextHeader a -> IrContextPass (a, ContextStack)
+runIrContextHeader :: IrContextHeader a -> State ASTResolved (a, ContextStack)
 runIrContextHeader f =
-    IrContextPass $ runStateT (unIrContextHeader f) [Set.empty]
+    runStateT (unIrContextHeader f) [Set.empty]
 
 
 
@@ -63,7 +48,7 @@ addContext typ = do
     unless stackMember $ modify (\s -> init s ++ [Set.insert typ $ last s])
 
 
-irContextHeaderPass :: IrContextPass ()
+irContextHeaderPass :: State ASTResolved ()
 irContextHeaderPass = do
     top <- gets instantiationsTop
 
@@ -106,7 +91,8 @@ irContextHeaderStmt funcIr id = case irStmts funcIr Map.! id of
     EmbedC _ _ -> return ()
 
     Call callType _ -> do
-        Just callIr <- liftAstStateHeader $ gets (Map.lookup callType . instantiations)
+        callIr <- liftAstStateHeader $ gets $ (Map.! callType) . instantiations
+
         case irContexts callIr of
             Just contexts -> forM_ (Set.toList contexts) $ addContext
             Nothing       -> return ()

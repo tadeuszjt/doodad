@@ -1,4 +1,4 @@
-module Ir2 where
+module Ir where
 
 import qualified Data.Set as Set
 import qualified Data.Map as Map
