@@ -1,5 +1,5 @@
 syn keyword doodadKeyword return 
-syn keyword doodadConditional if else switch
+syn keyword doodadConditional if else switch with
 syn keyword doodadFunc fn type func inst derives enum tuple
 syn keyword doodadDef let data const in
 syn keyword doodadLoop for while

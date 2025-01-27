@@ -47,7 +47,7 @@ generate = withErrorPrefix "generate: " $ do
                     ParamModify _ -> cRefTypeOf argType
                     ParamValue _ -> cTypeOf argType
 
-                cCtxTypes <- forM (Set.toList $ fromJust $ irContexts funcIr) $ \typ -> cRefTypeOf typ
+                cCtxTypes <- forM (Map.keys $ fromJust $ irContexts funcIr) $ \typ -> cRefTypeOf typ
                 appendExtern
                     (showSymGlobal $ irSymbol funcIr)
                     cReturnType
@@ -92,8 +92,8 @@ generateFuncIr funcIr = do
         ParamModify typ -> C.Param (idName i) <$> cRefTypeOf typ
         ParamValue  typ -> C.Param (idName i) <$> cTypeOf typ
 
-    cCtxs <- forM (zip [0..] $ Set.toList $ fromJust $ irContexts funcIr) $ \(i, typ) -> do
-        C.Param ("_ctx" ++ show i) <$> cRefTypeOf typ
+    cCtxs <- forM (Map.toList $ fromJust $ irContexts funcIr) $ \(typ, id) -> do
+        C.Param (idName id) <$> cRefTypeOf typ
 
     cReturn <- case irReturn funcIr of
         ParamValue typ -> cTypeOf typ
@@ -149,6 +149,7 @@ generateArg funcIr arg = do
 generateStmt :: FuncIr2 -> Ir.ID -> Generate ()
 generateStmt funcIr id = case (irStmts funcIr) Map.! id of
     Block ids          -> mapM_ (generateStmt funcIr) ids
+    With _ ids         -> mapM_ (generateStmt funcIr) ids
     Ir.Return Nothing -> do
         -- TODO return void
         cType <- cTypeOf Tuple
@@ -258,9 +259,10 @@ generateCall funcIr funcType id args = do
 
         s | symbolsCouldMatch s (Sym ["builtin", "builtinContext"]) -> do
             let (TypeDef symbol, [t]) = unfoldType funcType
-            let Just i = elemIndex t (Set.toList $ fromJust $ irContexts funcIr)
             cRefType <- cRefTypeOf t
-            void $ appendAssign cRefType (idName id) (C.Ident $ "_ctx" ++ show i)
+            [cexpr] <- mapM (generateArg funcIr) args
+            void $ appendAssign cRefType (idName id) cexpr
+                
 
         s | symbolsCouldMatch s (Sym ["builtin", "builtinSlice"]) -> do
             [cexpr, cstart, cend] <- mapM (generateArg funcIr) args

@@ -241,9 +241,8 @@ fn testUnordered()
     let 2 = u2[key0].len
     let 0 = u2[key1].len
 
-    let io : Io
-    io.stdout.print( &u2 )
-    io.stdout.print('\n')
+    @Io.stdout.print( &u2 )
+    @Io.stdout.print('\n')
 
 
 
@@ -584,39 +583,40 @@ fn testCompare()
 
 fn testContext()
     let x : I64
-    //with(2); x = x + @I64
-    //@Io.stdout.printLn(x)
-    return
+    @Io.stdout.printLn(x)
+    let 34 = @I64
 
 
 fn main()
-    testArithmetic()
-    testFloats()
-    testIf()
-    testFor()
-    testSwitch()
-    testTuple()
-    testTable()
-    testSparse()
-    testPrint()
-    testRead()
-    testUnordered()
-    testArrayAt()
-    testOption()
-    testTree()
-////    testMap()
-    testArrayPattern()
-    testArrayExpr()
-    testEnum()
-    testMacroTuple()
-    testFunctionalDependency()
-    testMake2()
-    testTableRows()
-    testSlice()
-    testSet()
-    testStack()
-    testCompare()
-    testContext()
+    let io : Io
+    with(io)
+        testArithmetic()
+        testFloats()
+        testIf()
+        testFor()
+        testSwitch()
+        testTuple()
+        testTable()
+        testSparse()
+        testPrint()
+        testRead()
+        testUnordered()
+        testArrayAt()
+        testOption()
+        testTree()
+    ////    testMap()
+        testArrayPattern()
+        testArrayExpr()
+        testEnum()
+        testMacroTuple()
+        testFunctionalDependency()
+        testMake2()
+        testTableRows()
+        testSlice()
+        testSet()
+        testStack()
+        testCompare()
+        with(34); testContext()
 
     ${ puts("langTest success"); }
     return

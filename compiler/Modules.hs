@@ -110,6 +110,7 @@ buildBinaryFromModule args modPath = do
     stateEither <- runModules (initModulesState doodadPath) (buildModule True args modPath)
     state <- case stateEither of
         Right (_, state) -> return state
+        Left err         -> printError err >> fail ""
 
     let hDoodad   = joinPath [doodadPath, "include"]
     --let cDoodad   = joinPath [doodadPath, "include/doodad.c"]
@@ -210,8 +211,8 @@ buildModule isMain args modPath = do
         when (isMain && printAstFinal args) $ liftIO (prettyASTResolved astFinal)
 
         (_, astIrGenerated) <- liftEither $ runIrGenerate initIrGenerateState astFinal irGenerateAst
-        let (astGenerated) = snd $ runState irContextCallPass
-                (snd $ runState irContextHeaderPass astIrGenerated)
+        let (astGenerated') = snd $ runState irContextHeaderPass astIrGenerated
+        let (astGenerated) = snd $ runState irContextCallPass astGenerated'
 
         when (isMain && printIr args) $ liftIO (printAstIr astGenerated)
 

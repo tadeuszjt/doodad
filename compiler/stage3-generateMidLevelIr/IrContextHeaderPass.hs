@@ -55,7 +55,7 @@ irContextHeaderPass = do
     contextsPrev <- forM (Set.toList top) $ \instType -> do
         funcIrm <- gets (Map.lookup instType . instantiations)
         case funcIrm of
-            Just funcIr -> return (irContexts funcIr)
+            Just funcIr -> return (fmap Map.keys $ irContexts funcIr)
 
     -- TODO refactor
     forM_ (Set.toList top) $ \instType -> do
@@ -70,16 +70,22 @@ irContextHeaderPass = do
                 case sets of
                     [set] -> return set
 
-        modify $ \s -> s { instantiations = Map.insert
-            instType
-            (instantiations s Map.! instType) { irContexts = Just set }
-            (instantiations s)
-            }
+        ast <- get
+        let resEither = runFuncIrMonad (instantiations ast Map.! instType) $ do
+                ctxMap <- fmap Map.fromList $ forM (Set.toList set) $ \typ -> do
+                    id <- generateId 
+                    addIdArg id (ArgModify typ id)
+                    return (typ, id)
+                modify $ \s -> s { irContexts = Just ctxMap }
+        funcIr' <- case resEither of
+            Right ((), funcIr') -> return funcIr'
+        modify $ \s -> s { instantiations = Map.insert instType funcIr' (instantiations s) }
+
 
     contextsNew <- forM (Set.toList top) $ \instType -> do
         funcIrm <- gets (Map.lookup instType . instantiations)
         case funcIrm of
-            Just funcIr -> return (irContexts funcIr)
+            Just funcIr -> return (fmap Map.keys $ irContexts funcIr)
 
     unless (contextsPrev == contextsNew) irContextHeaderPass
 
@@ -92,9 +98,8 @@ irContextHeaderStmt funcIr id = case irStmts funcIr Map.! id of
 
     Call callType _ -> do
         callIr <- liftAstStateHeader $ gets $ (Map.! callType) . instantiations
-
         case irContexts callIr of
-            Just contexts -> forM_ (Set.toList contexts) $ addContext
+            Just contexts -> forM_ (Map.keys contexts) $ addContext
             Nothing       -> return ()
 
     With args ids -> do

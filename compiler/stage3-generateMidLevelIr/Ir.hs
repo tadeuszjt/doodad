@@ -1,9 +1,12 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Ir where
 
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Control.Monad
 import Control.Monad.State
+import Control.Monad.Except
+import Control.Monad.Identity
 import Data.List
 import Data.Maybe
 
@@ -99,7 +102,7 @@ instance Show Stmt where
 data FuncIr2 = FuncIr2
     { irStmts     :: Map.Map ID Stmt
     , irIdArgs    :: Map.Map ID Arg
-    , irContexts  :: Maybe (Set.Set Type)
+    , irContexts  :: Maybe (Map.Map Type ID)
     , irArgs      :: [IrParam]
     , irReturn    :: IrParam
     , irSymbol    :: Symbol
@@ -123,8 +126,27 @@ initFuncIr2 = FuncIr2
     }
 
 
+
+newtype FuncIrMonad a = FuncIrMonad
+    { unFuncIrMonad :: StateT FuncIr2 (Except String) a }
+    deriving (Functor, Applicative, Monad, MonadState FuncIr2, MonadError String)
+
+
+instance MonadFail FuncIrMonad where
+    fail = throwError
+
+
+instance MonadFuncIr2 FuncIrMonad where
+    liftFuncIrState (StateT s) = FuncIrMonad $ StateT (pure . runIdentity . s)
+
+
 class (Monad m, MonadFail m) => MonadFuncIr2 m where
     liftFuncIrState :: State FuncIr2 a -> m a
+
+
+runFuncIrMonad :: FuncIr2 -> FuncIrMonad a -> Either String (a, FuncIr2)
+runFuncIrMonad funcIr f
+     = runExcept $ runStateT (unFuncIrMonad f) funcIr
 
 
 withCurrentId :: MonadFuncIr2 m => ID -> m a -> m a
@@ -174,15 +196,6 @@ getStmt id = do
     liftFuncIrState $ gets $ Map.lookup id . irStmts
 
 
---getType :: MonadFuncIr2 m => Arg -> m (Type, RefType)
---getType arg = case arg of
---    ArgConst typ _ -> return (typ, Const)
---    ArgID id -> do
---        resm <- liftFuncIrState $ gets (Map.lookup id . irTypes)
---        unless (isJust resm) (fail $ "id isn't typed: " ++ show id)
---        return (fromJust resm)
---    
---
 appendStmt :: MonadFuncIr2 m => Stmt -> m ID
 appendStmt stmt = do
     id <- generateId
@@ -211,6 +224,7 @@ prependStmt stmt = do
         Block xs -> return (Block $ (id : xs))
         Loop ids -> return (Loop $ (id : ids))
         If arg ids -> return (If arg $ (id : ids))
+        With args ids -> return (With args $ id : ids)
         x -> error (show x)
 
     liftFuncIrState $ modify $ \s -> s { irStmts = Map.insert curId curStmt' (irStmts s) }
@@ -218,20 +232,6 @@ prependStmt stmt = do
     return id
 
 
---appendStmtWithId :: MonadFuncIr2 m => ID -> Stmt -> m ()
---appendStmtWithId id stmt = do
---    curId <- liftFuncIrState (gets irCurrentId)
---    curStmt <- liftFuncIrState $ gets $ (Map.! curId) . irStmts
---    curStmt' <- case curStmt of
---        Block xs -> return (Block $ xs ++ [id])
---        Loop ids -> return (Loop $ ids ++ [id])
---        If arg ids -> return (If arg $ ids ++ [id])
---        x -> error (show x)
---
---    liftFuncIrState $ modify $ \s -> s { irStmts = Map.insert curId curStmt' (irStmts s) }
---    addStmt id stmt
---
---
 getCurrentId :: MonadFuncIr2 m => m ID
 getCurrentId = do
     liftFuncIrState $ gets irCurrentId
