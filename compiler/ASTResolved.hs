@@ -32,7 +32,7 @@ data ASTResolved
         , instancesAll         :: Map.Map Symbol TopStmt
         
         , instantiationsTop    :: Set.Set Type
-        , instantiations       :: Map.Map Type Ir.FuncIr2
+        , instantiations       :: Map.Map Type Ir.FuncIr
 
         , symSupply            :: Map.Map Symbol Int              
         }

@@ -21,13 +21,13 @@ import qualified InstBuilder as Inst
 
 
 data IrGenerateState = IrGenerateState
-    { funcIr      :: FuncIr2
+    { funcIr      :: FuncIr
     , symbolTable :: Map.Map Symbol ID
     }
 
 
 initIrGenerateState = IrGenerateState
-    { funcIr      = initFuncIr2
+    { funcIr      = initFuncIr
     , symbolTable = Map.empty
     }
 
@@ -74,7 +74,7 @@ modifyAst f = do
 
 
 
-instance MonadFuncIr2 (IrGenerate) where
+instance MonadFuncIr (IrGenerate) where
     liftFuncIrState (StateT s) = do
         (a, funcIr') <- gets (runIdentity . s . funcIr)
         modify $ \s -> s { funcIr = funcIr' }

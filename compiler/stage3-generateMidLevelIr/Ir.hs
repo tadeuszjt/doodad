@@ -99,7 +99,7 @@ instance Show Stmt where
         With _ _      -> "with"
         
 
-data FuncIr2 = FuncIr2
+data FuncIr = FuncIr
     { irStmts     :: Map.Map ID Stmt
     , irIdArgs    :: Map.Map ID Arg
     , irContexts  :: Maybe (Map.Map Type ID)
@@ -113,7 +113,7 @@ data FuncIr2 = FuncIr2
     deriving (Eq)
 
 
-initFuncIr2 = FuncIr2
+initFuncIr = FuncIr
     { irStmts     = Map.singleton 0 (Block [])
     , irIdArgs    = Map.empty
     , irTextPos   = Map.empty
@@ -128,28 +128,28 @@ initFuncIr2 = FuncIr2
 
 
 newtype FuncIrMonad a = FuncIrMonad
-    { unFuncIrMonad :: StateT FuncIr2 (Except String) a }
-    deriving (Functor, Applicative, Monad, MonadState FuncIr2, MonadError String)
+    { unFuncIrMonad :: StateT FuncIr (Except String) a }
+    deriving (Functor, Applicative, Monad, MonadState FuncIr, MonadError String)
 
 
 instance MonadFail FuncIrMonad where
     fail = throwError
 
 
-instance MonadFuncIr2 FuncIrMonad where
+instance MonadFuncIr FuncIrMonad where
     liftFuncIrState (StateT s) = FuncIrMonad $ StateT (pure . runIdentity . s)
 
 
-class (Monad m, MonadFail m) => MonadFuncIr2 m where
-    liftFuncIrState :: State FuncIr2 a -> m a
+class (Monad m, MonadFail m) => MonadFuncIr m where
+    liftFuncIrState :: State FuncIr a -> m a
 
 
-runFuncIrMonad :: FuncIr2 -> FuncIrMonad a -> Either String (a, FuncIr2)
+runFuncIrMonad :: FuncIr -> FuncIrMonad a -> Either String (a, FuncIr)
 runFuncIrMonad funcIr f
      = runExcept $ runStateT (unFuncIrMonad f) funcIr
 
 
-withCurrentId :: MonadFuncIr2 m => ID -> m a -> m a
+withCurrentId :: MonadFuncIr m => ID -> m a -> m a
 withCurrentId id f = do
     oldId <- liftFuncIrState (gets irCurrentId)
     liftFuncIrState $ modify $ \s -> s { irCurrentId = id }
@@ -158,45 +158,45 @@ withCurrentId id f = do
     return a
 
 
-generateId :: MonadFuncIr2 m => m ID
+generateId :: MonadFuncIr m => m ID
 generateId = do
     id <- liftFuncIrState $ gets irIdSupply
     liftFuncIrState $ modify $ \s -> s { irIdSupply = (irIdSupply s) + 1 }
     return id
 
 
-addIdArg :: MonadFuncIr2 m => ID -> Arg -> m ()
+addIdArg :: MonadFuncIr m => ID -> Arg -> m ()
 addIdArg id arg = do
     resm <- liftFuncIrState $ gets (Map.lookup id . irIdArgs)
     unless (isNothing resm) (fail $ "id already has arg: " ++ show id)
     liftFuncIrState $ modify $ \s -> s { irIdArgs = Map.insert id arg (irIdArgs s) }
 
 
-getIdArg :: MonadFuncIr2 m => ID -> m Arg
+getIdArg :: MonadFuncIr m => ID -> m Arg
 getIdArg id = do
     resm <- liftFuncIrState $ gets (Map.lookup id . irIdArgs)
     unless (isJust resm) (fail $ "no arg for id: " ++ show id)
     return (fromJust resm)
 
 
-addTextPos :: MonadFuncIr2 m => ID -> TextPos -> m ()
+addTextPos :: MonadFuncIr m => ID -> TextPos -> m ()
 addTextPos id pos = do
     liftFuncIrState $ modify $ \s -> s { irTextPos = Map.insert id pos (irTextPos s) }
 
 
-addStmt :: MonadFuncIr2 m => ID -> Stmt -> m ()
+addStmt :: MonadFuncIr m => ID -> Stmt -> m ()
 addStmt id stmt = do
     resm <- liftFuncIrState $ gets $ Map.lookup id . irStmts
     unless (isNothing resm) (fail $ "stmt already added: " ++ show (id, stmt))
     liftFuncIrState $ modify $ \s -> s { irStmts = Map.insert id stmt (irStmts s) }
 
 
-getStmt :: MonadFuncIr2 m => ID -> m (Maybe Stmt)
+getStmt :: MonadFuncIr m => ID -> m (Maybe Stmt)
 getStmt id = do 
     liftFuncIrState $ gets $ Map.lookup id . irStmts
 
 
-appendStmt :: MonadFuncIr2 m => Stmt -> m ID
+appendStmt :: MonadFuncIr m => Stmt -> m ID
 appendStmt stmt = do
     id <- generateId
 
@@ -214,7 +214,7 @@ appendStmt stmt = do
     return id
 
 
-prependStmt :: MonadFuncIr2 m => Stmt -> m ID
+prependStmt :: MonadFuncIr m => Stmt -> m ID
 prependStmt stmt = do
     id <- generateId
 
@@ -232,19 +232,19 @@ prependStmt stmt = do
     return id
 
 
-getCurrentId :: MonadFuncIr2 m => m ID
+getCurrentId :: MonadFuncIr m => m ID
 getCurrentId = do
     liftFuncIrState $ gets irCurrentId
 
 
-prettyFuncIr :: String -> FuncIr2 -> IO ()
+prettyFuncIr :: String -> FuncIr -> IO ()
 prettyFuncIr pre funcIr = do
     let Block ids = irStmts funcIr Map.! 0
     forM_ ids $ \id -> do
         prettyIrStmt pre funcIr id
 
 
-prettyIrStmt :: String -> FuncIr2 -> ID -> IO ()
+prettyIrStmt :: String -> FuncIr -> ID -> IO ()
 prettyIrStmt pre funcIr id = case irStmts funcIr Map.! id of
     Block ids -> do
         putStrLn $ pre ++ "block: "

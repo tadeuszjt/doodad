@@ -102,6 +102,7 @@ parse args file = do
         liftIO $ mapM_ (putStrLn . show) newTokens
     case runExcept (P.parse newTokens) of
         Right ast -> return ast
+        Left err  -> printError err >> fail ""
 
 
 buildBinaryFromModule :: Args -> FilePath -> IO ()

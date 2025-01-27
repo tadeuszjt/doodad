@@ -395,7 +395,7 @@ fn{K} getItem(stack &Item.Table) Item
     return stack.container::pop
 
 
-fn reduceStack(ast &Calc.Sparse, stack &Item.Table, production I64)
+fn reduceStack(ast &Sparse{Calc}, stack &Item.Table, production I64)
     let io : Io
     switch production
         0 // $accept: program $end
@@ -448,7 +448,7 @@ fn reduceStack(ast &Calc.Sparse, stack &Item.Table, production I64)
             stack.container::push(itemSimpExpr(key))
 
 
-fn parse(ast &Calc.Sparse, str Char.Slice) Calc.Key
+fn parse(ast &Sparse{Calc}, str Char.Slice) Calc.Key
 
     let tokens : Token.Table
     let idx = 0
@@ -519,56 +519,56 @@ fn freshVar(str String, used String.Set) String
     return str
 
 
-fn freeVars(ast &Calc.Sparse, termKey Calc.Key) String.Set
-    switch ast[termKey]
+fn freeVars(termKey Calc.Key) String.Set
+    switch @Sparse{Calc}[termKey]
         var(s)     ; return [s]
-        app(k1, k2); return ast.freeVars(k1) + ast.freeVars(k2)
-        lam(s, k)  ; return ast.freeVars(k) - [s]
+        app(k1, k2); return k1.freeVars + k2.freeVars
+        lam(s, k)  ; return k.freeVars - [s]
 
 
-fn copyExpr(ast &Calc.Sparse, termKey Calc.Key) Calc.Key
-    switch ast[termKey]
-        var(s)     ; return ast.sparse::insert(var(s))
-        app(k1, k2); return ast.sparse::insert(app(ast.copyExpr(k1), ast.copyExpr(k2)))
-        lam(s, k)  ; return ast.sparse::insert(lam(s, ast.copyExpr(k)))
+fn copyExpr(termKey Calc.Key) Calc.Key
+    switch @Sparse{Calc}[termKey]
+        var(s)     ; return @Sparse{Calc}.sparse::insert(var(s))
+        app(k1, k2); return @Sparse{Calc}.sparse::insert(app(k1.copyExpr, k2.copyExpr))
+        lam(s, k)  ; return @Sparse{Calc}.sparse::insert(lam(s, k.copyExpr))
 
 
-fn deleteExpr(ast &Calc.Sparse, termKey Calc.Key) Calc.Key
-    switch ast[termKey]
+fn deleteExpr(termKey Calc.Key) Calc.Key
+    switch @Sparse{Calc}[termKey]
         var(s);
         app(k1, k2)
-            deleteExpr(&ast, k1)
-            deleteExpr(&ast, k2)
+            deleteExpr(k1)
+            deleteExpr(k2)
         lam(s, k)
-            deleteExpr(&ast, k)
+            deleteExpr(k)
 
-    ast.sparse::delete(termKey)
+    @Sparse{Calc}.sparse::delete(termKey)
 
 
-fn{P} printExpr(p &P, ast &Calc.Sparse, termKey Calc.Key)
-    switch ast[termKey]
+fn{P} printExpr(p &P, termKey Calc.Key)
+    switch @Sparse{Calc}[termKey]
         var(s)
             for s -> c
                 p.print(c)
         app(k1, k2)
-            switch ast[k1]
-                var(s); p.printExpr(&ast, k1)
+            switch @Sparse{Calc}[k1]
+                var(s); p.printExpr(k1)
                 app(k2, k3)
-                    p.printExpr(&ast, k2)
+                    p.printExpr(k2)
                     p.print(' ')
-                    p.printExpr(&ast, k3)
+                    p.printExpr(k3)
                 lam(_, _)
                     p.print('(')
-                    p.printExpr(&ast, k1)
+                    p.printExpr(k1)
                     p.print(')')
 
             p.print(' ')
 
-            switch ast[k2]
-                var(s); p.printExpr(&ast, k2)
+            switch @Sparse{Calc}[k2]
+                var(s); p.printExpr(k2)
                 _
                     p.print('(')
-                    p.printExpr(&ast, k2)
+                    p.printExpr(k2)
                     p.print(')')
 
 
@@ -578,66 +578,63 @@ fn{P} printExpr(p &P, ast &Calc.Sparse, termKey Calc.Key)
             for s -> c; p.print(c)
             p.print('.')
 
-            switch ast[k]
+            switch @Sparse{Calc}[k]
                 lam(s2, k2)
                     p.print('\\')
                     for s2 -> c; p.print(c)
                     p.print('.')
-                    p.printExpr(&ast, k2)
+                    p.printExpr(k2)
                 _
-                    p.printExpr(&ast, k)
+                    p.printExpr(k)
                     
             p.print(')')
 
 
-fn alphaConvert(ast &Calc.Sparse, termKey Calc.Key, old String, new String) Calc.Key
-    switch ast[termKey]
-        var(s) | s == old   ; return ast.sparse::insert(var(new))
-        var(s)              ; return ast.sparse::insert(var(s))
-        lam(s, k) | s == old; return ast.sparse::insert(lam(new, ast.alphaConvert(k, old, new)))
-        lam(s, k)           ; return ast.sparse::insert(lam(s,   ast.alphaConvert(k, old, new)))
-        app(k1, k2)         ; return ast.sparse::insert(app(
-                ast.alphaConvert(k1, old, new),
-                ast.alphaConvert(k2, old, new)
+fn alphaConvert(termKey Calc.Key, old String, new String) Calc.Key
+    switch @Sparse{Calc}[termKey]
+        var(s) | s == old   ; return @Sparse{Calc}.sparse::insert(var(new))
+        var(s)              ; return @Sparse{Calc}.sparse::insert(var(s))
+        lam(s, k) | s == old; return @Sparse{Calc}.sparse::insert(lam(new, alphaConvert(k, old, new)))
+        lam(s, k)           ; return @Sparse{Calc}.sparse::insert(lam(s,   alphaConvert(k, old, new)))
+        app(k1, k2)         ; return @Sparse{Calc}.sparse::insert(app(
+                alphaConvert(k1, old, new),
+                alphaConvert(k2, old, new)
             ))
 
 
-fn substitute(ast &Calc.Sparse, termKey Calc.Key, str String, expr Calc.Key) Calc.Key
-    switch ast[termKey]
-        var(s) | s == str; return ast.copyExpr(expr)
-        var(s)           ; return ast.sparse::insert(var(s))
-        app(k1, k2)      ; return ast.sparse::insert(app(
-                ast.substitute(k1, str, expr),
-                ast.substitute(k2, str, expr)
+fn substitute(termKey Calc.Key, str String, expr Calc.Key) Calc.Key
+    switch @Sparse{Calc}[termKey]
+        var(s) | s == str; return copyExpr(expr)
+        var(s)           ; return @Sparse{Calc}.sparse::insert(var(s))
+        app(k1, k2)      ; return @Sparse{Calc}.sparse::insert(app(
+                substitute(k1, str, expr),
+                substitute(k2, str, expr)
             ))
-        lam(s, k) | s == str; return ast.copyExpr(termKey)
-        lam(s, k) | ast.freeVars(expr).contains(s)
-            let newVar = freshVar(s, ast.freeVars(k) + ast.freeVars(expr))
-            return ast.sparse::insert(lam(
+        lam(s, k) | s == str; return copyExpr(termKey)
+        lam(s, k) | expr.freeVars.contains(s)
+            let newVar = freshVar(s, k.freeVars + expr.freeVars)
+            return @Sparse{Calc}.sparse::insert(lam(
                 newVar,
-                ast.substitute(termKey, str, ast.alphaConvert(k, s, newVar))
+                substitute(termKey, str, alphaConvert(k, s, newVar))
             ))
-        lam(s, k); return ast.sparse::insert(lam(s, ast.substitute(k, str, expr)))
+        lam(s, k); return @Sparse{Calc}.sparse::insert(lam(s, substitute(k, str, expr)))
 
 
-fn betaReduce(ast &Calc.Sparse, termKey Calc.Key) Calc.Key
-    switch ast[termKey]
+fn betaReduce(termKey Calc.Key) Calc.Key
+    switch @Sparse{Calc}[termKey]
         app(k1, k2)
-            switch ast[k1]
-                lam(s, k); return ast.substitute(k, s, k2)
-                _        ; return ast.sparse::insert(app(
-                        ast.betaReduce(k1),
-                        ast.betaReduce(k2),
-                    ))
-        lam(s, k); return ast.sparse::insert(lam(s, ast.betaReduce(k)))
-        var(s)   ; return ast.sparse::insert(var(s))
+            switch @Sparse{Calc}[k1]
+                lam(s, k); return substitute(k, s, k2)
+                _        ; return @Sparse{Calc}.sparse::insert(app(k1.betaReduce, k2.betaReduce))
+        lam(s, k); return @Sparse{Calc}.sparse::insert(lam(s, k.betaReduce))
+        var(s)   ; return @Sparse{Calc}.sparse::insert(var(s))
 
 
-fn fullReduce(ast &Calc.Sparse, termKey Calc.Key) Calc.Key
-    let expr = ast.copyExpr(termKey)
+fn fullReduce(termKey Calc.Key) Calc.Key
+    let expr = copyExpr(termKey)
     for (0, 7)
-        let expr2 = ast.betaReduce(expr)
-        ast.deleteExpr(expr)
+        let expr2 = expr.betaReduce
+        expr.deleteExpr
         expr = expr2
 
     return expr
@@ -646,16 +643,17 @@ fn fullReduce(ast &Calc.Sparse, termKey Calc.Key) Calc.Key
 fn main(io Io)
     io.stdout.printLn("lambdaCalc")
 
-    let ast : Calc.Sparse
+    let ast : Sparse{Calc}
     let expr1 = ast.parse("(\x.\y.x y) (\a.\b.a) (\c.c)")
 
-    let expr2 = ast.fullReduce(ast.betaReduce(expr1))
+    with(&ast)
+        let expr2 = fullReduce(betaReduce(expr1))
 
-    io.stdout.printExpr(&ast, expr1)
-    io.stdout.print('\n')
-    io.stdout.printExpr(&ast, expr2)
-    io.stdout.print('\n')
+        io.stdout.printExpr(expr1)
+        io.stdout.print('\n')
+        io.stdout.printExpr(expr2)
+        io.stdout.print('\n')
 
-    ast.deleteExpr(expr1)
-    ast.deleteExpr(expr2)
-    io.stdout.printLn(ast)
+        deleteExpr(expr1)
+        deleteExpr(expr2)
+        io.stdout.printLn(@Sparse{Calc})

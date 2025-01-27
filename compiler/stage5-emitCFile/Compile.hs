@@ -86,7 +86,7 @@ generate = withErrorPrefix "generate: " $ do
             _ -> generateFuncIr funcIr
 
 
-generateFuncIr :: FuncIr2 -> Generate ()
+generateFuncIr :: FuncIr -> Generate ()
 generateFuncIr funcIr = do
     cArgs <- forM (zip (irArgs funcIr) [1..]) $ \(arg, i) -> case arg of
         ParamModify typ -> C.Param (idName i) <$> cRefTypeOf typ
@@ -126,7 +126,7 @@ processCEmbed strMap str = case str of
     []     -> return ""
 
 
-generateArg :: FuncIr2 -> Arg -> Generate C.Expression
+generateArg :: FuncIr -> Arg -> Generate C.Expression
 generateArg funcIr arg = do
     base <- baseTypeOf arg
     case unfoldType base of
@@ -146,7 +146,7 @@ generateArg funcIr arg = do
             x -> error (show x)
 
 
-generateStmt :: FuncIr2 -> Ir.ID -> Generate ()
+generateStmt :: FuncIr -> Ir.ID -> Generate ()
 generateStmt funcIr id = case (irStmts funcIr) Map.! id of
     Block ids          -> mapM_ (generateStmt funcIr) ids
     With _ ids         -> mapM_ (generateStmt funcIr) ids
@@ -198,7 +198,7 @@ generateStmt funcIr id = case (irStmts funcIr) Map.! id of
     x -> error (show x)
 
 
-generateCall :: FuncIr2 -> Type.Type -> Ir.ID -> [Ir.Arg] -> Generate ()
+generateCall :: FuncIr -> Type.Type -> Ir.ID -> [Ir.Arg] -> Generate ()
 generateCall funcIr funcType id args = do
     let (TypeDef funcSymbol, _) = unfoldType funcType
     case funcSymbol of

@@ -17,7 +17,7 @@ import Debug.Trace
 
 
 data IrContextCallState = IrContextCallState
-    { funcIr :: FuncIr2
+    { funcIr :: FuncIr
     , symTab :: [Map.Map Type Ir.ID]
     }
 

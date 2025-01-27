@@ -90,7 +90,7 @@ irContextHeaderPass = do
     unless (contextsPrev == contextsNew) irContextHeaderPass
 
 
-irContextHeaderStmt :: FuncIr2 -> ID -> IrContextHeader ()
+irContextHeaderStmt :: FuncIr -> ID -> IrContextHeader ()
 irContextHeaderStmt funcIr id = case irStmts funcIr Map.! id of
     Block ids  -> mapM_ (irContextHeaderStmt funcIr) ids
     Return _   -> return ()
