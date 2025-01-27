@@ -38,7 +38,7 @@ newtype IrGenerate a = IrGenerate
     deriving (Functor, Applicative, Monad, MonadState IrGenerateState, MonadError Error)
 
 
-liftAstState :: StateT ASTResolved Identity a -> IrGenerate a
+liftAstState :: State ASTResolved a -> IrGenerate a
 liftAstState (StateT s) = IrGenerate $ lift $ StateT (pure . runIdentity . s)
 
 

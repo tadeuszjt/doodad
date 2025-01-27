@@ -29,6 +29,7 @@ import qualified CombineAsts
 import Preprocess
 import IrGenerate
 import IrContextHeaderPass
+import IrContextCallPass
 import Error
 
 -- Modules are groups of .doo files with a module name header
@@ -209,7 +210,8 @@ buildModule isMain args modPath = do
         when (isMain && printAstFinal args) $ liftIO (prettyASTResolved astFinal)
 
         (_, astIrGenerated) <- liftEither $ runIrGenerate initIrGenerateState astFinal irGenerateAst
-        let ((), astGenerated) = (runState irContextHeaderPass astIrGenerated)
+        let (astGenerated) = snd $ runState irContextCallPass
+                (snd $ runState irContextHeaderPass astIrGenerated)
 
         when (isMain && printIr args) $ liftIO (printAstIr astGenerated)
 
