@@ -28,6 +28,7 @@ import qualified ResolveAst
 import qualified CombineAsts
 import Preprocess
 import IrGenerate
+import IrGenerateDestroy
 import IrContextHeaderPass
 import IrContextCallPass
 import Error
@@ -211,9 +212,11 @@ buildModule isMain args modPath = do
         astFinal <- liftEither (CombineAsts.combineAsts astResolved' supply astImports)
         when (isMain && printAstFinal args) $ liftIO (prettyASTResolved astFinal)
 
-        (_, astIrGenerated) <- liftEither $ runIrGenerate initIrGenerateState astFinal irGenerateAst
-        let (astGenerated') = snd $ runState irContextHeaderPass astIrGenerated
-        let (astGenerated) = snd $ runState irContextCallPass astGenerated'
+        astGenerated <- liftEither $ fmap snd $ runExcept $ (flip runStateT) astFinal $ do
+            irGenerateAst
+            --irGenerateDestroyPass
+            irContextHeaderPass
+            irContextCallPass
 
         when (isMain && printIr args) $ liftIO (printAstIr astGenerated)
 

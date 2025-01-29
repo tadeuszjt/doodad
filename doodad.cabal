@@ -93,4 +93,5 @@ executable doodad
         Ir,
         IrGenerate,
         IrContextHeaderPass,
-        IrContextCallPass
+        IrContextCallPass,
+        IrGenerateDestroy

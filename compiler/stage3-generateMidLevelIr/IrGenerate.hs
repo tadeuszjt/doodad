@@ -21,14 +21,16 @@ import qualified InstBuilder as Inst
 
 
 data IrGenerateState = IrGenerateState
-    { funcIr      :: FuncIr
-    , symbolTable :: Map.Map Symbol ID
+    { funcIr         :: FuncIr
+    , symbolTable    :: Map.Map Symbol ID
+    , copyReturnFlag :: Bool -- turn this off when generating builtin::copy
     }
 
 
 initIrGenerateState = IrGenerateState
-    { funcIr      = initFuncIr
-    , symbolTable = Map.empty
+    { funcIr         = initFuncIr
+    , symbolTable    = Map.empty
+    , copyReturnFlag = True
     }
 
 
@@ -38,40 +40,17 @@ newtype IrGenerate a = IrGenerate
     deriving (Functor, Applicative, Monad, MonadState IrGenerateState, MonadError Error)
 
 
-liftAstState :: State ASTResolved a -> IrGenerate a
-liftAstState (StateT s) = IrGenerate $ lift $ StateT (pure . runIdentity . s)
+liftAstState :: StateT ASTResolved (Except Error) a -> IrGenerate a
+liftAstState m = IrGenerate (lift m)
 
 
 instance MonadFail IrGenerate where
     fail s = throwError (ErrorStr s)
 
 
-runIrGenerate :: IrGenerateState -> ASTResolved -> IrGenerate a -> Either Error ((a, IrGenerateState), ASTResolved)
-runIrGenerate irGenerateState ast f =
-    runExcept $ runStateT (runStateT (unIrGenerate f) irGenerateState) ast
-
-
-evalWithNewIrState :: IrGenerate a -> IrGenerate a
-evalWithNewIrState f = fmap fst $ IrGenerate $ lift $ runStateT (unIrGenerate f) initIrGenerateState
-
-
-define :: Symbol -> ID -> IrGenerate ()
-define symbol id = do
-    resm <- gets (Map.lookup symbol . symbolTable)
-    when (isJust resm) (error "symbol already defined")
-    modify $ \s -> s { symbolTable = Map.insert symbol id (symbolTable s) }
-
-
-look :: Symbol -> IrGenerate ID
-look symbol = do
-    Just id <- gets (Map.lookup symbol . symbolTable)
-    return id
-
-
-modifyAst :: (ASTResolved -> ASTResolved) -> IrGenerate ()
-modifyAst f = do
-    liftAstState $ modify f
-
+runIrGenerateAst :: IrGenerateState -> IrGenerate a
+    -> StateT ASTResolved (Except Error) (a, IrGenerateState)
+runIrGenerateAst irGenerateState f = runStateT (unIrGenerate f) irGenerateState
 
 
 instance MonadFuncIr (IrGenerate) where
@@ -86,9 +65,9 @@ instance MonadTypeDefs (IrGenerate) where
 
 
 -- generate IR for all instances with no generics
-irGenerateAst :: IrGenerate ()
+irGenerateAst :: StateT ASTResolved (Except Error) ()
 irGenerateAst = do
-    ast <- liftAstState get
+    ast <- get
     forM_ (instancesTop ast) $ \instSymbol -> case Map.lookup instSymbol (instancesAll ast) of
         Just (TopInst _ [] callType _ _ _) -> void $ irGenerateInstance callType
         Just (TopField _ [] callType _)    -> void $ irGenerateInstance callType
@@ -97,13 +76,16 @@ irGenerateAst = do
 
 
 -- ensure generated IR for function, return underlying call type
-irGenerateInstance :: Type -> IrGenerate Type
-irGenerateInstance callType = evalWithNewIrState $ do
-    --liftIO $ putStrLn $ "irGenerateInstance: " ++ show callType
-    ast <- liftAstState get
+irGenerateInstance :: Type -> StateT ASTResolved (Except Error) Type
+irGenerateInstance callType = do
+    ast <- get
     case isNothing (Map.lookup callType $ instantiations ast) of
+        False -> return callType
         True -> do
-            let Right (Just topStmt) = runExcept (makeInstantiation ast callType)
+            topStmt <- case runExcept (makeInstantiation ast callType) of
+                Right (Just topStmt) -> return topStmt
+                Left e               -> throwError e
+
             instType <- case topStmt of
                 TopInst _ [] typ _ _ _ -> return typ
                 TopField _ [] typ _    -> return typ
@@ -111,11 +93,54 @@ irGenerateInstance callType = evalWithNewIrState $ do
             callType' <- case instType == callType of
                 False -> irGenerateInstance instType
                 True -> case topStmt of
-                    TopInst _ _ _ _ _ _ -> irGenerateTopInst topStmt >> return callType
-                    TopField _ _ _ _    -> irGenerateTopField topStmt >> return callType
+                    TopInst _ _ _ _ _ _ -> do
+                        runIrGenerateAst initIrGenerateState (irGenerateTopInst topStmt)
+                        return callType
+                    TopField _ _ _ _    -> do
+                        runIrGenerateAst initIrGenerateState (irGenerateTopField topStmt)
+                        return callType
 
             return callType'
-        False -> return callType
+
+
+-- adds a call, ensures generated IR
+irGenerateCall :: Type -> [ID] -> IrGenerate ID
+irGenerateCall callType argIds = do
+    callType' <- liftAstState $ irGenerateInstance callType
+    (Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType'
+    Just funcIr <- liftAstState $ gets (Map.lookup callType' . instantiations)
+
+    unless (length argIds == length (irArgs funcIr)) $ do
+        error ("arg length mismatch for: " ++ show callType')
+    
+    args <- forM (zip3 argIds argTypes $ irArgs funcIr) $ \(argId, argType, irArg) -> case irArg of
+        ParamValue typ -> do
+            unless (typ == argType) (error "arg type mismatch")
+            return (ArgValue typ argId)
+        ParamModify typ -> do
+            unless (typ == argType) (error "arg type mismatch")
+            return (ArgModify typ argId)
+
+    id <- appendStmt $ Call callType' args
+
+    case irReturn funcIr of
+        ParamValue typ -> addIdArg id (ArgValue typ id)
+        ParamModify typ -> addIdArg id (ArgModify typ id)
+
+    return id
+
+
+define :: Symbol -> ID -> IrGenerate ()
+define symbol id = do
+    resm <- gets (Map.lookup symbol . symbolTable)
+    when (isJust resm) (error "symbol already defined")
+    modify $ \s -> s { symbolTable = Map.insert symbol id (symbolTable s) }
+
+
+look :: Symbol -> IrGenerate ID
+look symbol = do
+    Just id <- gets (Map.lookup symbol . symbolTable)
+    return id
 
 
 irGenerateTopField :: TopStmt -> IrGenerate ()
@@ -153,7 +178,7 @@ irGenerateTopField (TopField _ [] funcType i) = do
     appendStmt (Return $ Just sum)
 
     funcIr <- gets funcIr
-    modifyAst $ \s -> s
+    liftAstState $ modify $ \s -> s
         { instantiations = Map.insert funcType funcIr (instantiations s)
         , instantiationsTop = Set.insert funcType (instantiationsTop s)
         }
@@ -164,6 +189,9 @@ irGenerateTopInst :: TopStmt -> IrGenerate ()
 irGenerateTopInst (TopInst _ [] callType args isRef inst) = do
     --liftIO $ putStrLn $ "irGenerateTopInst: " ++ show callType
     let (TypeDef funcSymbol, _) = unfoldType callType
+    when (symbolsCouldMatch (Sym ["builtin", "copy"]) funcSymbol) $ modify $ \s -> s
+        { copyReturnFlag = False }
+
     (Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType
     unless (length argTypes == length args) (error "args mismatch")
     case isRef of
@@ -191,12 +219,13 @@ irGenerateTopInst (TopInst _ [] callType args isRef inst) = do
 
     -- predefine header
     funcIrHeader <- gets funcIr
-    modifyAst $ \s -> s { instantiations = Map.insert callType funcIrHeader (instantiations s) }
+    liftAstState $ modify $
+        \s -> s { instantiations = Map.insert callType funcIrHeader (instantiations s) }
 
     irGenerateStmt inst (AST.Stmt 0)
 
     funcIr <- gets funcIr
-    modifyAst $ \s -> s
+    liftAstState $ modify $ \s -> s
         { instantiations = Map.insert callType funcIr (instantiations s)
         , instantiationsTop = Set.insert callType (instantiationsTop s)
         }
@@ -206,7 +235,31 @@ irGenerateStmt :: Inst.InstBuilderState -> AST.Stmt -> IrGenerate ()
 irGenerateStmt inst (AST.Stmt id) = case Inst.statements inst Map.! id of
     AST.ExprStmt expr -> void $ irGenerateExpr inst expr
     AST.Block ids     -> mapM_ (irGenerateStmt inst) ids
-    AST.Return _ mexpr -> void $ appendStmt . Return =<< traverse (irGenerateExpr inst) mexpr
+    AST.Return _ Nothing -> void $ appendStmt (Return Nothing)
+
+    AST.Return _ (Just expr) -> do
+        id <- irGenerateExpr inst expr
+        irRet <- gets (irReturn . funcIr)
+        stmtm <- gets (Map.lookup id . irStmts . funcIr)
+        flag <- gets copyReturnFlag
+
+        void $ appendStmt . Return . Just =<< case irRet of
+            ParamModify typ -> case stmtm of
+                Just (Call _ _) -> return id
+                Nothing         -> return id
+
+            ParamValue typ -> case stmtm of -- copy if argument
+                Nothing         -> do
+                    base <- baseTypeOf typ
+                    case unfoldType base of
+                        (Slice, _) -> return id
+                        _          -> case flag of
+                            True -> call ["builtin", "copy"] [Inst.typeOfExpr inst expr] [id]
+                            False -> return id
+                            
+                Just (Call _ _) -> return id
+
+
     AST.EmbedC _ strMap str -> do
         strMap' <- forM strMap $ \(s, symbol) -> do
             id' <- look symbol
@@ -440,37 +493,7 @@ irGenerateExpr inst (AST.Expr id) = case Inst.expressions inst Map.! id of
 
             x -> error (show x)
 
-
-        --appendStmt . MakeSlice (Inst.types inst Map.! id) =<<
-        --mapM (irGenerateExpr inst) es
-
     x -> error (show x)
-
-
-irGenerateCall :: Type -> [ID] -> IrGenerate ID
-irGenerateCall callType argIds = do
-    callType' <- irGenerateInstance callType
-    (Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType'
-    Just funcIr <- liftAstState $ gets (Map.lookup callType' . instantiations)
-
-    unless (length argIds == length (irArgs funcIr)) $ do
-        error ("arg length mismatch for: " ++ show callType')
-    
-    args <- forM (zip3 argIds argTypes $ irArgs funcIr) $ \(argId, argType, irArg) -> case irArg of
-        ParamValue typ -> do
-            unless (typ == argType) (error "arg type mismatch")
-            return (ArgValue typ argId)
-        ParamModify typ -> do
-            unless (typ == argType) (error "arg type mismatch")
-            return (ArgModify typ argId)
-
-    id <- appendStmt $ Call callType' args
-
-    case irReturn funcIr of
-        ParamValue typ -> addIdArg id (ArgValue typ id)
-        ParamModify typ -> addIdArg id (ArgModify typ id)
-
-    return id
 
 
 initVar :: Type -> Constant -> IrGenerate ID
@@ -481,7 +504,7 @@ initVar typ const = do
     (Func, retType : []) <- unfoldType <$> baseTypeOf callType
     unless (typ == retType) (error $ show retType)
 
-    callType' <- irGenerateInstance callType
+    callType' <- liftAstState (irGenerateInstance callType)
     unless (callType' == callType) (error "")
 
     id <- prependStmt $ Call callType' [ArgConst typ const]

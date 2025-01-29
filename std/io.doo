@@ -38,7 +38,6 @@ fn getLine(stdin &StdIn) Char.Table.Option
             c             ; line.push(c)
   
 
-
 //fn {io Io} openFile(fileName String)
 //    assert(!io.files.contains(fileName), fileName + " already open")
 //    let ptr = 0

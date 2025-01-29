@@ -513,10 +513,11 @@ fn parse(ast &Sparse{Calc}, str Char.Slice) Calc.Key
 
 
 fn freshVar(str String, used String.Set) String
-    str.push('\'')
-    while used.contains(str)
-        str.push('\'')
-    return str
+    let s = str
+    s.push('\'')
+    while used.contains(s)
+        s.push('\'')
+    return s
 
 
 fn freeVars(termKey Calc.Key) String.Set
@@ -526,11 +527,15 @@ fn freeVars(termKey Calc.Key) String.Set
         lam(s, k)  ; return k.freeVars - [s]
 
 
+fn newExpr(expr Calc) Calc.Key
+    return @Sparse{Calc}.sparse::insert(expr)
+
+
 fn copyExpr(termKey Calc.Key) Calc.Key
     switch @Sparse{Calc}[termKey]
-        var(s)     ; return @Sparse{Calc}.sparse::insert(var(s))
-        app(k1, k2); return @Sparse{Calc}.sparse::insert(app(k1.copyExpr, k2.copyExpr))
-        lam(s, k)  ; return @Sparse{Calc}.sparse::insert(lam(s, k.copyExpr))
+        var(s)     ; return newExpr(var(s))
+        app(k1, k2); return newExpr(app(k1.copyExpr, k2.copyExpr))
+        lam(s, k)  ; return newExpr(lam(s, k.copyExpr))
 
 
 fn deleteExpr(termKey Calc.Key) Calc.Key
@@ -592,11 +597,11 @@ fn{P} printExpr(p &P, termKey Calc.Key)
 
 fn alphaConvert(termKey Calc.Key, old String, new String) Calc.Key
     switch @Sparse{Calc}[termKey]
-        var(s) | s == old   ; return @Sparse{Calc}.sparse::insert(var(new))
-        var(s)              ; return @Sparse{Calc}.sparse::insert(var(s))
-        lam(s, k) | s == old; return @Sparse{Calc}.sparse::insert(lam(new, alphaConvert(k, old, new)))
-        lam(s, k)           ; return @Sparse{Calc}.sparse::insert(lam(s,   alphaConvert(k, old, new)))
-        app(k1, k2)         ; return @Sparse{Calc}.sparse::insert(app(
+        var(s) | s == old   ; return newExpr(var(new))
+        var(s)              ; return newExpr(var(s))
+        lam(s, k) | s == old; return newExpr(lam(new, alphaConvert(k, old, new)))
+        lam(s, k)           ; return newExpr(lam(s,   alphaConvert(k, old, new)))
+        app(k1, k2)         ; return newExpr(app(
                 alphaConvert(k1, old, new),
                 alphaConvert(k2, old, new)
             ))
@@ -605,19 +610,15 @@ fn alphaConvert(termKey Calc.Key, old String, new String) Calc.Key
 fn substitute(termKey Calc.Key, str String, expr Calc.Key) Calc.Key
     switch @Sparse{Calc}[termKey]
         var(s) | s == str; return copyExpr(expr)
-        var(s)           ; return @Sparse{Calc}.sparse::insert(var(s))
-        app(k1, k2)      ; return @Sparse{Calc}.sparse::insert(app(
-                substitute(k1, str, expr),
-                substitute(k2, str, expr)
-            ))
-        lam(s, k) | s == str; return copyExpr(termKey)
+        var(s)           ; return newExpr(var(s))
+        app(k1, k2)      ; return newExpr(app(substitute(k1, str, expr), substitute(k2, str, expr)))
+        lam(s, k) | s == str
+            return copyExpr(termKey)
         lam(s, k) | expr.freeVars.contains(s)
             let newVar = freshVar(s, k.freeVars + expr.freeVars)
-            return @Sparse{Calc}.sparse::insert(lam(
-                newVar,
-                substitute(termKey, str, alphaConvert(k, s, newVar))
-            ))
-        lam(s, k); return @Sparse{Calc}.sparse::insert(lam(s, substitute(k, str, expr)))
+            return newExpr(lam(newVar, substitute(termKey, str, alphaConvert(k, s, newVar))))
+        lam(s, k)
+            return newExpr(lam(s, substitute(k, str, expr)))
 
 
 fn betaReduce(termKey Calc.Key) Calc.Key
@@ -625,9 +626,9 @@ fn betaReduce(termKey Calc.Key) Calc.Key
         app(k1, k2)
             switch @Sparse{Calc}[k1]
                 lam(s, k); return substitute(k, s, k2)
-                _        ; return @Sparse{Calc}.sparse::insert(app(k1.betaReduce, k2.betaReduce))
-        lam(s, k); return @Sparse{Calc}.sparse::insert(lam(s, k.betaReduce))
-        var(s)   ; return @Sparse{Calc}.sparse::insert(var(s))
+                _        ; return newExpr(app(k1.betaReduce, k2.betaReduce))
+        lam(s, k); return newExpr(lam(s, k.betaReduce))
+        var(s)   ; return newExpr(var(s))
 
 
 fn fullReduce(termKey Calc.Key) Calc.Key

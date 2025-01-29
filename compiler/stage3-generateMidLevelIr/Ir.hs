@@ -199,7 +199,11 @@ getStmt id = do
 appendStmt :: MonadFuncIr m => Stmt -> m ID
 appendStmt stmt = do
     id <- generateId
+    appendStmtWithId id stmt
 
+
+appendStmtWithId :: MonadFuncIr m => ID -> Stmt -> m ID
+appendStmtWithId id stmt = do
     curId <- liftFuncIrState $ (gets irCurrentId)
     curStmt <- liftFuncIrState $ gets $ (Map.! curId) . irStmts
     curStmt' <- case curStmt of

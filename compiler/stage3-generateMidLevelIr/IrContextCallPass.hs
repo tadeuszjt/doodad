@@ -28,27 +28,38 @@ initIrContextCallState funcIr = IrContextCallState
     }
 
 
-newtype IrContextCallPass a = IrContextCallPass
-    { unIrContextCallPass :: StateT IrContextCallState (ReaderT ASTResolved (Except Error)) a }
-    deriving (Functor, Applicative, Monad, MonadState IrContextCallState, MonadError Error,
-        MonadReader ASTResolved)
+newtype IrContextCall a = IrContextCall
+    { unIrContextCall :: StateT IrContextCallState (StateT ASTResolved (Except Error)) a }
+    deriving (Functor, Applicative, Monad, MonadState IrContextCallState, MonadError Error)
 
 
-runIrContextCallPass :: IrContextCallState -> ASTResolved -> IrContextCallPass a -> Either Error (a, IrContextCallState)
-runIrContextCallPass irContextCallState astResolved f =
-    runExcept $ runReaderT (runStateT (unIrContextCallPass f) irContextCallState) astResolved
+liftAstState :: StateT ASTResolved (Except Error) a -> IrContextCall a
+liftAstState m = IrContextCall (lift m)
 
 
+runIrContextCall :: IrContextCallState -> ASTResolved -> IrContextCall a
+    -> StateT ASTResolved (Except Error) (a, IrContextCallState)
+runIrContextCall irContextCallState astResolved f =
+    runStateT (unIrContextCall f) irContextCallState
 
-define :: Type -> Ir.ID -> IrContextCallPass ()
+
+irContextCallPass :: StateT ASTResolved (Except Error) ()
+irContextCallPass = do
+    ast <- get
+    forM_ (Set.toList $ instantiationsTop ast) $ \instType -> do
+        let func = fromJust $ Map.lookup instType (instantiations ast)
+        state <- fmap snd $ runIrContextCall (initIrContextCallState func) ast irContextCallFunc
+        modify $ \s -> s { instantiations = Map.insert instType (funcIr state) (instantiations s) }
+
+
+define :: Type -> Ir.ID -> IrContextCall ()
 define typ id = do
     resm <- gets (Map.lookup typ . head . symTab)
     unless (isNothing resm) (error $ "type already defined: " ++ show typ)
     modify $ \s -> s { symTab = (Map.insert typ id $ head $ symTab s) : tail (symTab s) }
 
 
-
-look :: Type -> IrContextCallPass Ir.ID
+look :: Type -> IrContextCall Ir.ID
 look typ = do
     resm <- look' <$> gets symTab
     case resm of
@@ -62,37 +73,22 @@ look typ = do
         look' []               = Nothing
 
 
-pushSymTab :: IrContextCallPass ()
+pushSymTab :: IrContextCall ()
 pushSymTab = modify $ \s -> s { symTab = Map.empty : symTab s }
 
 
-popSymTab :: IrContextCallPass ()
+popSymTab :: IrContextCall ()
 popSymTab = modify $ \s -> s { symTab = tail (symTab s) }
 
 
-irContextCallPass :: State ASTResolved ()
-irContextCallPass = do
-    ast <- get
-
-    xs <- forM (Set.toList $ instantiationsTop ast) $ \instType -> do
-        let func = fromJust $ Map.lookup instType (instantiations ast)
-        let resEither = runIrContextCallPass (initIrContextCallState func) ast irContextCallFunc
-        case resEither of
-            Right ((), x) -> return (instType, funcIr x)
-
-    void $ forM xs $ \(instType, func) ->
-        modify $ \s -> s { instantiations = Map.insert instType func (instantiations s) }
-
-
-
-irContextCallFunc :: IrContextCallPass ()
+irContextCallFunc :: IrContextCall ()
 irContextCallFunc = do
     contexts <- gets (fromJust . irContexts . funcIr)
     forM_ (Map.toList contexts) $ \(typ, id) -> define typ id
     irContextCallStmt 0
     
 
-irContextCallStmt :: Ir.ID -> IrContextCallPass ()
+irContextCallStmt :: Ir.ID -> IrContextCall ()
 irContextCallStmt stmtId = do
     stmt <- gets (fromJust . Map.lookup stmtId . irStmts . funcIr)
     case stmt of
@@ -105,7 +101,7 @@ irContextCallStmt stmtId = do
         MakeSlice _ _ -> return ()
 
         Call callType args -> do
-            callIr <- fromJust . Map.lookup callType . instantiations <$> ask
+            callIr <- liftAstState $ gets (fromJust . Map.lookup callType . instantiations)
             case Map.toList (fromJust $ irContexts callIr) of
                 [] -> return ()
 

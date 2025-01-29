@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE FlexibleContexts #-}
 module IrContextHeaderPass where
 
 import qualified Data.Set as Set
@@ -20,35 +19,20 @@ type ContextStack = [Set.Set Type]
 
 
 newtype IrContextHeader a = IrContextHeader
-    { unIrContextHeader :: StateT ContextStack (State ASTResolved) a }
-    deriving (Functor, Applicative, Monad, MonadState ContextStack)
+    { unIrContextHeader :: StateT ContextStack (StateT ASTResolved (Except Error)) a }
+    deriving (Functor, Applicative, Monad, MonadState ContextStack, MonadError Error)
 
 
-runIrContextHeader :: IrContextHeader a -> State ASTResolved (a, ContextStack)
+runIrContextHeader :: IrContextHeader a -> StateT ASTResolved (Except Error) (a, ContextStack)
 runIrContextHeader f =
     runStateT (unIrContextHeader f) [Set.empty]
 
 
-
-liftAstStateHeader :: State ASTResolved a -> IrContextHeader a
-liftAstStateHeader (StateT s) = IrContextHeader $ lift $ StateT (pure . runIdentity . s)
-
-
-pushStack :: MonadState ContextStack m => Set.Set Type -> m ()
-pushStack set = modify (set :)
+liftAstState :: StateT ASTResolved (Except Error) a -> IrContextHeader a
+liftAstState = IrContextHeader . lift
 
 
-popStack :: MonadState ContextStack m => m ()
-popStack = modify tail
-
-
-addContext :: MonadState ContextStack m => Type -> m ()
-addContext typ = do
-    stackMember <- gets $ any id . map (Set.member typ)
-    unless stackMember $ modify (\s -> init s ++ [Set.insert typ $ last s])
-
-
-irContextHeaderPass :: State ASTResolved ()
+irContextHeaderPass :: StateT ASTResolved (Except Error) ()
 irContextHeaderPass = do
     top <- gets instantiationsTop
 
@@ -90,6 +74,20 @@ irContextHeaderPass = do
     unless (contextsPrev == contextsNew) irContextHeaderPass
 
 
+pushStack :: Set.Set Type -> IrContextHeader ()
+pushStack set = modify (set :)
+
+
+popStack :: IrContextHeader ()
+popStack = modify tail
+
+
+addContext :: Type -> IrContextHeader ()
+addContext typ = do
+    stackMember <- gets $ any id . map (Set.member typ)
+    unless stackMember $ modify (\s -> init s ++ [Set.insert typ $ last s])
+
+
 irContextHeaderStmt :: FuncIr -> ID -> IrContextHeader ()
 irContextHeaderStmt funcIr id = case irStmts funcIr Map.! id of
     Block ids  -> mapM_ (irContextHeaderStmt funcIr) ids
@@ -97,7 +95,7 @@ irContextHeaderStmt funcIr id = case irStmts funcIr Map.! id of
     EmbedC _ _ -> return ()
 
     Call callType _ -> do
-        callIr <- liftAstStateHeader $ gets $ (Map.! callType) . instantiations
+        callIr <- liftAstState $ gets $ (Map.! callType) . instantiations
         case irContexts callIr of
             Just contexts -> forM_ (Map.keys contexts) $ addContext
             Nothing       -> return ()
