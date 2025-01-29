@@ -6,7 +6,6 @@ import builtin/convert
 import builtin/boolean
 
 
-
 enum Ordering {
     lt(),
     eq(),

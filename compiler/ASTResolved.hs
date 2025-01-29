@@ -50,6 +50,15 @@ genSymbol symbol@(SymResolved str) = do
         n -> return $ SymResolved ([modName] ++ str ++ [show n])
 
 
+findSymbol :: MonadState ASTResolved m => Symbol -> m Symbol
+findSymbol symbol = do
+    xs <- filter (symbolsCouldMatch symbol) . Map.keys . typeDefsAll <$> get
+    case xs of
+        [] -> error $ "symbol not found: " ++ prettySymbol symbol
+        [x] -> return x
+        xs  -> error "multiple symbols"
+
+
 prettyASTResolved :: ASTResolved -> IO ()
 prettyASTResolved ast = do
     putStrLn $ "module " ++ moduleName ast

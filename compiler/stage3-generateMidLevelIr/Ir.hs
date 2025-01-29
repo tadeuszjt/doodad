@@ -137,7 +137,7 @@ instance MonadFail FuncIrMonad where
 
 
 instance MonadFuncIr FuncIrMonad where
-    liftFuncIrState (StateT s) = FuncIrMonad $ StateT (pure . runIdentity . s)
+    liftFuncIrState (StateT s) = FuncIrMonad $ state (runIdentity . s)
 
 
 class (Monad m, MonadFail m) => MonadFuncIr m where

@@ -51,7 +51,7 @@ instance MonadFail Resolve where
 
 
 instance MonadInstBuilder Resolve where
-    liftInstBuilderState (StateT s) = Resolve $ lift $ StateT (pure . runIdentity . s)
+    liftInstBuilderState (StateT s) = Resolve $ lift $ state (runIdentity . s)
 
 
 runResolve :: ResolveState -> InstBuilderState -> Resolve a -> Either Error ((a, ResolveState), InstBuilderState)
@@ -140,10 +140,10 @@ genSymbol symbol@(SymResolved str) = do
         n -> return $ SymResolved $ [modName] ++ str ++ [show n]
 
 
-resolveAst :: Monad m => AstBuilderState -> [(Import, ASTResolved)] -> m (AstBuilderState, Map.Map Symbol Int)
+resolveAst :: AstBuilderState -> [(Import, ASTResolved)] ->
+    Either Error (AstBuilderState, Map.Map Symbol Int)
 resolveAst ast imports = do
-    let Right x = runResolve initResolveState initInstBuilderState (resolveAst' ast)
-    return $ fst (fst x)
+    fmap (fst . fst) $ runResolve initResolveState initInstBuilderState (resolveAst' ast)
     where
         resolveAst' :: AstBuilderState -> Resolve (AstBuilderState, Map.Map Symbol Int)
         resolveAst' ast = do

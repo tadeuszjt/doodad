@@ -13,3 +13,4 @@ export builtin/sum
 export builtin/table
 export builtin/slice
 export builtin/limits
+export builtin/destroy

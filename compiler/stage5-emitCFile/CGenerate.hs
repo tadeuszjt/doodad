@@ -39,7 +39,7 @@ newtype Generate a = Generate
         MonadError Error)
 
 instance MonadBuilder Generate where
-    liftBuilderState (StateT s) = Generate $ lift $ lift $ StateT $ pure . runIdentity . s
+    liftBuilderState (StateT s) = Generate $ lift $ lift $ state (runIdentity . s)
 
 instance MonadFail Generate where
     fail s = throwError (ErrorStr s)

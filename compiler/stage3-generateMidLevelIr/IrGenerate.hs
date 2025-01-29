@@ -21,43 +21,40 @@ import qualified InstBuilder as Inst
 
 
 data IrGenerateState = IrGenerateState
-    { funcIr         :: FuncIr
-    , symbolTable    :: Map.Map Symbol ID
+    { symbolTable    :: Map.Map Symbol ID
     , copyReturnFlag :: Bool -- turn this off when generating builtin::copy
     }
 
 
 initIrGenerateState = IrGenerateState
-    { funcIr         = initFuncIr
-    , symbolTable    = Map.empty
+    { symbolTable    = Map.empty
     , copyReturnFlag = True
     }
 
 
 
 newtype IrGenerate a = IrGenerate
-    { unIrGenerate :: StateT IrGenerateState (StateT ASTResolved (Except Error)) a }
+    { unIrGenerate :: StateT IrGenerateState (StateT FuncIr (StateT ASTResolved (Except Error))) a }
     deriving (Functor, Applicative, Monad, MonadState IrGenerateState, MonadError Error)
 
 
 liftAstState :: StateT ASTResolved (Except Error) a -> IrGenerate a
-liftAstState m = IrGenerate (lift m)
+liftAstState = IrGenerate . lift . lift
 
 
 instance MonadFail IrGenerate where
     fail s = throwError (ErrorStr s)
 
 
-runIrGenerateAst :: IrGenerateState -> IrGenerate a
-    -> StateT ASTResolved (Except Error) (a, IrGenerateState)
-runIrGenerateAst irGenerateState f = runStateT (unIrGenerate f) irGenerateState
+runIrGenerateAst :: FuncIr -> IrGenerateState -> IrGenerate a
+    -> StateT ASTResolved (Except Error) (a, FuncIr)
+runIrGenerateAst funcIr irGenerateState f = do
+    ((a, _), funcIr) <- runStateT (runStateT (unIrGenerate f) irGenerateState) funcIr
+    return (a, funcIr)
 
 
 instance MonadFuncIr (IrGenerate) where
-    liftFuncIrState (StateT s) = do
-        (a, funcIr') <- gets (runIdentity . s . funcIr)
-        modify $ \s -> s { funcIr = funcIr' }
-        return a
+    liftFuncIrState (StateT s) = IrGenerate $ lift $ state (runIdentity . s)
 
 
 instance MonadTypeDefs (IrGenerate) where
@@ -94,10 +91,10 @@ irGenerateInstance callType = do
                 False -> irGenerateInstance instType
                 True -> case topStmt of
                     TopInst _ _ _ _ _ _ -> do
-                        runIrGenerateAst initIrGenerateState (irGenerateTopInst topStmt)
+                        runIrGenerateAst initFuncIr initIrGenerateState (irGenerateTopInst topStmt)
                         return callType
                     TopField _ _ _ _    -> do
-                        runIrGenerateAst initIrGenerateState (irGenerateTopField topStmt)
+                        runIrGenerateAst initFuncIr initIrGenerateState (irGenerateTopField topStmt)
                         return callType
 
             return callType'
@@ -168,16 +165,16 @@ irGenerateTopField (TopField _ [] funcType i) = do
 
     case argTypes of
         [] -> return ()
-        [argType] -> void $ call ["builtin", "builtinStore"] [argType] [field, head argIds]
+        [argType] -> void $ call ["builtin", "store"] [argType] [field, head argIds]
         xs -> do
             let tupType = ts !! i
             forM_ (zip xs [0..]) $ \(x, j) -> do
                 ref <- call ["builtin", "builtinField"] [Size j, x, tupType] [field]
-                call ["builtin", "builtinStore"] [x] [ref, argIds !! j]
+                call ["builtin", "store"] [x] [ref, argIds !! j]
 
     appendStmt (Return $ Just sum)
 
-    funcIr <- gets funcIr
+    funcIr <- liftFuncIrState get
     liftAstState $ modify $ \s -> s
         { instantiations = Map.insert funcType funcIr (instantiations s)
         , instantiationsTop = Set.insert funcType (instantiationsTop s)
@@ -218,13 +215,13 @@ irGenerateTopInst (TopInst _ [] callType args isRef inst) = do
 
 
     -- predefine header
-    funcIrHeader <- gets funcIr
+    funcIrHeader <- liftFuncIrState get
     liftAstState $ modify $
         \s -> s { instantiations = Map.insert callType funcIrHeader (instantiations s) }
 
     irGenerateStmt inst (AST.Stmt 0)
 
-    funcIr <- gets funcIr
+    funcIr <- liftFuncIrState get
     liftAstState $ modify $ \s -> s
         { instantiations = Map.insert callType funcIr (instantiations s)
         , instantiationsTop = Set.insert callType (instantiationsTop s)
@@ -239,8 +236,8 @@ irGenerateStmt inst (AST.Stmt id) = case Inst.statements inst Map.! id of
 
     AST.Return _ (Just expr) -> do
         id <- irGenerateExpr inst expr
-        irRet <- gets (irReturn . funcIr)
-        stmtm <- gets (Map.lookup id . irStmts . funcIr)
+        irRet <- liftFuncIrState (gets irReturn)
+        stmtm <- liftFuncIrState $ gets (Map.lookup id . irStmts)
         flag <- gets copyReturnFlag
 
         void $ appendStmt . Return . Just =<< case irRet of
@@ -248,7 +245,7 @@ irGenerateStmt inst (AST.Stmt id) = case Inst.statements inst Map.! id of
                 Just (Call _ _) -> return id
                 Nothing         -> return id
 
-            ParamValue typ -> case stmtm of -- copy if argument
+            ParamValue typ -> case stmtm of -- copy if argument or ref
                 Nothing         -> do
                     base <- baseTypeOf typ
                     case unfoldType base of
@@ -257,7 +254,16 @@ irGenerateStmt inst (AST.Stmt id) = case Inst.statements inst Map.! id of
                             True -> call ["builtin", "copy"] [Inst.typeOfExpr inst expr] [id]
                             False -> return id
                             
-                Just (Call _ _) -> return id
+                Just (Call _ _) -> do
+                    base <- baseTypeOf typ
+                    case unfoldType base of
+                        (Slice, _) -> return id
+                        _ -> do
+                            arg' <- getIdArg id
+                            case arg' of
+                                ArgValue _ _ -> return id
+                                ArgModify _ _ -> call ["builtin", "copy"] [Inst.typeOfExpr inst expr] [id]
+                                x -> error (show x)
 
 
     AST.EmbedC _ strMap str -> do
@@ -498,7 +504,7 @@ irGenerateExpr inst (AST.Expr id) = case Inst.expressions inst Map.! id of
 
 initVar :: Type -> Constant -> IrGenerate ID
 initVar typ const = do
-    symbol <- findSymbol (Sym ["builtin", "builtinInit"])
+    symbol <- liftAstState $ findSymbol (Sym ["builtin", "builtinInit"])
     let callType = foldType [TypeDef symbol, typ]
 
     (Func, retType : []) <- unfoldType <$> baseTypeOf callType
@@ -514,21 +520,8 @@ initVar typ const = do
 
 call :: [String] -> [Type] -> [ID] -> IrGenerate ID
 call xs ts argIds = do
-    symbol <- findSymbol (Sym xs)
+    symbol <- liftAstState $ findSymbol (Sym xs)
     let callType = foldType (TypeDef symbol : ts)
     irGenerateCall callType argIds
-
-
-findSymbol :: Symbol -> IrGenerate Symbol
-findSymbol symbol = do
-    typeDefs <- liftAstState (gets typeDefsAll)
-    xs <- fmap catMaybes $ forM (Map.keys typeDefs) $ \typeSymbol ->
-        case symbolsCouldMatch symbol typeSymbol of
-            True -> return (Just typeSymbol)
-            False -> return Nothing
-    case xs of
-        [] -> error $ "symbol not found: " ++ prettySymbol symbol
-        [x] -> return x
-        xs  -> error "multiple symbols"
 
 

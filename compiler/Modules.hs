@@ -205,7 +205,7 @@ buildModule isMain args modPath = do
             return (stmt, fromJust resm)
 
         when (verbose args) $ liftIO $ putStrLn "resolving symbols..."
-        (astResolved', supply) <- ResolveAst.resolveAst ast astImports
+        (astResolved', supply) <- liftEither (ResolveAst.resolveAst ast astImports)
 
         --when (printAstResolved args) $ liftIO (prettyAST astResolved')
 
@@ -214,7 +214,7 @@ buildModule isMain args modPath = do
 
         astGenerated <- liftEither $ fmap snd $ runExcept $ (flip runStateT) astFinal $ do
             irGenerateAst
-            --irGenerateDestroyPass
+            irGenerateDestroyPass
             irContextHeaderPass
             irContextCallPass
 

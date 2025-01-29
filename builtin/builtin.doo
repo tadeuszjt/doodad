@@ -21,18 +21,6 @@ fn{T} swap(a &T, b &T)
     builtinSwap(&a, &b)
 
 
-
-
-inst destroy{Char} (c&);      return
-inst destroy{Bool} (c&);      return
-inst destroy{F32} (c&);       return
-inst destroy{F64} (c&);       return
-inst destroy{I64} (c&);       return
-inst destroy{I32} (c&);       return
-inst destroy{U8}  (n&);       return
-inst destroy{Tuple{}} (tup&); return
-
-
 inst copy{I32} (a); return a
 inst copy{I64} (a); return a
 inst copy{F64} (a); return a

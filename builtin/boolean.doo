@@ -1,6 +1,7 @@
 module boolean
 
 import builtin/builtin
+import builtin/destroy
 
 func{T} and(T, T) T
 func{T} or(T, T) T

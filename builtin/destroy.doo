@@ -1,0 +1,15 @@
+module destroy
+
+import builtin/builtin
+
+
+inst destroy{Char} (c&);      return
+inst destroy{Bool} (c&);      return
+inst destroy{F32} (c&);       return
+inst destroy{F64} (c&);       return
+inst destroy{I64} (c&);       return
+inst destroy{I32} (c&);       return
+inst destroy{U8}  (n&);       return
+inst destroy{Tuple{}} (tup&); return
+
+

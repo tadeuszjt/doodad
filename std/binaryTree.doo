@@ -19,7 +19,7 @@ tuple{K, V} Tree {
     nodes Node{K, V}.unordered::Unordered,
     base  Node{K, V}.unordered::Key.Option,
 }
-derives{K, V} Tree{K, V} (copy)
+derives{K, V} Tree{K, V} (copy, destroy)
 
 
 inst{P, K, V} print{P, Tree{K, V}} (p&, tree&)
