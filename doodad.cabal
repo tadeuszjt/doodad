@@ -51,7 +51,7 @@ executable doodad
         compiler/stage1-macroExpansion,
         compiler/stage2-resolveSymbols,
         compiler/stage3-generateMidLevelIr,
-        compiler/stage4-midLevelIR,
+        compiler/stage4-semanticCheck
         compiler/stage5-emitCFile
     default-language:  Haskell2010
     build-depends:
@@ -94,4 +94,5 @@ executable doodad
         IrGenerate,
         IrContextHeaderPass,
         IrContextCallPass,
-        IrGenerateDestroy
+        IrGenerateDestroy,
+        SemanticReferenceCheck

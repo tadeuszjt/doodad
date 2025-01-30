@@ -2,7 +2,6 @@ module Compile where
 
 import Data.Maybe
 import Data.Char
-import Data.List
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Control.Monad
@@ -21,8 +20,8 @@ import Ir
 
 
 generateAst :: ASTResolved -> Either Error (((), GenerateState), BuilderState)
-generateAst ast = runGenerate ast
-    (initGenerateState $ ASTResolved.moduleName ast) C.initBuilderState generate
+generateAst ast =
+    runGenerate ast initGenerateState C.initBuilderState generate
 
 
 generate :: Generate ()

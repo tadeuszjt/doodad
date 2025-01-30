@@ -18,18 +18,14 @@ import Error
 
 data GenerateState
     = GenerateState
-        { moduleName  :: String
-        , structs      :: Map.Map C.Type String
+        { structs      :: Map.Map C.Type String
         , supply      :: Map.Map String Int
-        , curFnIsRef  :: Bool
         }
 
-initGenerateState moduleName
+initGenerateState 
     = GenerateState
-        { moduleName = moduleName
-        , structs = Map.empty
+        { structs = Map.empty
         , supply = Map.empty
-        , curFnIsRef = False
         }
 
 
