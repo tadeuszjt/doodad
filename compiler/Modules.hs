@@ -214,7 +214,7 @@ buildModule isMain args modPath = do
 
         astGenerated <- liftEither $ fmap snd $ runExcept $ (flip runStateT) astFinal $ do
             irGenerateAst
-            irGenerateDestroyPass
+            --irGenerateDestroyPass
             irContextHeaderPass
             irContextCallPass
 
