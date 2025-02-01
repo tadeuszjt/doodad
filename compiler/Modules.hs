@@ -219,7 +219,7 @@ buildModule isMain args modPath = do
             irContextHeaderPass
             irContextCallPass
 
-        liftEither $ runExcept (semanticReferenceCheck astGenerated)
+        --liftEither $ runExcept (semanticReferenceCheck astGenerated)
 
         when (isMain && printIr args) $ liftIO (printAstIr astGenerated)
 

@@ -38,13 +38,13 @@ generate = withErrorPrefix "generate: " $ do
                 unless (length argTypes == length (irArgs funcIr)) (error "arg mismatch")
 
                 cReturnType <- case irReturn funcIr of
-                    ParamValue _ -> cTypeOf retType
-                    ParamModify _ -> cRefTypeOf retType
+                    (_, ATValue) -> cTypeOf retType
+                    (_, ATModify) -> cRefTypeOf retType
                     x -> error (show x)
 
                 cArgTypes <- forM (zip argTypes $ irArgs funcIr) $ \(argType, arg) -> case arg of
-                    ParamModify _ -> cRefTypeOf argType
-                    ParamValue _ -> cTypeOf argType
+                    ArgModify _ _ -> cRefTypeOf argType
+                    ArgValue _ _ -> cTypeOf argType
 
                 cCtxTypes <- forM (Map.keys $ fromJust $ irContexts funcIr) $ \typ -> cRefTypeOf typ
                 appendExtern
@@ -87,16 +87,16 @@ generate = withErrorPrefix "generate: " $ do
 
 generateFuncIr :: FuncIr -> Generate ()
 generateFuncIr funcIr = do
-    cArgs <- forM (zip (irArgs funcIr) [1..]) $ \(arg, i) -> case arg of
-        ParamModify typ -> C.Param (idName i) <$> cRefTypeOf typ
-        ParamValue  typ -> C.Param (idName i) <$> cTypeOf typ
+    cArgs <- forM (irArgs funcIr) $ \arg -> case arg of
+        ArgModify typ i -> C.Param (idName i) <$> cRefTypeOf typ
+        ArgValue  typ i -> C.Param (idName i) <$> cTypeOf typ
 
     cCtxs <- forM (Map.toList $ fromJust $ irContexts funcIr) $ \(typ, id) -> do
         C.Param (idName id) <$> cRefTypeOf typ
 
     cReturn <- case irReturn funcIr of
-        ParamValue typ -> cTypeOf typ
-        ParamModify typ -> cRefTypeOf typ
+        (typ, ATValue) -> cTypeOf typ
+        (typ, ATModify) -> cRefTypeOf typ
 
     funcId <- newFunction cReturn (showSymGlobal $ irSymbol funcIr) (cArgs ++ cCtxs) []
     withCurID funcId (generateStmt funcIr 0)
@@ -133,14 +133,21 @@ generateArg funcIr arg = do
             ArgValue _ id -> return $ C.Ident (idName id)
             ArgModify _ id -> return $ C.Ident (idName id)
         _ -> case arg of
-            ArgValue typ id -> case Map.lookup id (irIdArgs funcIr) of
-                Just (ArgValue _ _) -> return $ C.Ident (idName id)
-                Just (ArgModify _ _) -> deref typ $ C.Ident (idName id)
-                Nothing -> error (show id)
+            ArgValue typ id -> case Map.lookup id (irStmts funcIr) of
+                Just (Ir.Param t ATValue)    -> return $ C.Ident (idName id)
+                Just (Ir.Call t ATValue _ _) -> return $ C.Ident (idName id)
+                Just (Ir.Call t ATModify _ _) -> deref typ $ C.Ident (idName id)
+                Just (Ir.Param _ ATValue)     -> return $ C.Ident (idName id)
+                Just (Ir.Param _ ATModify)    -> deref typ $ C.Ident (idName id)
+                x -> error (show x)
 
-            ArgModify typ id -> case Map.lookup id (irIdArgs funcIr) of
-                Just (ArgModify _ _) -> return $ C.Ident (idName id)
-                Just (ArgValue _ _ ) -> stackRef typ $ C.Ident (idName id)
+            ArgModify typ id -> case Map.lookup id (irStmts funcIr) of
+                Just (Ir.Param t ATValue)    -> stackRef typ $ C.Ident (idName id)
+                Just (Ir.Call t ATValue _ _) -> stackRef typ $ C.Ident (idName id)
+                Just (Ir.Call t ATModify _ _) -> return $ C.Ident (idName id)
+                Just (Ir.Param _ ATValue)     -> stackRef typ $ C.Ident (idName id)
+                Just (Ir.Param _ ATModify)    -> return $ C.Ident (idName id)
+                x -> error (show x)
 
             x -> error (show x)
 
@@ -156,11 +163,11 @@ generateStmt funcIr id = case (irStmts funcIr) Map.! id of
         appendElem $ C.Assign cType name (C.Initialiser [])
         void $ appendElem (C.Return $ C.Ident name)
 
-    Ir.Call typ args  -> generateCall funcIr typ id args
+    Ir.Call retType argType typ args -> generateCall funcIr typ id args
 
     Ir.Return (Just id) -> case irReturn funcIr of
-        ParamValue typ -> void $ appendElem . C.Return =<< generateArg funcIr (ArgValue typ id)
-        ParamModify typ -> void $ appendElem . C.Return =<< generateArg funcIr (ArgModify typ id)
+        (typ, ATValue) -> void $ appendElem . C.Return =<< generateArg funcIr (ArgValue typ id)
+        (typ, ATModify) -> void $ appendElem . C.Return =<< generateArg funcIr (ArgModify typ id)
 
     Ir.If id ids -> do
         val <- generateArg funcIr (ArgValue Type.Bool id)
@@ -473,8 +480,8 @@ generateCall funcIr funcType id args = do
         s -> do
             Just callIr <- Map.lookup funcType . instantiations <$> ask
             cRetTy <- case irReturn callIr of
-                ParamModify typ -> cRefTypeOf typ
-                ParamValue typ  -> cTypeOf typ
+                (typ, ATModify) -> cRefTypeOf typ
+                (typ, ATValue) -> cTypeOf typ
 
             void $ appendAssign cRetTy (idName id) =<<
                 C.Call (showSymGlobal $ irSymbol callIr) <$> mapM (generateArg funcIr) args

@@ -100,15 +100,14 @@ irContextCallStmt stmtId = do
         Break -> return ()
         MakeSlice _ _ -> return ()
 
-        Call callType args -> do
+        Call retType atype callType args -> do
             callIr <- liftAstState $ gets (fromJust . Map.lookup callType . instantiations)
             case Map.toList (fromJust $ irContexts callIr) of
                 [] -> return ()
-
                 xs -> do
                     ctxArgs <- forM xs $ \(t, _) -> ArgModify t <$> look t
                     modify $ \s -> s { funcIr = (funcIr s) { irStmts = Map.insert
-                        stmtId (Call callType $ args ++ ctxArgs) (irStmts $ funcIr s)
+                        stmtId (Call retType atype callType $ args ++ ctxArgs) (irStmts $ funcIr s)
                         }}
 
         With args ids -> do

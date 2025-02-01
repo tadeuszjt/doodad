@@ -40,16 +40,16 @@ instance Show Constant where
         ConstTuple cs -> "(" ++ intercalate ", " (map show cs) ++ ")"
 
 
+data ArgType
+    = ATModify
+    | ATValue
+    deriving (Eq, Show)
+
+
 data Arg
     = ArgConst Type Constant
     | ArgValue Type ID
     | ArgModify Type ID
-    deriving (Eq)
-
-
-data IrParam
-    = ParamValue Type
-    | ParamModify Type
     deriving (Eq)
 
 
@@ -58,19 +58,11 @@ instance Show Arg where
     show (ArgValue typ id)    = "%" ++ show id
     show (ArgModify typ id)   = "&" ++ show id
 
+
 instance Typeof Arg where
     typeof (ArgConst typ _) = typ
     typeof (ArgValue typ _) = typ
     typeof (ArgModify typ _) = typ
-
-instance Show IrParam where
-    show (ParamValue typ) = "%" ++ show typ
-    show (ParamModify typ) = "&" ++ show typ
-
-
-instance Typeof IrParam where
-    typeof (ParamValue typ) = typ
-    typeof (ParamModify typ) = typ
 
 
 data Stmt
@@ -81,14 +73,15 @@ data Stmt
     | Break
     | Return (Maybe ID)
     | EmbedC [(String, ID)] String
-    | Call Type [Arg]
+    | Call Type ArgType Type [Arg]
     | MakeSlice Type [Arg]
+    | Param Type ArgType
     deriving (Eq)
 
 
 instance Show Stmt where
     show stmt = case stmt of
-        Call typ args -> show typ ++ "(" ++ intercalate ", " (map show args) ++ ")"
+        Call _ _ typ args -> show typ ++ "(" ++ intercalate ", " (map show args) ++ ")"
         MakeSlice typ args -> show typ ++ show args
         Block ids     -> "block" 
         Loop ids      -> "loop"
@@ -97,14 +90,14 @@ instance Show Stmt where
         Return mid    -> "return"
         EmbedC map st -> "embedC"
         With _ _      -> "with"
+        Param _ _     -> "param"
         
 
 data FuncIr = FuncIr
     { irStmts     :: Map.Map ID Stmt
-    , irIdArgs    :: Map.Map ID Arg
     , irContexts  :: Maybe (Map.Map Type ID)
-    , irArgs      :: [IrParam]
-    , irReturn    :: IrParam
+    , irArgs      :: [Arg]
+    , irReturn    :: (Type, ArgType)
     , irSymbol    :: Symbol
     , irIdSupply  :: ID
     , irCurrentId :: ID
@@ -115,9 +108,8 @@ data FuncIr = FuncIr
 
 initFuncIr = FuncIr
     { irStmts     = Map.singleton 0 (Block [])
-    , irIdArgs    = Map.empty
     , irTextPos   = Map.empty
-    , irReturn    = ParamValue Tuple
+    , irReturn    = (Tuple, ATValue)
     , irContexts  = Nothing
     , irSymbol    = Sym []
     , irIdSupply  = 1
@@ -163,20 +155,6 @@ generateId = do
     id <- liftFuncIrState $ gets irIdSupply
     liftFuncIrState $ modify $ \s -> s { irIdSupply = (irIdSupply s) + 1 }
     return id
-
-
-addIdArg :: MonadFuncIr m => ID -> Arg -> m ()
-addIdArg id arg = do
-    resm <- liftFuncIrState $ gets (Map.lookup id . irIdArgs)
-    unless (isNothing resm) (fail $ "id already has arg: " ++ show id)
-    liftFuncIrState $ modify $ \s -> s { irIdArgs = Map.insert id arg (irIdArgs s) }
-
-
-getIdArg :: MonadFuncIr m => ID -> m Arg
-getIdArg id = do
-    resm <- liftFuncIrState $ gets (Map.lookup id . irIdArgs)
-    unless (isJust resm) (fail $ "no arg for id: " ++ show id)
-    return (fromJust resm)
 
 
 addTextPos :: MonadFuncIr m => ID -> TextPos -> m ()
@@ -274,8 +252,8 @@ prettyIrStmt pre funcIr id = case irStmts funcIr Map.! id of
         putStrLn $ pre ++ "with " ++ show args ++ ":"
         forM_ ids $ prettyIrStmt (pre ++ "\t") funcIr
 
-    Call callType args -> 
-        putStrLn $ pre ++ show id ++ " = " ++ show (Call callType args)
+    Call retType argType callType args -> 
+        putStrLn $ pre ++ show id ++ " = " ++ show (Call retType argType callType args)
 
     MakeSlice typ args -> do
         putStrLn $ pre ++ show id ++ " = " ++ "makeSlice:" ++ show typ ++ show args

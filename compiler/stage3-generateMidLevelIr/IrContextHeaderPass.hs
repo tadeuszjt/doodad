@@ -58,7 +58,7 @@ irContextHeaderPass = do
         let resEither = runFuncIrMonad (instantiations ast Map.! instType) $ do
                 ctxMap <- fmap Map.fromList $ forM (Set.toList set) $ \typ -> do
                     id <- generateId 
-                    addIdArg id (ArgModify typ id)
+                    addStmt id (Param typ ATModify)
                     return (typ, id)
                 modify $ \s -> s { irContexts = Just ctxMap }
         funcIr' <- case resEither of
@@ -94,7 +94,7 @@ irContextHeaderStmt funcIr id = case irStmts funcIr Map.! id of
     Return _   -> return ()
     EmbedC _ _ -> return ()
 
-    Call callType _ -> do
+    Call retType atype callType _ -> do
         callIr <- liftAstState $ gets $ (Map.! callType) . instantiations
         case irContexts callIr of
             Just contexts -> forM_ (Map.keys contexts) $ addContext
