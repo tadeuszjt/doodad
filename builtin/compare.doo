@@ -78,10 +78,9 @@ inst compare{Tuple} (a, b); return eq()
 
 
 fn{T} notEqualTo(a T, b T) Bool
-    let c = true
     if equal(a, b)
-        c = false
-    return c
+        return false
+    return true
 
 
 inst equal{ I64 }  (a, b); return builtinEqual(a, b)

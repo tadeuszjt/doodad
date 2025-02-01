@@ -4,6 +4,7 @@ import builtin/all
 import std/maths
 import std/print
 import std/maths
+import std/rand
 
 tuple Vec2 {
     x F64,
@@ -20,12 +21,12 @@ type Mat3 Array{3, Array{3, F64}}
 type Mat4 Array{4, Array{4, F64}}
 
 
-derives Vec2 (copy, destroy, add, subtract, multiply, make2{F64, F64})
+derives Vec2    (copy, destroy, add, subtract, multiply, make2{F64, F64}, rand::uniform)
 derives{P} Vec2 (print{P})
 derives{T} Vec2 (convert{Tuple{T, T}})
 
 
-derives Rect (copy, destroy, make2{Vec2, Vec2})
+derives Rect (copy, destroy, make2{Vec2, Vec2}, rand::uniform)
 derives Mat3 (copy, destroy, add, subtract, len, at{I64, Array{3, F64}})
 derives Mat4 (copy, destroy, add, subtract, at{I64, Array{4, F64}}, len)
 

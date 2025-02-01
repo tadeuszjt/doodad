@@ -23,6 +23,10 @@ inst print{ StdOut, Char } (stdout&, c)
     ${ putchar($c); }
 
 
+inst print{Io, Char} (io&, c)
+    io.stdout.print(c)
+
+
 fn getChar(x &StdIn) Char
     let c : Char
     ${ $c = fgetc(stdin); }

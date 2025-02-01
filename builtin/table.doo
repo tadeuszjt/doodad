@@ -61,6 +61,10 @@ inst{T} container::push{T, Table{T}} (t&, e)
     t[t.len - 1] = e
 
 
+inst{T} container::contains{T, Table{T}} (t&, e)
+    return t[..].contains(e)
+
+
 inst{T} container::pop{T, Table{T}} (t&)
     assert(t.len > 0)
     let e = t[t.len - 1]

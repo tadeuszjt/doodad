@@ -76,7 +76,7 @@ fn winner(board Board) Square
 
 
 fn getPlayerInput() Input
-    @Io.stdout.printLn("Please enter move: <row> <col>")
+    @Io.printLn("Please enter move: <row> <col>")
     
     let line : Char.Table
     switch @Io.stdin.getLine
@@ -101,7 +101,7 @@ fn getPlayerInput() Input
 
 
 fn cpuMove(board &Board)
-    @Io.stdout.printLn("cpu moving ...")
+    @Io.printLn("cpu moving ...")
 
     // find all empty squares
     let empty : (I64, I64).Table
@@ -111,7 +111,7 @@ fn cpuMove(board &Board)
                 empty.push( (row, col) )
 
     if empty.len == 0
-        @Io.stdout.printLn("cpu can't move")
+        @Io.printLn("cpu can't move")
         return
 
     // find move that wins
@@ -138,10 +138,10 @@ fn cpuMove(board &Board)
 
 fn main(io Io)
     with(io)
-        @Io.stdout.printLn("naughts and crosses")
+        @Io.printLn("naughts and crosses")
 
         let board : Board
-        @Io.stdout.printBoard(board)
+        @Io.printBoard(board)
 
         while winner(board) -> empty()
             let moved = false
@@ -149,19 +149,19 @@ fn main(io Io)
                 switch getPlayerInput()
                     quit(); return
                     error()
-                        @Io.stdout.printLn("parse error")
+                        @Io.printLn("parse error")
 
                     move(row, col) | row < 0 || row > (board.len - 1)
-                        @Io.stdout.printLn("row not in range")
+                        @Io.printLn("row not in range")
 
                     move(row, col) | col < 0 || col > (board.len - 1)
-                        @Io.stdout.printLn("col not in range")
+                        @Io.printLn("col not in range")
 
                     move(row, col)
-                        @Io.stdout.print4("moving: ", row, ", ", col)
-                        @Io.stdout.print('\n')
+                        @Io.print4("moving: ", row, ", ", col)
+                        @Io.print('\n')
                         board[row][col] = naught()
                         moved = true
 
             cpuMove(&board)
-            @Io.stdout.printBoard(board)
+            @Io.printBoard(board)

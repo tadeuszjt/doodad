@@ -26,6 +26,10 @@ inst{T} container::len{T.Unordered } (u&)
     return u.values.len
 
 
+inst{P, T} print{P, Unordered{T}} (p&, u&)
+    p.print(u.values)
+
+
 fn{T} insertZero(u &T.Unordered) T.Key
     let key = u.indices.sparse::insert(u.values.len)
 
@@ -70,13 +74,3 @@ fn{T} delete(u &T.Unordered, key T.Key)
     u.entries.pop
 
 
-inst{P, T} print{P, Unordered{T}} (p&, u&)
-    p.print('[')
-
-    for (0, u.len) -> idx
-        p.print(u.index(idx))
-
-        if idx < (u.len - 1)
-            p.print(", ")
-
-    p.print(']')

@@ -89,22 +89,6 @@ inst convert{Mat3, sf::Mat3f} (a)
     return b
             
 
-inst rand::uniform{Vec2} (rand&, min, max)
-    return Vec2(
-        rand.uniform(min.x, max.x),
-        rand.uniform(min.y, max.y)
-    )
-
-
-inst rand::uniform{sf::Colour} (rand&, min, max)
-    return (
-        rand.uniform(min.sf::r, max.sf::r),
-        rand.uniform(min.sf::g, max.sf::g),
-        rand.uniform(min.sf::b, max.sf::b),
-        rand.uniform(min.sf::a, max.sf::a)
-    )
-
-
 fn makeQuad(position sf::Vec2f, colour sf::Colour) sf::Quad
     return [
         (position + (-10.0, -10.0), colour, (0.0, 0.0)),

@@ -5,7 +5,7 @@ import std/option
 import std/print
 import std/sparse
 import std/stack
-import std/io
+import std/rand
 
 import std/sfml/texture
 
@@ -19,8 +19,9 @@ tuple Vec2f {
     x F32,
     y F32
 }
-derives    Vec2f (copy, destroy, add, subtract, make2{F32, F32})
-derives{P} Vec2f (print::print{P})
+derives{A, B} Vec2f (convert{Tuple{A, B}})
+derives{P}    Vec2f (print::print{P})
+derives       Vec2f (copy, destroy, add, subtract, make2{F32, F32}, rand::uniform)
 
 
 tuple Rectf {
@@ -32,7 +33,7 @@ derives Rectf (make2{Vec2f, Vec2f})
 
 
 type Mat3f Array{3, Array{3, F32}}
-derives Mat3f (copy, destroy, at{I64, Array{3, F32}})
+derives Mat3f (copy, destroy, at{I64, Array{3, F32}}, makeSlice{Array{3, F32}})
 
 
 
@@ -42,7 +43,7 @@ tuple Colour {
     b U8,
     a U8
 }
-derives Colour (copy, destroy, make4{U8, U8, U8, U8})
+derives Colour (copy, destroy, make4{U8, U8, U8, U8}, rand::uniform)
 derives{P} Colour (print::print{P})
 
 fn white() Colour; return (255, 255, 255, 255)

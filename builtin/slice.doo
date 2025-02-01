@@ -45,6 +45,13 @@ inst{T} at{I64, T, Slice{T}} (s, idx) -> &
     return s.builtinSliceAt(idx)
 
 
+inst{T} contains{T, Slice{T}} (s, e)
+    for (0, s.len) -> i
+        if s[i] == e
+            return true
+    return false
+
+
 inst{T} forEnd{T.Slice} (s)
     return s.len
 
@@ -64,10 +71,7 @@ inst{T} compare::compare{Slice{T}} (a, b)
 
 
 inst{T} compare::equal{Slice{T}} (a, b)
-    switch compare(a, b)
-        eq(); return true
-        lt(); return false
-        gt(); return false
+    return compare(a, b) == eq()
 
 
 inst{T} destroy{Slice{T}} (slice&)

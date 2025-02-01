@@ -31,6 +31,7 @@ import IrGenerate
 import IrGenerateDestroy
 import IrContextHeaderPass
 import IrContextCallPass
+import SemanticReferenceCheck
 import Error
 
 -- Modules are groups of .doo files with a module name header
@@ -217,6 +218,8 @@ buildModule isMain args modPath = do
             --irGenerateDestroyPass
             irContextHeaderPass
             irContextCallPass
+
+        liftEither $ runExcept (semanticReferenceCheck astGenerated)
 
         when (isMain && printIr args) $ liftIO (printAstIr astGenerated)
 
