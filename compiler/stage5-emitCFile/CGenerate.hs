@@ -14,6 +14,7 @@ import CAst as C
 import Control.Monad.State
 import Type
 import Error
+import Ir
 
 
 data GenerateState
@@ -116,6 +117,13 @@ deref typ expr = do
             return tup
 
         _ -> return (C.Deref expr)
+
+
+cArgTypeOf :: Arg -> Generate C.Type
+cArgTypeOf arg = case arg of
+    ArgValue typ _   -> cTypeOf typ
+    ArgRef typ _ _   -> cRefTypeOf typ
+    ArgSlice typ _ _ -> cTypeOf typ
     
 
 cRefTypeOf :: Typeof a => a -> Generate C.Type

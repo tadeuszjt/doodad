@@ -115,11 +115,14 @@ irGenerateCall callType argIds = do
         ArgValue typ _ -> do
             unless (typ == argType) (error "arg type mismatch")
             return (ArgValue typ argId)
-        ArgModify typ _ -> do
+        ArgRef typ modtype _ -> do
             unless (typ == argType) (error "arg type mismatch")
-            return (ArgModify typ argId)
+            return (ArgRef typ modtype argId)
+        ArgSlice typ modtype _ -> do
+            unless (typ == argType) (error "arg type mismatch")
+            return (ArgSlice typ modtype argId)
 
-    appendStmt $ Call retType (snd $ irReturn funcIr) callType' args
+    appendStmt $ Call (irReturn funcIr) callType' args
 
 
 define :: Symbol -> ID -> IrGenerate ()
@@ -143,13 +146,13 @@ irGenerateTopField (TopField _ [] funcType i) = do
 
     symbol <- liftAstState (genSymbol $ SymResolved [typeCode funcType])
     liftFuncIrState $ modify $ \s -> s
-        { irReturn = (retType, ATValue)
+        { irReturn = ArgValue retType undefined
         , irSymbol = symbol
         }
 
     argIds <- forM argTypes $ \argType -> do
         id <- generateId
-        addStmt id (Param argType ATValue)
+        addStmt id $ Param (ArgValue argType id)
         liftFuncIrState $ modify $ \s -> s { irArgs = (irArgs s) ++ [ArgValue argType id] }
         return id
 
@@ -185,9 +188,14 @@ irGenerateTopInst (TopInst _ [] callType args isRef inst) = do
 
     (Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType
     unless (length argTypes == length args) (error "args mismatch")
-    case isRef of
-        True -> liftFuncIrState $ modify $ \s -> s { irReturn = (retType, ATModify) }
-        False -> liftFuncIrState $ modify $ \s -> s { irReturn = (retType, ATValue) }
+
+    baseRet <- baseTypeOf retType
+    retArg <- case (unfoldType baseRet, isRef) of
+        ((Slice, _), True)  -> return (ArgSlice retType Modify undefined)
+        ((Slice, _), False) -> return (ArgSlice retType NonMod undefined)
+        (_,          True) -> return (ArgRef   retType Modify undefined)
+        (_,         False) -> return (ArgValue retType undefined)
+    liftFuncIrState $ modify $ \s -> s { irReturn = retArg }
 
     symbol <- liftAstState (genSymbol $ SymResolved [typeCode callType])
     liftFuncIrState $ modify $ \s -> s { irSymbol = symbol }
@@ -195,15 +203,24 @@ irGenerateTopInst (TopInst _ [] callType args isRef inst) = do
     forM_ args $ \arg -> case arg of
         AST.Param _ symbol typ -> do 
             id <- generateId
-            addStmt id (Param typ ATValue)
+            base <- baseTypeOf typ
+            arg' <- case unfoldType base of
+                (Slice, _) -> return (ArgSlice typ NonMod id)
+                (_, _)     -> return (ArgValue typ id)
+            addStmt id (Param arg')
             define symbol id
-            liftFuncIrState $ modify $ \s -> s { irArgs = (irArgs s) ++ [ArgValue typ id] }
+            liftFuncIrState $ modify $ \s -> s { irArgs = (irArgs s) ++ [arg'] }
 
         AST.RefParam _ symbol typ -> do
             id <- generateId
+            base <- baseTypeOf typ
+            arg' <- case unfoldType base of
+                (Slice, _) -> return (ArgSlice typ Modify id)
+                (_, _)     -> return (ArgRef typ Modify id)
+
             define symbol id
-            addStmt id (Param typ ATModify)
-            liftFuncIrState $ modify $ \s -> s { irArgs = (irArgs s) ++ [ArgModify typ id] }
+            addStmt id (Param arg')
+            liftFuncIrState $ modify $ \s -> s { irArgs = (irArgs s) ++ [arg'] }
 
         x -> error (show x)
 
@@ -235,12 +252,11 @@ irGenerateStmt inst (AST.Stmt id) = case Inst.statements inst Map.! id of
         flag <- gets copyReturnFlag
 
         void $ appendStmt . Return . Just =<< case irRet of
-            (typ, ATModify) -> case stmtm of
-                Just (Call _ _ _ _) -> return id
-                Nothing             -> return id
+            (ArgSlice _ _ _) -> return id
+            (ArgRef _ _ _)   -> return id
 
-            (typ, ATValue) -> case stmtm of -- copy if argument or ref
-                Just (Param _ _) -> do
+            (ArgValue typ _) -> case stmtm of -- copy if argument or ref
+                Just (Param _) -> do
                     base <- baseTypeOf typ
                     case unfoldType base of
                         (Slice, _) -> return id
@@ -248,13 +264,10 @@ irGenerateStmt inst (AST.Stmt id) = case Inst.statements inst Map.! id of
                             True -> call ["builtin", "copy"] [Inst.typeOfExpr inst expr] [id]
                             False -> return id
                             
-                Just (Call retType argType _ _) -> do
-                    base <- baseTypeOf typ
-                    case unfoldType base of
-                        (Slice, _) -> return id
-                        _ -> case argType of
-                            ATValue -> return id
-                            ATModify -> call ["builtin", "copy"] [Inst.typeOfExpr inst expr] [id]
+                Just (Call retArg _ _) -> case retArg of
+                    ArgValue _ _   -> return id
+                    ArgSlice _ _ _ -> return id
+                    ArgRef   _ _ _ -> call ["builtin", "copy"] [Inst.typeOfExpr inst expr] [id]
 
 
     AST.EmbedC _ strMap str -> do
@@ -267,7 +280,7 @@ irGenerateStmt inst (AST.Stmt id) = case Inst.statements inst Map.! id of
         args <- forM exprs $ \expr -> do
             id <- irGenerateExpr inst expr
             let typ = Inst.typeOfExpr inst expr 
-            return $ ArgModify typ id
+            return (ArgRef typ Modify id)
 
         withId <- appendStmt (With args [])
         withCurrentId withId $ irGenerateStmt inst blk
@@ -303,10 +316,12 @@ irGenerateStmt inst (AST.Stmt id) = case Inst.statements inst Map.! id of
                 let typ = Inst.typeOfPat inst (AST.Pattern patId)
                 stmtm <- getStmt id
                 define symbol =<< case stmtm of
-                    Just (Call retType argType _ _) -> case argType of
-                            ATValue  -> return id
-                            ATModify -> call ["builtin", "copy"] [typ] [id]
-                    Just (Param _ _) -> call ["builtin", "copy"] [typ] [id]
+                    Just (Call retArg _ _) -> case retArg of
+                            ArgValue _ _    -> return id
+                            ArgSlice _ _ _  -> return id
+                            ArgRef   _ _ _  -> call ["builtin", "copy"] [typ] [id]
+
+                    Just (Param _) -> call ["builtin", "copy"] [typ] [id]
 
             _ -> do
                 curId <- getCurrentId
@@ -500,7 +515,12 @@ initVar typ const = do
     callType' <- liftAstState (irGenerateInstance callType)
     unless (callType' == callType) (error "")
 
-    prependStmt $ Call retType ATValue callType' [ArgConst typ const]
+    base <- baseTypeOf typ
+    retArg <- case unfoldType base of
+        (Slice, _) -> return (ArgSlice retType NonMod undefined)
+        _          -> return (ArgValue retType undefined)
+
+    prependStmt $ Call retArg callType' [ArgConst typ const]
 
 
 call :: [String] -> [Type] -> [ID] -> IrGenerate ID
@@ -579,8 +599,8 @@ irGenerateDestroyInst instType = do
 destroyIr :: FuncIr -> IrGenerateDestroy ()
 destroyIr funcIr = do
     irStmts' <- (flip filterM) (Map.toList $ irStmts funcIr) $ \(_, stmt) -> case stmt of
-        Param _ _ -> return True
-        _ -> return False
+        Param _ -> return True
+        _       -> return False
 
     liftFuncIrState $ put $ funcIr
         { irStmts = Map.union (Map.singleton 0 (Block [])) (Map.fromList irStmts')
@@ -612,14 +632,15 @@ destroyStmt funcIr id = case fromJust $ Map.lookup id (irStmts funcIr) of
 
     EmbedC a b -> void $ appendStmtWithId id (EmbedC a b)
 
-    Call retType atyp callType b -> do
+    Call retArg callType b -> do
         let (TypeDef symbol, _) = unfoldType callType
         let isCopy = symbolsCouldMatch symbol (Sym ["builtin", "copy"])
         isBuiltinStore <- gets isBuiltinStore
-        unless (isCopy && isBuiltinStore) $ case atyp of
-            ATValue -> destroyAdd id
-            _       -> return ()
-        void $ appendStmtWithId id (Call retType atyp callType b)
+        unless (isCopy && isBuiltinStore) $ case retArg of
+            ArgValue _ _ -> destroyAdd id
+            _            -> return ()
+
+        void $ appendStmtWithId id (Call retArg callType b)
 
     If arg ids -> do
         pushStack (DestroyBlock [])
@@ -688,10 +709,10 @@ destroy id = do
     symbol <- liftAstStateDestroy (findSymbol $ Sym ["builtin", "destroy"])
     stmt <- liftFuncIrMonad (getStmt id)
     case stmt of
-        Just (Call typ ATValue _ _) | isNoDestroy typ -> return ()
-        Just (Call typ ATValue _ _) -> do
+        Just (Call retArg _ _) | isNoDestroy (typeof retArg) -> return ()
+        Just (Call (ArgValue typ _) _ _) -> do
             callType' <- liftAstStateDestroy $ irGenerateInstance (foldType [TypeDef symbol, typ])
-            void $ appendStmt (Call Tuple ATValue callType' [ArgModify typ id])
+            void $ appendStmt (Call (ArgValue Tuple undefined) callType' [ArgRef typ Modify id])
         x -> error (show x)
 
     where

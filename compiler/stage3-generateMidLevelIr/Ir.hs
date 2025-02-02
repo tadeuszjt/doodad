@@ -40,29 +40,29 @@ instance Show Constant where
         ConstTuple cs -> "(" ++ intercalate ", " (map show cs) ++ ")"
 
 
-data ArgType
-    = ATModify
-    | ATValue
+data ModType
+    = Modify
+    | NonMod
     deriving (Eq, Show)
 
 
 data Arg
-    = ArgConst Type Constant
-    | ArgValue Type ID
-    | ArgModify Type ID
+    = ArgConst  { argType :: Type, argConst :: Constant }
+    | ArgValue  { argType :: Type, argId :: ID }
+    | ArgRef    { argType :: Type, argMod :: ModType, argId :: ID }
+    | ArgSlice  { argType :: Type, argMod :: ModType, argId :: ID }
     deriving (Eq)
 
 
 instance Show Arg where
-    show (ArgConst typ const) = show const
-    show (ArgValue typ id)    = "%" ++ show id
-    show (ArgModify typ id)   = "&" ++ show id
+    show (ArgConst typ const)  = show const
+    show (ArgValue typ id)     = "%" ++ show id
+    show (ArgRef typ mod id)   = "*" ++ show id
+    show (ArgSlice typ mod id) = "[]" ++ show id
 
 
 instance Typeof Arg where
-    typeof (ArgConst typ _) = typ
-    typeof (ArgValue typ _) = typ
-    typeof (ArgModify typ _) = typ
+    typeof = argType
 
 
 data Stmt
@@ -73,15 +73,15 @@ data Stmt
     | Break
     | Return (Maybe ID)
     | EmbedC [(String, ID)] String
-    | Call Type ArgType Type [Arg]
+    | Call Arg Type [Arg]
     | MakeSlice Type [Arg]
-    | Param Type ArgType
+    | Param Arg
     deriving (Eq)
 
 
 instance Show Stmt where
     show stmt = case stmt of
-        Call _ _ typ args -> show typ ++ "(" ++ intercalate ", " (map show args) ++ ")"
+        Call _ typ args -> show typ ++ "(" ++ intercalate ", " (map show args) ++ ")"
         MakeSlice typ args -> show typ ++ show args
         Block ids     -> "block" 
         Loop ids      -> "loop"
@@ -90,14 +90,14 @@ instance Show Stmt where
         Return mid    -> "return"
         EmbedC map st -> "embedC"
         With _ _      -> "with"
-        Param _ _     -> "param"
+        Param _       -> "param"
         
 
 data FuncIr = FuncIr
     { irStmts     :: Map.Map ID Stmt
     , irContexts  :: Maybe (Map.Map Type ID)
     , irArgs      :: [Arg]
-    , irReturn    :: (Type, ArgType)
+    , irReturn    :: Arg
     , irSymbol    :: Symbol
     , irIdSupply  :: ID
     , irCurrentId :: ID
@@ -109,7 +109,7 @@ data FuncIr = FuncIr
 initFuncIr = FuncIr
     { irStmts     = Map.singleton 0 (Block [])
     , irTextPos   = Map.empty
-    , irReturn    = (Tuple, ATValue)
+    , irReturn    = ArgValue Tuple undefined
     , irContexts  = Nothing
     , irSymbol    = Sym []
     , irIdSupply  = 1
@@ -252,8 +252,8 @@ prettyIrStmt pre funcIr id = case irStmts funcIr Map.! id of
         putStrLn $ pre ++ "with " ++ show args ++ ":"
         forM_ ids $ prettyIrStmt (pre ++ "\t") funcIr
 
-    Call retType argType callType args -> 
-        putStrLn $ pre ++ show id ++ " = " ++ show (Call retType argType callType args)
+    Call retArg callType args -> 
+        putStrLn $ pre ++ show id ++ " = " ++ show (Call retArg callType args)
 
     MakeSlice typ args -> do
         putStrLn $ pre ++ show id ++ " = " ++ "makeSlice:" ++ show typ ++ show args

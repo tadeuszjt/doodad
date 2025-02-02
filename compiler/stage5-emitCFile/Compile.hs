@@ -37,16 +37,10 @@ generate = withErrorPrefix "generate: " $ do
                 (Type.Func, retType : argTypes) <- unfoldType <$> baseTypeOf funcType
                 unless (length argTypes == length (irArgs funcIr)) (error "arg mismatch")
 
-                cReturnType <- case irReturn funcIr of
-                    (_, ATValue) -> cTypeOf retType
-                    (_, ATModify) -> cRefTypeOf retType
-                    x -> error (show x)
+                cReturnType <- cArgTypeOf (irReturn funcIr)
+                cArgTypes <- mapM cArgTypeOf (irArgs funcIr)
 
-                cArgTypes <- forM (zip argTypes $ irArgs funcIr) $ \(argType, arg) -> case arg of
-                    ArgModify _ _ -> cRefTypeOf argType
-                    ArgValue _ _ -> cTypeOf argType
-
-                cCtxTypes <- forM (Map.keys $ fromJust $ irContexts funcIr) $ \typ -> cRefTypeOf typ
+                cCtxTypes <- forM (Map.keys $ fromJust $ irContexts funcIr) cRefTypeOf
                 appendExtern
                     (showSymGlobal $ irSymbol funcIr)
                     cReturnType
@@ -87,18 +81,12 @@ generate = withErrorPrefix "generate: " $ do
 
 generateFuncIr :: FuncIr -> Generate ()
 generateFuncIr funcIr = do
-    cArgs <- forM (irArgs funcIr) $ \arg -> case arg of
-        ArgModify typ i -> C.Param (idName i) <$> cRefTypeOf typ
-        ArgValue  typ i -> C.Param (idName i) <$> cTypeOf typ
+    cParams <- forM (irArgs funcIr) $ \arg -> C.Param (idName $ argId arg) <$> cArgTypeOf arg
 
     cCtxs <- forM (Map.toList $ fromJust $ irContexts funcIr) $ \(typ, id) -> do
         C.Param (idName id) <$> cRefTypeOf typ
-
-    cReturn <- case irReturn funcIr of
-        (typ, ATValue) -> cTypeOf typ
-        (typ, ATModify) -> cRefTypeOf typ
-
-    funcId <- newFunction cReturn (showSymGlobal $ irSymbol funcIr) (cArgs ++ cCtxs) []
+    cReturn <- cArgTypeOf (irReturn funcIr)
+    funcId <- newFunction cReturn (showSymGlobal $ irSymbol funcIr) (cParams ++ cCtxs) []
     withCurID funcId (generateStmt funcIr 0)
     withCurID globalID (append funcId)
     return ()
@@ -127,29 +115,28 @@ processCEmbed strMap str = case str of
 
 generateArg :: FuncIr -> Arg -> Generate C.Expression
 generateArg funcIr arg = do
-    base <- baseTypeOf arg
-    case unfoldType base of
-        (Slice, [t]) -> case arg of
-            ArgValue _ id -> return $ C.Ident (idName id)
-            ArgModify _ id -> return $ C.Ident (idName id)
-        _ -> case arg of
-            ArgValue typ id -> case Map.lookup id (irStmts funcIr) of
-                Just (Ir.Param t ATValue)    -> return $ C.Ident (idName id)
-                Just (Ir.Call t ATValue _ _) -> return $ C.Ident (idName id)
-                Just (Ir.Call t ATModify _ _) -> deref typ $ C.Ident (idName id)
-                Just (Ir.Param _ ATValue)     -> return $ C.Ident (idName id)
-                Just (Ir.Param _ ATModify)    -> deref typ $ C.Ident (idName id)
-                x -> error (show x)
-
-            ArgModify typ id -> case Map.lookup id (irStmts funcIr) of
-                Just (Ir.Param t ATValue)    -> stackRef typ $ C.Ident (idName id)
-                Just (Ir.Call t ATValue _ _) -> stackRef typ $ C.Ident (idName id)
-                Just (Ir.Call t ATModify _ _) -> return $ C.Ident (idName id)
-                Just (Ir.Param _ ATValue)     -> stackRef typ $ C.Ident (idName id)
-                Just (Ir.Param _ ATModify)    -> return $ C.Ident (idName id)
-                x -> error (show x)
-
+    case arg of
+        ArgValue typ id -> case Map.lookup id (irStmts funcIr) of
+            Just (Ir.Param (ArgValue _ _))     -> return $ C.Ident (idName id)
+            Just (Ir.Param (ArgRef _ _ _))     -> deref typ $ C.Ident (idName id)
+            Just (Ir.Call (ArgValue _ _) _ _)  -> return $ C.Ident (idName id)
+            Just (Ir.Call (ArgRef _ _ _) _ _)  -> deref typ $ C.Ident (idName id)
             x -> error (show x)
+
+        ArgRef typ Modify id -> case Map.lookup id (irStmts funcIr) of
+            Just (Ir.Param (ArgRef _ Modify _)) -> return $ C.Ident (idName id)
+            Just (Ir.Param (ArgValue _ _))      -> stackRef typ $ C.Ident (idName id)
+
+            Just (Ir.Call (ArgValue _ _) _ _)      -> stackRef typ $ C.Ident (idName id)
+            Just (Ir.Call (ArgRef _ Modify _) _ _) -> return $ C.Ident (idName id)
+            x -> error (show x)
+
+        ArgSlice typ _ id -> case Map.lookup id (irStmts funcIr) of
+            Just (Ir.Call (ArgSlice _ _ _) _ _) -> return $ C.Ident (idName id)
+            Just (Ir.Param (ArgSlice _ _ _))    -> return $ C.Ident (idName id)
+            Just (Ir.MakeSlice _ _)             -> return $ C.Ident (idName id)
+            x -> error (show x)
+        x -> error (show x)
 
 
 generateStmt :: FuncIr -> Ir.ID -> Generate ()
@@ -163,11 +150,10 @@ generateStmt funcIr id = case (irStmts funcIr) Map.! id of
         appendElem $ C.Assign cType name (C.Initialiser [])
         void $ appendElem (C.Return $ C.Ident name)
 
-    Ir.Call retType argType typ args -> generateCall funcIr typ id args
+    Ir.Call retArg typ args -> generateCall funcIr typ id args
 
-    Ir.Return (Just id) -> case irReturn funcIr of
-        (typ, ATValue) -> void $ appendElem . C.Return =<< generateArg funcIr (ArgValue typ id)
-        (typ, ATModify) -> void $ appendElem . C.Return =<< generateArg funcIr (ArgModify typ id)
+    Ir.Return (Just id) ->
+        void $ appendElem . C.Return =<< generateArg funcIr (irReturn funcIr) { argId = id } 
 
     Ir.If id ids -> do
         val <- generateArg funcIr (ArgValue Type.Bool id)
@@ -318,9 +304,14 @@ generateCall funcIr funcType id args = do
             base <- baseTypeOf t
             cRefType <- cRefTypeOf t
 
-            -- ptr = ptr + (cap ? 0 : sizeof(struct) * (idx + start)
-            -- idx = cap ? (idx + start) : 0
-            -- cap = cap ? cap : 1
+            -- cap > 0?
+            --   ptr = ptr
+            --   idx = idx + start
+            --   cap = cap
+            -- cap == 0?
+            --   ptr = ptr + sizeof(struct) * (idx + start)
+            --   idx = 0
+            --   cap = 1
             let start = C.Member cexpr "start"
             case unfoldType base of
                 (Tuple, ts) -> do 
@@ -479,10 +470,7 @@ generateCall funcIr funcType id args = do
 
         s -> do
             Just callIr <- Map.lookup funcType . instantiations <$> ask
-            cRetTy <- case irReturn callIr of
-                (typ, ATModify) -> cRefTypeOf typ
-                (typ, ATValue) -> cTypeOf typ
-
+            cRetTy <- cArgTypeOf (irReturn callIr)
             void $ appendAssign cRetTy (idName id) =<<
                 C.Call (showSymGlobal $ irSymbol callIr) <$> mapM (generateArg funcIr) args
 

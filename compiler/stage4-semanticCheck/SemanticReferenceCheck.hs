@@ -7,6 +7,7 @@ import Control.Monad.Except
 import Control.Monad.State
 
 import Ir
+import Type
 import Error
 import ASTResolved
 
@@ -63,16 +64,28 @@ import ASTResolved
 --    MakeSlice _ _ -> return ()
 --
 --
---    Call _ args -> case irIdArgs funcIr Map.! id of
---        ArgValue _ _ -> return ()
---        ArgModify _ _ -> do
---            dependencies <- fmap catMaybes $ forM args $ \arg -> case arg of
---                ArgModify _ i -> return (Just i)
---                _             -> return Nothing
---            modify $ \s -> s { activeReferences = Map.insert id dependencies (activeReferences s) }
+--    Call retType atype _ args -> do
+--        let arg = makeArg retType atype id
+--        isRef <- argIsReference arg
+--        case isRef of
+--            False -> return ()
+--            True  -> do
+--                refIds <- fmap (map argId) $ filterM argIsReference args
+--                modify $ \s -> s { activeReferences = Map.insert id refIds (activeReferences s) }
 --
 --
---        x -> error (show x)
+--    x -> error (show x)
 --
+--
+--
+--
+--makeArg :: Type -> ArgType -> ID -> Arg
+--makeArg t a i = case a of
+--    ATModify -> ArgModify t i
+--    ATValue  -> ArgValue  t i
+--
+--
+--argIsReference :: Arg -> CheckReference Bool
+--argIsReference arg = case arg of
 --    x -> error (show x)
 --    
