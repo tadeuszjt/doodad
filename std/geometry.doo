@@ -27,16 +27,25 @@ derives{T} Vec2 (convert{Tuple{T, T}})
 
 
 derives Rect (copy, destroy, make2{Vec2, Vec2}, rand::uniform)
-derives Mat3 (copy, destroy, add, subtract, len, at{I64, Array{3, F64}})
-derives Mat4 (copy, destroy, add, subtract, at{I64, Array{4, F64}}, len)
+derives Mat3 (copy, destroy, add, subtract, at{I64, Array{3, F64}}, makeSlice{Array{3, F64}})
+derives Mat4 (copy, destroy, add, subtract, at{I64, Array{4, F64}}, makeSlice{Array{4, F64}})
 
 func{T} transpose(T) T
+
+func{T} numRows(T) I64
+func{T} numCols(T) I64
+
+
+inst numRows{Mat3} (mat3); return 3
+inst numRows{Mat4} (mat4); return 4
+inst numCols{Mat3} (mat3); return 3
+inst numCols{Mat4} (mat4); return 4
 
 
 inst multiply{Mat3} (a, b)
     let mat3
 
-    for (0, mat3.len) -> r
+    for (0, mat3.numRows) -> r
         mat3[r][0] = a[r][0]*b[0][0] + a[r][1]*b[1][0] + a[r][2]*b[2][0]
         mat3[r][1] = a[r][0]*b[0][1] + a[r][1]*b[1][1] + a[r][2]*b[2][1]
         mat3[r][2] = a[r][0]*b[0][2] + a[r][1]*b[1][2] + a[r][2]*b[2][2]
@@ -47,7 +56,7 @@ inst multiply{Mat3} (a, b)
 inst multiply{Mat4} (a, b)
     let mat4
 
-    for (0, mat4.len) -> r
+    for (0, mat4.numRows) -> r
         mat4[r][0] = a[r][0]*b[0][0] + a[r][1]*b[1][0] + a[r][2]*b[2][0] + a[r][3]*b[3][0]
         mat4[r][1] = a[r][0]*b[0][1] + a[r][1]*b[1][1] + a[r][2]*b[2][1] + a[r][3]*b[3][1]
         mat4[r][2] = a[r][0]*b[0][2] + a[r][1]*b[1][2] + a[r][2]*b[2][2] + a[r][3]*b[3][2]
@@ -58,7 +67,7 @@ inst multiply{Mat4} (a, b)
 
 inst transpose{Mat3} (a)
     let b
-    for (0, b.len) -> r
+    for (0, b.numRows) -> r
         b[r][0] = a[0][r]
         b[r][1] = a[1][r]
         b[r][2] = a[2][r]
@@ -78,51 +87,47 @@ fn containsVec2(r Rect, v Vec2) Bool
 
 
 fn mat3Identity() Mat3
-    let mat3
-    mat3[0][0] = 1.0
-    mat3[1][1] = 1.0
-    mat3[2][2] = 1.0
-    return mat3
+    return [
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0],
+    ]
 
 
 fn mat4Identity() Mat4
-    let mat4
-    mat4[0][0] = 1.0
-    mat4[1][1] = 1.0
-    mat4[2][2] = 1.0
-    mat4[3][3] = 1.0
-    return mat4
+    return [
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ]
 
 
 fn mat3Scalar(scale Vec2) Mat3
-    let mat3
-    mat3[0][0] = scale.x
-    mat3[1][1] = scale.y
-    mat3[2][2] = 1.0
-    return mat3
+    return [
+        [scale.x, 0.0,     0.0],
+        [0.0,     scale.y, 0.0],
+        [0.0,     0.0,     1.0],
+    ]
 
 
 fn mat3Rotation(theta F64) Mat3
     let c = maths::cos(theta)
     let s = maths::sin(theta)
-    let mat3
 
-    mat3[0][0] = c
-    mat3[0][1] = -s
-    mat3[1][0] = s
-    mat3[1][1] = c
-    mat3[2][2] = 1.0
-
-    return mat3
+    return [
+        [c,   -s,  0.0],
+        [s,   c,   0.0],
+        [0.0, 0.0, 1.0],
+    ]
 
 
 fn mat3Translation(v Vec2) Mat3
-    let mat3 = mat3Identity()
-
-    mat3[0][2] = v.x
-    mat3[1][2] = v.y
-
-    return mat3
+    return [
+        [1.0, 0.0, v.x],
+        [0.0, 1.0, v.y],
+        [0.0, 0.0, 1.0],
+    ]
 
 
 fn transformVec2(m &Mat3, v Vec2, w F64) Vec2

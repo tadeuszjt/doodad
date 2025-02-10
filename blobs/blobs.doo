@@ -82,11 +82,11 @@ derives{P} Blob (print::print{P})
 inst convert{sf::Vec2f, Vec2} (a); return (a.sf::x.convert, a.sf::y.convert)
 inst convert{Vec2, sf::Vec2f} (a); return (a.x.convert, a.y.convert)
 inst convert{Mat3, sf::Mat3f} (a)
-    let b
-    for (0, a.len) -> r
-        for (0, a[0].len) -> c
-            b[r][c] = a[r][c].convert
-    return b
+    return [
+        a[0].convert,
+        a[1].convert,
+        a[2].convert,
+    ]
             
 
 fn makeQuad(position sf::Vec2f, colour sf::Colour) sf::Quad

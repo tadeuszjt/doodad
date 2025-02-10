@@ -12,6 +12,14 @@ import builtin/slice
 import builtin/limits
 
 
+inst{T, G, S} convert{Array{S, T}, Array{S, G}} (a)
+    let b
+    for (0, a.len) -> i
+        b[i] = a[i].convert
+
+    return b
+
+
 inst{T, S} len{Array{S, T}} (arr&)
     return builtinArrayLen(&arr)
 

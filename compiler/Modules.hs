@@ -146,7 +146,7 @@ buildBinaryFromModule args modPath = do
         forM_ locs $ \(loc, cFile) -> putStrLn $ show loc ++ " lines of ASM for: " ++ show cFile
 
 
-    exitCode <- rawSystem "gcc" $
+    exitCode <- rawSystem "gcc" $ -- ["-pg"]
         ["-I", hDoodad] ++ cFiles ++ map ("-l" ++) linkPaths ++ ["-o", binFile]
     case exitCode of
         ExitSuccess -> return ()

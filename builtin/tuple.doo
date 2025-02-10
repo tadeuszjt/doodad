@@ -143,11 +143,11 @@ inst{A, B, C, D, E} field{4, E, Tuple{A, B, C, D, E}} (t&) -> &
 
 
 inst{A, B} convert{Tuple{A, A}, Tuple{B, B}} (a)
-    return (a.0 .convert, a.1 .convert)
+    return (a.0.convert, a.1.convert)
 
 
 inst{A, B} convert{Tuple{A, A, A}, Tuple{B, B, B}} (a)
-    return (a.0 .convert, a.1 .convert, a.2 .convert)
+    return (a.0.convert, a.1.convert, a.2.convert)
 
 
 inst{A} destroy{ Tuple{A} } (tup&)

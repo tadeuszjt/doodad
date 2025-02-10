@@ -162,6 +162,16 @@ addTextPos id pos = do
     liftFuncIrState $ modify $ \s -> s { irTextPos = Map.insert id pos (irTextPos s) }
 
 
+getArg :: MonadFuncIr m => ID -> m Arg
+getArg id = do
+    stmt <- getStmt id
+    case stmt of
+        Just (Call retArg _ _) -> return retArg
+        Just (Param arg)       -> return arg
+        x -> error (show x)
+        
+
+
 addStmt :: MonadFuncIr m => ID -> Stmt -> m ()
 addStmt id stmt = do
     resm <- liftFuncIrState $ gets $ Map.lookup id . irStmts

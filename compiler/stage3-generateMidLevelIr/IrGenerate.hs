@@ -79,23 +79,18 @@ irGenerateInstance callType = do
     case isNothing (Map.lookup callType $ instantiations ast) of
         False -> return callType
         True -> do
-            topStmt <- case runExcept (makeInstantiation ast callType) of
-                Right (Just topStmt) -> return topStmt
-                Left e               -> throwError e
-
+            topStmt <- fmap fromJust $ lift (makeInstantiation ast callType)
             instType <- case topStmt of
                 TopInst _ [] typ _ _ _ -> return typ
                 TopField _ [] typ _    -> return typ
 
             callType' <- case instType == callType of
                 False -> irGenerateInstance instType
-                True -> case topStmt of
-                    TopInst _ _ _ _ _ _ -> do
-                        runIrGenerateAst initFuncIr initIrGenerateState (irGenerateTopInst topStmt)
-                        return callType
-                    TopField _ _ _ _    -> do
-                        runIrGenerateAst initFuncIr initIrGenerateState (irGenerateTopField topStmt)
-                        return callType
+                True -> do
+                    runIrGenerateAst initFuncIr initIrGenerateState $ case topStmt of
+                        TopInst _ _ _ _ _ _ -> irGenerateTopInst topStmt
+                        TopField _ _ _ _    -> irGenerateTopField topStmt
+                    return callType
 
             irGenerateDestroyInst callType'
             return callType'
@@ -104,23 +99,40 @@ irGenerateInstance callType = do
 -- adds a call, ensures generated IR
 irGenerateCall :: Type -> [ID] -> IrGenerate ID
 irGenerateCall callType argIds = do
-    callType' <- liftAstState $ irGenerateInstance callType
+    callType' <- liftAstState (irGenerateInstance callType)
     (Func, retType : argTypes) <- unfoldType <$> baseTypeOf callType'
     Just funcIr <- liftAstState $ gets (Map.lookup callType' . instantiations)
 
     unless (length argIds == length (irArgs funcIr)) $ do
         error ("arg length mismatch for: " ++ show callType')
     
-    args <- forM (zip3 argIds argTypes $ irArgs funcIr) $ \(argId, argType, irArg) -> case irArg of
-        ArgValue typ _ -> do
-            unless (typ == argType) (error "arg type mismatch")
-            return (ArgValue typ argId)
-        ArgRef typ modtype _ -> do
-            unless (typ == argType) (error "arg type mismatch")
-            return (ArgRef typ modtype argId)
-        ArgSlice typ modtype _ -> do
-            unless (typ == argType) (error "arg type mismatch")
-            return (ArgSlice typ modtype argId)
+    args <- forM (zip3 argIds argTypes $ irArgs funcIr) $ \(argId, argType, irArg) -> do
+        unless (typeof irArg == argType) (error "arg type mismatch")
+        return irArg { argId = argId }
+
+    -- check Modify/Non-Modify
+    forM_ args $ \arg -> case arg of
+        ArgValue _ _ -> return ()
+        ArgRef typ NonMod id -> return ()
+        ArgSlice typ NonMod id -> return ()
+
+        ArgRef typ Modify id -> do
+            arg <- getArg id
+            case arg of
+                ArgRef _ NonMod _ -> fail "calling modify arg on non-modify reference"
+                ArgRef _ Modify _ -> return ()
+                ArgValue _ _      -> return ()
+
+        ArgSlice typ Modify id -> do
+            arg <- getArg id
+            case arg of
+                ArgSlice _ NonMod _ ->
+                    -- TODO how does this work when at() can be modify or non-modify?
+                    -- fail ("calling modify slice arg on non-modify slice for: " ++ show typ)
+                    return ()
+                ArgSlice _ Modify _ -> return ()
+
+        x -> error (show x)
 
     appendStmt $ Call (irReturn funcIr) callType' args
 
@@ -724,5 +736,7 @@ destroy id = do
             (Slice, _)          -> True
             (Bool, _)           -> True
             (I64, _)            -> True
+            (F64, _)            -> True
+            (F32, _)            -> True
             _                   -> False
        

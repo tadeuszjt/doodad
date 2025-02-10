@@ -139,7 +139,7 @@ collectCall exprType exprTypes callType = do
 
     let fullAcqs = (flip filter) appliedInstTypes $ \appliedInstType ->
             let (TypeDef _, acqTypeArgs) = unfoldType appliedInstType in
-                all id $ map (\i -> typeFullyDescribes (acqTypeArgs !! i) (callTypeArgs !! i)) indices
+                all (\i -> typeFullyDescribes (acqTypeArgs !! i) (callTypeArgs !! i)) indices
 
     case fullAcqs of
         [] -> return ()
@@ -149,7 +149,6 @@ collectCall exprType exprTypes callType = do
             constraint callType (applyType subs acq)
             constraint exprType retType
             zipWithM_ constraint argTypes exprTypes
-            return ()
         x -> error (show x)
             
     constraint exprType retType
