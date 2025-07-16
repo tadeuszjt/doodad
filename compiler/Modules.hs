@@ -26,13 +26,13 @@ import Lexer
 import Compile as C
 import qualified ResolveAst
 import qualified CombineAsts
-import Preprocess
 import IrGenerate
 import IrGenerateDestroy
 import IrContextHeaderPass
 import IrContextCallPass
 import SemanticReferenceCheck
 import Error
+import AstBuilder
 
 -- Modules are groups of .doo files with a module name header
 -- lang/lexer.doo: lexer module
@@ -97,13 +97,13 @@ getSpecificModuleFiles args name (f:fs) = do
 
 -- parse a file into an AST.
 -- Throw an error on failure.
-parse :: Args -> FilePath -> IO S.AST
+parse :: Args -> FilePath -> IO AstBuilderState
 parse args file = do
     newTokens <- liftIO $ lexFile (printTokens args) file
     when (printTokens args) $ do
         liftIO $ mapM_ (putStrLn . show) newTokens
     case P.runParser (P.parseTokens newTokens) of
-        Right ast -> return ast
+        Right astBuilderState -> return astBuilderState
         Left err  -> printError err >> fail ""
 
 
@@ -183,16 +183,15 @@ buildModule isMain args modPath = do
             [x] -> return x
             _  -> throwError $ ErrorStr ("multiple matching module files found in path: " ++ absoluteModPath)
 
-        ast_ <- liftIO (parse args file)
-        when (printAst args) $ liftIO (S.prettyAST ast_)
+        ast <- liftIO (parse args file)
+        -- when (printAst args) $ liftIO (S.prettyAST ast_)
 
         -- read imports and compile imported modules first
         imports <- fmap (Set.toList . Set.fromList) $
-            forM [ (stmt, path) | stmt@(S.Import _ _ path _) <- S.astImports ast_] $ \(stmt, path)-> do
+            forM [ (stmt, path) | stmt@(S.Import _ _ path _) <- abImports ast] $ \(stmt, path)-> do
                 path' <- getCanonicalModPath path
                 return (stmt, path')
 
-        let ast = preprocess ast_
         mapM_ (buildModule False args) (map snd imports)
 
         -- compile this module

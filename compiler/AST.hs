@@ -8,21 +8,12 @@ import Type
 import Error
 import Symbol
 
-data AST
-    = AST
-        { astModuleName :: String
-        , astImports    :: [Import]
-        , astStmts      :: [Stmt]
-        }
-    deriving (Eq)
-
 
 data Import
     = Import Bool Bool FilePath (Maybe String)
     | CInclude String
     | CLink String
     deriving (Eq, Ord)
-
 
 data Param
     = Param
@@ -102,13 +93,11 @@ data Stmt
     | While       TextPos Expr Stmt
     | FuncInst    TextPos Generics Symbol [Param] Retty Stmt
     | Function    TextPos Generics FunDeps Symbol Type
-    | Instance    TextPos Generics Type [Param] Bool Stmt
     | Typedef     TextPos Generics Symbol Type
     | Switch      TextPos Expr [(Pattern, Stmt)]
     | For         TextPos Expr (Maybe Pattern) Stmt
     | EmbedC      TextPos [(String, Symbol)] String
     | Enum        TextPos Generics Symbol [ (Symbol, [Type] ) ]
-    | MacroTuple  TextPos Generics Symbol [ (Symbol, Type) ]
     | Derives     TextPos Generics Type [Type]
     deriving (Eq, Show)
 
@@ -156,8 +145,6 @@ instance TextPosition Stmt where
         EmbedC      p _ _ -> p
         Function     p _ _ _ _ -> p
         Enum        p _ _ _ -> p
-        MacroTuple  p _ _ _ -> p
-        Instance     p _ _ _ _ _ -> p
         Derives     p _ _ _ -> p
         x -> error ("invalid statement")
 
@@ -216,14 +203,14 @@ instance Show Expr where
 
 
 -- every function must end on a newline and print pre before every line
-prettyAST :: AST -> IO ()
-prettyAST ast = do
-    putStrLn $ "module " ++ (astModuleName ast)
-    putStrLn ""
-    forM_ (astImports ast) $ \imp ->
-        putStrLn $ show imp
-    putStrLn ""
-    mapM_ (prettyStmt "") (astStmts ast)
+--prettyAST :: AST -> IO ()
+--prettyAST ast = do
+--    putStrLn $ "module " ++ (astModuleName ast)
+--    putStrLn ""
+--    forM_ (astImports ast) $ \imp ->
+--        putStrLn $ show imp
+--    putStrLn ""
+--    mapM_ (prettyStmt "") (astStmts ast)
 
 
 prettyStmt :: String -> Stmt -> IO ()
@@ -280,17 +267,17 @@ prettyStmt pre stmt = case stmt of
     Typedef pos generics symbol anno -> do
         putStrLn $ pre ++ "type" ++ genericsStr generics ++ " " ++ prettySymbol symbol ++ " " ++ show anno
 
-    Instance pos generics typ args isRef stmt -> do
-        putStrLn ""
-        putStrLn $ pre
-            ++ "instance"
-            ++ genericsStr generics
-            ++ " "
-            ++ show typ
-            ++ " "
-            ++ tupStrs (map show args)
-            ++ (case isRef of False -> ""; True -> " -> &")
-        prettyStmt "" stmt
+    --Instance pos generics typ args isRef stmt -> do
+    --    putStrLn ""
+    --    putStrLn $ pre
+    --        ++ "instance"
+    --        ++ genericsStr generics
+    --        ++ " "
+    --        ++ show typ
+    --        ++ " "
+    --        ++ tupStrs (map show args)
+    --        ++ (case isRef of False -> ""; True -> " -> &")
+    --    prettyStmt "" stmt
         
 
     Switch pos expr cases -> do
@@ -308,13 +295,13 @@ prettyStmt pre stmt = case stmt of
     Derives pos generics t1 ts -> do
         putStrLn $ pre ++ "derives" ++ genericsStr generics ++ " " ++ show t1 ++ " " ++ tupStrs (map show ts)
 
-    MacroTuple pos generics symbol fields -> do
-        putStrLn $ pre ++ "tuple" ++ genericsStr generics ++ " " ++ prettySymbol symbol ++ " {"
+    --MacroTuple pos generics symbol fields -> do
+    --    putStrLn $ pre ++ "tuple" ++ genericsStr generics ++ " " ++ prettySymbol symbol ++ " {"
 
-        forM_ fields $ \(fieldSymbol, fieldType) -> do
-            putStrLn $ pre ++ "\t" ++ prettySymbol fieldSymbol ++ " " ++ show fieldType
+    --    forM_ fields $ \(fieldSymbol, fieldType) -> do
+    --        putStrLn $ pre ++ "\t" ++ prettySymbol fieldSymbol ++ " " ++ show fieldType
 
-        putStrLn "}"
+    --    putStrLn "}"
 
     Enum pos generics symbol fields -> do
         putStrLn $ pre ++ "enum" ++ genericsStr generics ++ " " ++ prettySymbol symbol ++ " {"

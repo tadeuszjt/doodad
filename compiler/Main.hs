@@ -17,7 +17,8 @@ main = do
     if astOnly parsedArgs then
         forM_ (modPaths parsedArgs) $ \path -> do
             ast <- parse parsedArgs path
-            prettyAST ast
+            -- prettyAST ast
+            return ()
 
     else do
         forM_ (modPaths parsedArgs) $ \path -> do

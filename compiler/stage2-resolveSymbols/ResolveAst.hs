@@ -335,6 +335,7 @@ resolveBlock instState (Stmt id) = do
             withCurId id $ mapM (resolveStmt instState) stmts
             popSymbolTable
             return id
+        x -> error (show x)
 
 
 resolveStmt :: InstBuilderState -> Stmt -> Resolve ()

@@ -85,7 +85,6 @@ executable doodad
         Builtin,
         ResolveAst,
         CombineAsts,
-        Preprocess,
         InstBuilder,
         FindFunc,
         AstBuilder,

@@ -5,10 +5,13 @@ import Token
 import Error
 import Control.Monad.Except hiding (void, fail)
 import Control.Monad.State
+import Control.Monad.Identity
+import qualified Data.Map as Map
 import Type
 import AST
 import Symbol
 import AstBuilder
+import InstBuilder
 }
 
 %name      parseTokens 
@@ -112,18 +115,79 @@ import AstBuilder
 ---------------------------------------------------------------------------------------------------
 -- Header -----------------------------------------------------------------------------------------
 
-prog  : stmts                      { AST "main" [] $1 }
-      | header stmts               { AST (tokStr $ fst $1) (snd $1) $2 }
-stmts : {-empty-}                  { [] }
-      | line 'N' stmts             { $1 : $3 }
-      | block stmts                { $1 : $2 }
+prog  : topStmts             {% liftAstBuilderState $ modify $ \s -> s { abModuleName = "main" } }
+      | header topStmts      {% liftAstBuilderState $ modify $ \s -> s { abModuleName = (tokStr $1) } }
+header : module 'N' imports  { $1 }
+imports: {- empty -}         { () }
+       | import 'N' imports {% addImport $ AST.Import (tokImpExp $1) (tokImpQual $1) (tokImpPath $1) (tokImpAs $1) }
+       | include 'N' imports {% addImport $ AST.CInclude (tokStr $1) }
+       | link 'N' imports    {% addImport $ AST.CLink (tokStr $1) }
 
-header : module 'N' imports        { ($1, $3) }
-imports : {- empty -}              { [] }
-        | import 'N' imports       { AST.Import (tokImpExp $1) (tokImpQual $1) (tokImpPath $1) (tokImpAs $1) : $3 }
-        | include 'N' imports      { AST.CInclude (tokStr $1) : $3 }
-        | link 'N' imports         { AST.CLink (tokStr $1) : $3 }
 
+topStmts : {-empty-}                  { () }
+         | topStmtLine 'N' topStmts   { () }
+         | topStmtBlock topStmts      { () }
+
+
+topStmtLine
+    : type generics Symbol type_                {% addTopStmt $ TopStmt $ Typedef (fst $3) $2 (snd $3) $4 }
+    | enumMacro                                 {% addTopStmt (TopStmt $1) }
+    | derives generics type_ '(' callTypes1 ')' {% addTopStmt $ TopStmt $ Derives (tokPos $1) $2 $3 $5 }
+    | func funcGenerics ident '(' types ')' typeMaybe {%
+        addTopStmt $ TopStmt $ Function (tokPos $1) (fst $2) (snd $2) (Sym [tokStr $3]) $
+            foldType (Type.Func : maybe Tuple id $7 : $5)
+    }
+    | func funcGenerics ident '::' callType {%
+        addTopStmt $ TopStmt $ Function (tokPos $1) (fst $2) (snd $2) (Sym [tokStr $3]) $5
+    }
+    | func funcGenerics ident '::' type_ {%
+        addTopStmt $ TopStmt $ Function (tokPos $1) (fst $2) (snd $2) (Sym [tokStr $3]) $5
+    }
+    | tuple generics Ident '{' tupleFields '}' {% do
+        let pos = tokPos $1
+        let generics = $2
+        let fields = $5
+        let symbol = (Sym [tokStr $3])
+        void $ addTopStmt $ TopStmt $ Typedef pos generics symbol (foldl Apply Tuple $ map snd fields)
+        forM_ (zip fields [0..]) $ \((fieldSymbol, fieldType), i) -> do
+            -- write field feature
+            let a = Sym ["A"]
+            let b = Sym ["B"]
+            addTopStmt $ TopStmt $ Function pos [a, b] [(a, b)] fieldSymbol $ foldType [Type.Func, TypeDef b, TypeDef a]
+
+            -- write instance
+            let typ = foldType (TypeDef symbol : map TypeDef generics)
+            let acq = foldType [TypeDef fieldSymbol, typ, fieldType]
+            appendStmt $ Return pos . Just $ field fieldType i (AST.Ident pos $ Sym ["x"])
+            inst0 <- takeInst (Stmt 0)
+
+            addTopStmt $ TopInst pos generics acq [Param pos (Sym ["x"]) (Apply Type.Ref Tuple)] True inst0
+
+            let acq2 = foldType [TypeDef fieldSymbol, Apply Table typ, Apply Slice fieldType]
+            appendStmt $ Return pos . Just $ field (Apply Slice fieldType) i (AST.Ident pos $ Sym ["x"])
+            inst1 <- takeInst (Stmt 0)
+            addTopStmt $ TopInst pos generics acq2 [Param pos (Sym ["x"]) (Apply Ref Tuple)] False inst1
+    }
+
+topStmtBlock
+    : inst generics callType '(' args ')' instRetty scope {% do
+        addTopStmt . TopInst (tokPos $1) $2 $3 $5 $7 =<< takeInst $8
+    }
+    | fn generics ident '(' params ')' retty scope {% do
+        argTypes <- forM $5 $ \param -> case param of
+            Param pos symbol (Apply Type.Ref t) -> return t
+            Param pos symbol t                  -> return t
+     
+        isRef <- case $7 of
+            RefRetty _ -> return True
+            Retty _    -> return False
+
+        addTopStmt $ TopStmt $ Function (tokPos $1) $2 [] (Sym[tokStr $3]) $ foldType (Type.Func : typeof $7 : argTypes)
+
+        let callType = foldl Apply (TypeDef $ Sym [tokStr $3]) $ map TypeDef $2
+
+        addTopStmt . TopInst (tokPos $1) $2 callType $5 isRef =<< takeInst $8
+    }
 
 ---------------------------------------------------------------------------------------------------
 -- Macros -----------------------------------------------------------------------------------------
@@ -137,8 +201,6 @@ enumCase : ident               { (Sym [tokStr $1], []) }
          | ident '(' types ')' { (Sym [tokStr $1], $3) }
 
 
-tupleMacro : tuple generics Ident '{' tupleFields '}' { MacroTuple (tokPos $1) $2 (Sym [tokStr $3]) $5 }
-
 tupleField : symbol type_    { (snd $1, $2) }
 tupleFields : {-empty-}                  { [] }
             | tupleField                 { [$1] }
@@ -147,10 +209,6 @@ tupleFields : {-empty-}                  { [] }
 
 ---------------------------------------------------------------------------------------------------
 -- Statements -------------------------------------------------------------------------------------
-
-
-derivesDef : derives generics type_ '(' callTypes1 ')'
-           { Derives (tokPos $1) $2 $3 $5 }
 
 
 funcGenerics : '{' Idents  funDeps '}'  { (map (\s -> Symbol.Sym [s]) $2, $3) }
@@ -163,21 +221,8 @@ funDep : Ident '->' Ident { (Symbol.Sym [tokStr $1], Symbol.Sym [tokStr $3]) }
 funDeps1 : funDep              { [$1] }
          | funDep ',' funDeps1 { $1:$3 }
 
-funcDef : func funcGenerics ident '(' types ')' typeMaybe
-            { Function (tokPos $1) (fst $2) (snd $2) (Sym [tokStr $3]) $ foldType (Type.Func : maybe Tuple id $7 : $5) }
-        | func funcGenerics ident '::' callType
-            { Function (tokPos $1) (fst $2) (snd $2) (Sym [tokStr $3]) $5 }
-        | func funcGenerics ident '::' type_
-            { Function (tokPos $1) (fst $2) (snd $2) (Sym [tokStr $3]) $5 }
-
-
-instDef : inst generics callType '(' args ')' instRetty scope
-            { Instance (tokPos $1) $2 $3 $5 $7 $8 }
-
-
 instRetty : {-empty-}  { False }
-             | '->' '&'   { True  }
-
+          | '->' '&'   { True  }
 
 
 arg : ident      { Param    (tokPos $1) (Sym [tokStr $1]) Tuple }
@@ -190,47 +235,45 @@ args1 : arg            { [$1] }
       | arg ',' args1  { ($1 : $3) }
 
 
-fnDef : fn generics ident '(' params ')' retty scope 
-            { FuncInst (tokPos $1) $2 (Sym [tokStr $3]) $5 $7 $8 }
-
-
 retty : {-empty-}     { Retty Tuple }
       | type_         { Retty $1 }
       | '&' type_     { RefRetty $2 }
       | '[' ']' type_ { Retty (foldl Apply Type.Slice [$3]) }
 
-line : let pattern '=' expr               { Let (tokPos $1) $2 (Just $4) Nothing }  
-     | let pattern                        { Let (tokPos $1) $2 Nothing Nothing }
-     | expr                               { ExprStmt $1 }
-     | expr '=' expr                      { ExprStmt (Call (tokPos $2) (TypeDef $ Sym ["store"]) [Reference (tokPos $2) $1, $3]) }
-     | type generics Symbol type_         { Typedef (fst $3) $2 (snd $3) $4 }
-     | return mexpr                       { Return (tokPos $1) $2 }
-     | embed_c                            { AST.EmbedC (tokPos $1) [] (tokStr $1) }
-     | enumMacro                          { $1 }
-     | tupleMacro                         { $1 }
-     | funcDef                            { $1 }
-     | derivesDef                         { $1 }
+line : let pattern '=' expr               {% fmap Stmt $ newStmt $ Let (tokPos $1) $2 (Just $4) Nothing }  
+     | let pattern                        {% fmap Stmt $ newStmt $ Let (tokPos $1) $2 Nothing Nothing }
+     | expr                               {% fmap Stmt $ newStmt $ ExprStmt $1 }
+     | expr '=' expr                      {% fmap Stmt $ newStmt $ ExprStmt (Call (tokPos $2) (TypeDef $ Sym ["store"]) [Reference (tokPos $2) $1, $3]) }
+     | return mexpr                       {% fmap Stmt $ newStmt $ Return (tokPos $1) $2 }
+     | embed_c                            {% fmap Stmt $ newStmt $ AST.EmbedC (tokPos $1) [] (tokStr $1) }
 
 block : if_                               { $1 }
-      | while condition scope             { While (tokPos $1) $2 $3 }
-      | for expr scope                    { For (tokPos $1) $2 Nothing $3 }
-      | for expr '->' pattern scope       { For (tokPos $1) $2 (Just $4) $5 }
-      | switch expr 'I' cases1 'D'        { Switch (tokPos $1) $2 $4 }
-      | let pattern '='  expr in scope    { Let (tokPos $1) $2 (Just $4) (Just $6) }
-      | let pattern in scope              { Let (tokPos $1) $2 Nothing (Just $4) }
-      | fnDef                             { $1 }
-      | instDef                           { $1 }
-      | with '(' exprs ')' scope          { With (tokPos $1) $3 $5 }
+      | while condition scope             {% fmap Stmt $ newStmt $ While (tokPos $1) $2 $3 }
+      | for expr scope                    {% fmap Stmt $ newStmt $ For (tokPos $1) $2 Nothing $3 }
+      | for expr '->' pattern scope       {% fmap Stmt $ newStmt $ For (tokPos $1) $2 (Just $4) $5 }
+      | switch expr 'I' cases1 'D'        {% fmap Stmt $ newStmt $ Switch (tokPos $1) $2 $4 }
+      | let pattern '='  expr in scope    {% fmap Stmt $ newStmt $ Let (tokPos $1) $2 (Just $4) (Just $6) }
+      | let pattern in scope              {% fmap Stmt $ newStmt $ Let (tokPos $1) $2 Nothing (Just $4) }
+      | with '(' exprs ')' scope          {% fmap Stmt $ newStmt $ With (tokPos $1) $3 $5 }
 
-if_   : if condition scope else_          { If (tokPos $1) $2 $3 $4 }
-      | if condition 'N' else_            { If (tokPos $1) $2 (Block []) $4 }
+if_   : if condition scope else_          {% fmap Stmt $ newStmt $ If (tokPos $1) $2 $3 $4 }
+      | if condition 'N' else_            {% do
+    blk <- fmap Stmt $ newStmt (Block [])
+    fmap Stmt $ newStmt $ If (tokPos $1) $2 blk $4
+}
 else_ : else scope                        { Just $2 }
-      | else if_                          { Just $2 }
+      | else if_                          {% do
+    blkId <- fmap Stmt $ newStmt (Block [$2])
+    return $ Just blkId
+}
       | {-empty-}                         { Nothing }
 
-scope  : 'I' stmts 'D'                    { Block $2 }
-       | ';' line 'N'                     { Block [$2] }
-       | ';' 'N'                          { Block [] }
+stmts : {-empty-}                         { [] }
+      | line 'N' stmts                    { $1 : $3 }
+      | block stmts                       { $1 : $2 }
+scope  : 'I' stmts 'D'                    {% fmap Stmt $ newStmt $ Block $2 }
+       | ';' line 'N'                     {% fmap Stmt $ newStmt $ Block [$2] }
+       | ';' 'N'                          {% fmap Stmt $ newStmt $ Block [] }
 
 cases1 : case                             { [$1] }
        | case cases1                      { $1 : $2 }
@@ -375,23 +418,46 @@ types1 : type__                             { [$1] }
 typeArgs : '{' types  '}'          { $2 }
     
 
-type_  : '(' types ')'                  { foldl Apply Tuple $2 }
+type_  : '(' types ')' {%
+    return (foldl Apply Tuple $2)
+}
        | Symbol                         { TypeDef (snd $1) }
        | Symbol typeArgs                { foldl Apply (TypeDef $ snd $1) $2 }
        | type_ '.' type_                { Apply $3 $1 }
 
 {
-newtype Parser a = Parser { unParser :: StateT AstBuilderState (Except Error) a }
-	deriving (Functor, Applicative, Monad, MonadError Error, MonadState AstBuilderState)
+newtype Parser a = Parser { unParser :: StateT InstBuilderState (StateT AstBuilderState (Except Error)) a }
+	deriving (Functor, Applicative, Monad, MonadError Error)
 
 
-runParser :: Parser a -> Either Error a
-runParser p = fmap fst $ runExcept $ runStateT (unParser p) (initAstBuilderState "")
+instance MonadAstBuilder (Parser) where
+    liftAstBuilderState (StateT s) = Parser $ lift $ state (runIdentity . s)
+
+instance MonadInstBuilder Parser where
+    liftInstBuilderState (StateT s) = Parser $ state (runIdentity . s)
+
+
+takeInst :: Stmt -> Parser InstBuilderState
+takeInst (Stmt id) = liftInstBuilderState $ do
+    stmt <- (Map.! id) <$> gets statements
+    state <- get
+    put initInstBuilderState
+    return $ state { statements = (Map.insert 0 stmt $ Map.delete id $ statements state) }
+
+
+runParser :: Parser a -> Either Error AstBuilderState
+runParser p = runExcept $ (flip execStateT) initAstBuilderState $ runStateT (unParser p) initInstBuilderState 
 
 
 tokPos :: Token -> TextPos
 tokPos tok = tokPosn tok
 
+
+field :: Type -> Integer -> Expr -> Expr
+field fieldType i expr = AExpr fieldType $ Call (textPos expr) typ [expr]
+    where
+        typ = foldType [TypeDef (Sym ["builtin", "builtinField"]), Size (fromIntegral i), Type 0, Type 0]
+    
 
 happyError :: [Token] -> Parser a
 happyError []    = throwError $ ErrorPos (TextPos "" 0 0) "parse error"

@@ -26,9 +26,9 @@ class (Monad m) => MonadAstBuilder m where
     liftAstBuilderState :: State AstBuilderState a -> m a
 
 
-initAstBuilderState name = AstBuilderState
+initAstBuilderState = AstBuilderState
     { topStmts     = []
-    , abModuleName = name
+    , abModuleName = ""
     , abImports    = []
     }
 
