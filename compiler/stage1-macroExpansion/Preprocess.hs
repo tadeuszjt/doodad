@@ -43,14 +43,17 @@ runPreprocessAst astBuilderState f
 
 preprocess :: AST -> AstBuilderState
 preprocess ast = do
-    snd $ runPreprocessAst (initAstBuilderState (astModuleName ast) (astImports ast)) preprocess'
+    snd $ runPreprocessAst (initAstBuilderState (astModuleName ast)) preprocess'
     where
         preprocess' :: PreprocessAst ()
-        preprocess' = forM_ (astStmts ast) $ \stmt -> case stmt of
-            Function _ _ _ _ _ -> addTopStmt (TopStmt stmt)
-            Derives _ _ _ _     -> addTopStmt (TopStmt stmt)
-            Typedef _ _ _ _     -> addTopStmt (TopStmt stmt)
-            x                   -> buildTopStatement x
+        preprocess' = do
+            forM_ (astImports ast) $ \impr -> addImport impr
+            
+            forM_ (astStmts ast) $ \stmt -> case stmt of
+                Function _ _ _ _ _ -> addTopStmt (TopStmt stmt)
+                Derives _ _ _ _     -> addTopStmt (TopStmt stmt)
+                Typedef _ _ _ _     -> addTopStmt (TopStmt stmt)
+                x                   -> buildTopStatement x
 
 
 buildInst :: PreprocessInst a -> PreprocessAst InstBuilderState

@@ -26,13 +26,18 @@ class (Monad m) => MonadAstBuilder m where
     liftAstBuilderState :: State AstBuilderState a -> m a
 
 
-initAstBuilderState name imports = AstBuilderState
+initAstBuilderState name = AstBuilderState
     { topStmts     = []
     , abModuleName = name
-    , abImports    = imports
+    , abImports    = []
     }
 
 
 addTopStmt :: MonadAstBuilder m => TopStmt -> m ()
 addTopStmt stmt =
     liftAstBuilderState $ modify $ \s -> s { topStmts = (topStmts s) ++ [stmt] }
+
+
+addImport :: MonadAstBuilder m => Import -> m ()
+addImport imprt =
+    liftAstBuilderState $ modify $ \s -> s { abImports = (abImports s) ++ [imprt] }

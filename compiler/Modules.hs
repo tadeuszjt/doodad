@@ -102,7 +102,7 @@ parse args file = do
     newTokens <- liftIO $ lexFile (printTokens args) file
     when (printTokens args) $ do
         liftIO $ mapM_ (putStrLn . show) newTokens
-    case runExcept (P.parse newTokens) of
+    case P.runParser (P.parseTokens newTokens) of
         Right ast -> return ast
         Left err  -> printError err >> fail ""
 

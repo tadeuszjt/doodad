@@ -1,16 +1,19 @@
 {
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Parser where
 import Token
 import Error
 import Control.Monad.Except hiding (void, fail)
+import Control.Monad.State
 import Type
 import AST
 import Symbol
+import AstBuilder
 }
 
 %name      parseTokens 
 %tokentype { Token }
-%monad { P } { thenP } { returnP }
+%monad { Parser } { >>= } { return }
 
 %left      '||'
 %left      '&&'
@@ -378,37 +381,21 @@ type_  : '(' types ')'                  { foldl Apply Tuple $2 }
        | type_ '.' type_                { Apply $3 $1 }
 
 {
-parse :: [Token] -> Except Error AST
-parse tokens = do
-    case (parseTokens tokens) 0 of
-        ParseFail pos -> throwError (ErrorPos pos "parse error")
-        ParseOk ast   -> return ast 
+newtype Parser a = Parser { unParser :: StateT AstBuilderState (Except Error) a }
+	deriving (Functor, Applicative, Monad, MonadError Error, MonadState AstBuilderState)
 
 
-data ParseResult a
-    = ParseOk a 
-    | ParseFail TextPos
-    deriving (Show)
+runParser :: Parser a -> Either Error a
+runParser p = fmap fst $ runExcept $ runStateT (unParser p) (initAstBuilderState "")
 
-
-type P a = Int -> ParseResult a
-
-thenP :: P a -> (a -> P b) -> P b
-thenP m k = \l -> case m l of
-    ParseFail s -> ParseFail s
-    ParseOk a -> k a l
-
-
-returnP :: a -> P a
-returnP a = \l -> ParseOk a
 
 tokPos :: Token -> TextPos
 tokPos tok = tokPosn tok
 
 
-happyError :: [Token] -> P a
-happyError []    = return $ ParseFail (TextPos "" 0 0)
-happyError (x:_) = return $ ParseFail (tokPosn x)
+happyError :: [Token] -> Parser a
+happyError []    = throwError $ ErrorPos (TextPos "" 0 0) "parse error"
+happyError (x:_) = throwError $ ErrorPos (tokPosn x) "parse error"
 
 
 processString :: String -> String
