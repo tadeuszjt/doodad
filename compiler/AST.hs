@@ -82,20 +82,22 @@ instance Typeof Pattern where
     typeof a = error $ "can only take typeof PatAnnotated" 
 
 
+type StmtID = Int
+
 data Stmt
     = Stmt        Int
-    | Let         TextPos Pattern (Maybe Expr) (Maybe Stmt)
-    | With        TextPos [Expr] Stmt
+    | Let         TextPos Pattern (Maybe Expr) (Maybe StmtID)
+    | With        TextPos [Expr] StmtID
     | ExprStmt    Expr
     | Return      TextPos (Maybe Expr)
-    | Block       [Stmt]
-    | If          TextPos Expr Stmt (Maybe Stmt)
-    | While       TextPos Expr Stmt
-    | FuncInst    TextPos Generics Symbol [Param] Retty Stmt
+    | Block       [StmtID]
+    | If          TextPos Expr StmtID (Maybe StmtID)
+    | While       TextPos Expr StmtID
+    | FuncInst    TextPos Generics Symbol [Param] Retty StmtID
     | Function    TextPos Generics FunDeps Symbol Type
     | Typedef     TextPos Generics Symbol Type
-    | Switch      TextPos Expr [(Pattern, Stmt)]
-    | For         TextPos Expr (Maybe Pattern) Stmt
+    | Switch      TextPos Expr [(Pattern, StmtID)]
+    | For         TextPos Expr (Maybe Pattern) StmtID
     | EmbedC      TextPos [(String, Symbol)] String
     | Enum        TextPos Generics Symbol [ (Symbol, [Type] ) ]
     | Derives     TextPos Generics Type [Type]
@@ -135,7 +137,7 @@ instance TextPosition Stmt where
         ExprStmt    expr -> textPos expr
         Let         p _ _ _ -> p
         Return      p _ -> p
-        Block       s -> textPos (head s)
+        -- Block       s -> textPos (head s)
         If          p _ _ _ -> p
         While       p _ _ -> p
         FuncInst     p _ _ _ _ _ -> p
@@ -213,108 +215,108 @@ instance Show Expr where
 --    mapM_ (prettyStmt "") (astStmts ast)
 
 
-prettyStmt :: String -> Stmt -> IO ()
-prettyStmt pre stmt = case stmt of
-    Return pos mexpr -> putStrLn $ pre ++ "return " ++ maybe "" show mexpr
-    ExprStmt callExpr -> putStrLn $ pre ++ show callExpr
-    Block stmts -> mapM_ (prettyStmt (pre ++ "\t")) stmts
-    EmbedC pos m str -> putStrLn $ pre ++ "$" ++ str
-
-    FuncInst _ generics funcSymbol funcArgs funcRetty blk -> do
-        putStrLn ""
-        putStrLn $
-            pre
-            ++ "fn"
-            ++ genericsStr generics
-            ++ " "
-            ++ prettySymbol funcSymbol
-            ++ tupStrs (map show funcArgs)
-            ++ " "
-            ++ show funcRetty
-        prettyStmt pre blk
-
-    Function pos generics funDeps symbol funcType  -> do
-        let funDepsStr = case funDeps of
-                [] -> ""
-                xs -> " | " ++ intercalate ", " (map (\(a, b) -> show a ++ "->" ++ show b) funDeps)
-        let genericsStr = case generics of
-                [] -> "" 
-                xs -> brcStrs [intercalate ", " (map prettySymbol xs), funDepsStr]
-        putStrLn ""
-        putStrLn $ pre ++ "func" ++ genericsStr ++ " " ++ prettySymbol symbol ++ " " ++ show funcType
-
-    Let pos pat mexpr mblk -> do
-        exprStr <- case mexpr of
-            Just expr -> return $ " = " ++ show expr
-            Nothing   -> return $ ""
-        putStrLn $ pre ++ "let " ++ show pat ++ exprStr ++ if isJust mblk then " in" else ""
-        when (isJust mblk) $ prettyStmt pre (fromJust mblk)
-
-    If pos cnd true mfalse -> do
-        putStrLn $ pre ++ "if " ++ show cnd
-        prettyStmt pre true
-        case mfalse of
-            Nothing -> return ()
-            Just false -> do 
-                putStrLn (pre ++ "else")
-                prettyStmt pre false
-
-
-    While pos cnd stmt -> do
-        putStrLn (pre ++ "while " ++ show cnd)
-        prettyStmt pre stmt
-
-    Typedef pos generics symbol anno -> do
-        putStrLn $ pre ++ "type" ++ genericsStr generics ++ " " ++ prettySymbol symbol ++ " " ++ show anno
-
-    --Instance pos generics typ args isRef stmt -> do
-    --    putStrLn ""
-    --    putStrLn $ pre
-    --        ++ "instance"
-    --        ++ genericsStr generics
-    --        ++ " "
-    --        ++ show typ
-    --        ++ " "
-    --        ++ tupStrs (map show args)
-    --        ++ (case isRef of False -> ""; True -> " -> &")
-    --    prettyStmt "" stmt
-        
-
-    Switch pos expr cases -> do
-        putStrLn $ pre ++ "switch " ++ show expr
-        forM_ cases $ \(pat, stmt) -> do
-            putStrLn $ pre ++ "\t" ++ show pat
-            prettyStmt (pre ++ "\t") stmt
-
-    For pos expr mcnd blk -> do
-        let cndStr = maybe "" ((" -> " ++) . show) mcnd
-        let exprStr = "" ++ show expr
-        putStrLn $ pre ++ "for " ++ exprStr ++ cndStr
-        prettyStmt pre blk
-
-    Derives pos generics t1 ts -> do
-        putStrLn $ pre ++ "derives" ++ genericsStr generics ++ " " ++ show t1 ++ " " ++ tupStrs (map show ts)
-
-    --MacroTuple pos generics symbol fields -> do
-    --    putStrLn $ pre ++ "tuple" ++ genericsStr generics ++ " " ++ prettySymbol symbol ++ " {"
-
-    --    forM_ fields $ \(fieldSymbol, fieldType) -> do
-    --        putStrLn $ pre ++ "\t" ++ prettySymbol fieldSymbol ++ " " ++ show fieldType
-
-    --    putStrLn "}"
-
-    Enum pos generics symbol fields -> do
-        putStrLn $ pre ++ "enum" ++ genericsStr generics ++ " " ++ prettySymbol symbol ++ " {"
-
-        forM_ fields $ \(fieldSymbol, fieldTypes) -> do
-            putStrLn $ pre ++ "\t" ++ prettySymbol fieldSymbol ++ tupStrs (map show fieldTypes)
-        
-        putStrLn "}"
-
-    x  -> error (show x)
-
-    where
-        genericsStr :: [Symbol] -> String
-        genericsStr [] = ""
-        genericsStr xs = "{" ++ intercalate ", " (map prettySymbol xs) ++ "}"
-
+-- prettyStmt :: String -> Stmt -> IO ()
+-- prettyStmt pre stmt = case stmt of
+--     Return pos mexpr -> putStrLn $ pre ++ "return " ++ maybe "" show mexpr
+--     ExprStmt callExpr -> putStrLn $ pre ++ show callExpr
+--     Block stmts -> mapM_ (prettyStmt (pre ++ "\t")) stmts
+--     EmbedC pos m str -> putStrLn $ pre ++ "$" ++ str
+-- 
+--     FuncInst _ generics funcSymbol funcArgs funcRetty blk -> do
+--         putStrLn ""
+--         putStrLn $
+--             pre
+--             ++ "fn"
+--             ++ genericsStr generics
+--             ++ " "
+--             ++ prettySymbol funcSymbol
+--             ++ tupStrs (map show funcArgs)
+--             ++ " "
+--             ++ show funcRetty
+--         prettyStmt pre blk
+-- 
+--     Function pos generics funDeps symbol funcType  -> do
+--         let funDepsStr = case funDeps of
+--                 [] -> ""
+--                 xs -> " | " ++ intercalate ", " (map (\(a, b) -> show a ++ "->" ++ show b) funDeps)
+--         let genericsStr = case generics of
+--                 [] -> "" 
+--                 xs -> brcStrs [intercalate ", " (map prettySymbol xs), funDepsStr]
+--         putStrLn ""
+--         putStrLn $ pre ++ "func" ++ genericsStr ++ " " ++ prettySymbol symbol ++ " " ++ show funcType
+-- 
+--     Let pos pat mexpr mblk -> do
+--         exprStr <- case mexpr of
+--             Just expr -> return $ " = " ++ show expr
+--             Nothing   -> return $ ""
+--         putStrLn $ pre ++ "let " ++ show pat ++ exprStr ++ if isJust mblk then " in" else ""
+--         when (isJust mblk) $ prettyStmt pre (fromJust mblk)
+-- 
+--     If pos cnd true mfalse -> do
+--         putStrLn $ pre ++ "if " ++ show cnd
+--         prettyStmt pre true
+--         case mfalse of
+--             Nothing -> return ()
+--             Just false -> do 
+--                 putStrLn (pre ++ "else")
+--                 prettyStmt pre false
+-- 
+-- 
+--     While pos cnd stmt -> do
+--         putStrLn (pre ++ "while " ++ show cnd)
+--         prettyStmt pre stmt
+-- 
+--     Typedef pos generics symbol anno -> do
+--         putStrLn $ pre ++ "type" ++ genericsStr generics ++ " " ++ prettySymbol symbol ++ " " ++ show anno
+-- 
+--     --Instance pos generics typ args isRef stmt -> do
+--     --    putStrLn ""
+--     --    putStrLn $ pre
+--     --        ++ "instance"
+--     --        ++ genericsStr generics
+--     --        ++ " "
+--     --        ++ show typ
+--     --        ++ " "
+--     --        ++ tupStrs (map show args)
+--     --        ++ (case isRef of False -> ""; True -> " -> &")
+--     --    prettyStmt "" stmt
+--         
+-- 
+--     Switch pos expr cases -> do
+--         putStrLn $ pre ++ "switch " ++ show expr
+--         forM_ cases $ \(pat, stmt) -> do
+--             putStrLn $ pre ++ "\t" ++ show pat
+--             prettyStmt (pre ++ "\t") stmt
+-- 
+--     For pos expr mcnd blk -> do
+--         let cndStr = maybe "" ((" -> " ++) . show) mcnd
+--         let exprStr = "" ++ show expr
+--         putStrLn $ pre ++ "for " ++ exprStr ++ cndStr
+--         prettyStmt pre blk
+-- 
+--     Derives pos generics t1 ts -> do
+--         putStrLn $ pre ++ "derives" ++ genericsStr generics ++ " " ++ show t1 ++ " " ++ tupStrs (map show ts)
+-- 
+--     --MacroTuple pos generics symbol fields -> do
+--     --    putStrLn $ pre ++ "tuple" ++ genericsStr generics ++ " " ++ prettySymbol symbol ++ " {"
+-- 
+--     --    forM_ fields $ \(fieldSymbol, fieldType) -> do
+--     --        putStrLn $ pre ++ "\t" ++ prettySymbol fieldSymbol ++ " " ++ show fieldType
+-- 
+--     --    putStrLn "}"
+-- 
+--     Enum pos generics symbol fields -> do
+--         putStrLn $ pre ++ "enum" ++ genericsStr generics ++ " " ++ prettySymbol symbol ++ " {"
+-- 
+--         forM_ fields $ \(fieldSymbol, fieldTypes) -> do
+--             putStrLn $ pre ++ "\t" ++ prettySymbol fieldSymbol ++ tupStrs (map show fieldTypes)
+--         
+--         putStrLn "}"
+-- 
+--     x  -> error (show x)
+-- 
+--     where
+--         genericsStr :: [Symbol] -> String
+--         genericsStr [] = ""
+--         genericsStr xs = "{" ++ intercalate ", " (map prettySymbol xs) ++ "}"
+-- 

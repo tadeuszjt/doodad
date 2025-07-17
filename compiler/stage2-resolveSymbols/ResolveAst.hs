@@ -325,8 +325,8 @@ resolveInstState instState = do
     liftInstBuilderState $ get
 
 
-resolveBlock :: InstBuilderState -> Stmt -> Resolve ID
-resolveBlock instState (Stmt id) = do
+resolveBlock :: InstBuilderState -> StmtID -> Resolve ID
+resolveBlock instState id = do
     let Just stmt = Map.lookup id (statements instState)
     case stmt of
         Block stmts -> do
@@ -338,8 +338,8 @@ resolveBlock instState (Stmt id) = do
         x -> error (show x)
 
 
-resolveStmt :: InstBuilderState -> Stmt -> Resolve ()
-resolveStmt instState (Stmt id) = do
+resolveStmt :: InstBuilderState -> StmtID -> Resolve ()
+resolveStmt instState id = do
     let Just statement = Map.lookup id (statements instState)
     case statement of
         Block stmts -> do
@@ -362,7 +362,7 @@ resolveStmt instState (Stmt id) = do
         With pos exprs blk -> do
             exprs' <- mapM (resolveExpr instState) exprs
             id <- resolveBlock instState blk
-            void $ appendStmt $ With pos exprs' (Stmt id)
+            void $ appendStmt $ With pos exprs' id
 
         If pos expr stmt melse -> do
             pushSymbolTable
@@ -373,14 +373,14 @@ resolveStmt instState (Stmt id) = do
 
             falseId <- traverse (resolveBlock instState) melse
             popSymbolTable
-            void $ appendStmt $ If pos expr' (Stmt trueId) (fmap Stmt falseId)
+            void $ appendStmt $ If pos expr' trueId falseId
 
         While pos expr blk -> do
             pushSymbolTable
             expr' <- resolveExpr instState expr
             id <- resolveBlock instState blk
             popSymbolTable
-            void $ appendStmt $ While pos expr' (Stmt id)
+            void $ appendStmt $ While pos expr' id
 
         For pos expr mpat blk -> do
             pushSymbolTable
@@ -388,7 +388,7 @@ resolveStmt instState (Stmt id) = do
             mpat' <- traverse (resolvePattern instState) mpat
             id <- resolveBlock instState blk
             popSymbolTable
-            void $ appendStmt $ For pos expr' mpat' (Stmt id)
+            void $ appendStmt $ For pos expr' mpat' id
 
         Switch pos expr cases -> do
             pushSymbolTable
@@ -398,7 +398,7 @@ resolveStmt instState (Stmt id) = do
                 pat' <- resolvePattern instState pat
                 id <- resolveBlock instState stmt
                 popSymbolTable
-                return (pat', Stmt id)
+                return (pat', id)
             popSymbolTable
             void $ appendStmt $ Switch pos expr' cases'
 

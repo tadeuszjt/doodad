@@ -66,7 +66,7 @@ appendId id = do
     unless (b) (error "")
     stmt <- liftInstBuilderState $ gets $ (Map.! curId) . statements
     stmt' <- case stmt of
-        Block ids -> return $ Block (ids ++ [Stmt id])
+        Block ids -> return $ Block (ids ++ [id])
         x -> error (show x)
 
     liftInstBuilderState $ modify $ \s -> s { statements = Map.insert curId stmt' (statements s) }

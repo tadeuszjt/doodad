@@ -159,13 +159,13 @@ topStmtLine
             let typ = foldType (TypeDef symbol : map TypeDef generics)
             let acq = foldType [TypeDef fieldSymbol, typ, fieldType]
             appendStmt $ Return pos . Just $ field fieldType i (AST.Ident pos $ Sym ["x"])
-            inst0 <- takeInst (Stmt 0)
+            inst0 <- takeInst 0
 
             addTopStmt $ TopInst pos generics acq [Param pos (Sym ["x"]) (Apply Type.Ref Tuple)] True inst0
 
             let acq2 = foldType [TypeDef fieldSymbol, Apply Table typ, Apply Slice fieldType]
             appendStmt $ Return pos . Just $ field (Apply Slice fieldType) i (AST.Ident pos $ Sym ["x"])
-            inst1 <- takeInst (Stmt 0)
+            inst1 <- takeInst 0
             addTopStmt $ TopInst pos generics acq2 [Param pos (Sym ["x"]) (Apply Ref Tuple)] False inst1
     }
 
@@ -240,30 +240,30 @@ retty : {-empty-}     { Retty Tuple }
       | '&' type_     { RefRetty $2 }
       | '[' ']' type_ { Retty (foldl Apply Type.Slice [$3]) }
 
-line : let pattern '=' expr               {% fmap Stmt $ newStmt $ Let (tokPos $1) $2 (Just $4) Nothing }  
-     | let pattern                        {% fmap Stmt $ newStmt $ Let (tokPos $1) $2 Nothing Nothing }
-     | expr                               {% fmap Stmt $ newStmt $ ExprStmt $1 }
-     | expr '=' expr                      {% fmap Stmt $ newStmt $ ExprStmt (Call (tokPos $2) (TypeDef $ Sym ["store"]) [Reference (tokPos $2) $1, $3]) }
-     | return mexpr                       {% fmap Stmt $ newStmt $ Return (tokPos $1) $2 }
-     | embed_c                            {% fmap Stmt $ newStmt $ AST.EmbedC (tokPos $1) [] (tokStr $1) }
+line : let pattern '=' expr               {% newStmt $ Let (tokPos $1) $2 (Just $4) Nothing }  
+     | let pattern                        {% newStmt $ Let (tokPos $1) $2 Nothing Nothing }
+     | expr                               {% newStmt $ ExprStmt $1 }
+     | expr '=' expr                      {% newStmt $ ExprStmt (Call (tokPos $2) (TypeDef $ Sym ["store"]) [Reference (tokPos $2) $1, $3]) }
+     | return mexpr                       {% newStmt $ Return (tokPos $1) $2 }
+     | embed_c                            {% newStmt $ AST.EmbedC (tokPos $1) [] (tokStr $1) }
 
 block : if_                               { $1 }
-      | while condition scope             {% fmap Stmt $ newStmt $ While (tokPos $1) $2 $3 }
-      | for expr scope                    {% fmap Stmt $ newStmt $ For (tokPos $1) $2 Nothing $3 }
-      | for expr '->' pattern scope       {% fmap Stmt $ newStmt $ For (tokPos $1) $2 (Just $4) $5 }
-      | switch expr 'I' cases1 'D'        {% fmap Stmt $ newStmt $ Switch (tokPos $1) $2 $4 }
-      | let pattern '='  expr in scope    {% fmap Stmt $ newStmt $ Let (tokPos $1) $2 (Just $4) (Just $6) }
-      | let pattern in scope              {% fmap Stmt $ newStmt $ Let (tokPos $1) $2 Nothing (Just $4) }
-      | with '(' exprs ')' scope          {% fmap Stmt $ newStmt $ With (tokPos $1) $3 $5 }
+      | while condition scope             {% newStmt $ While (tokPos $1) $2 $3 }
+      | for expr scope                    {% newStmt $ For (tokPos $1) $2 Nothing $3 }
+      | for expr '->' pattern scope       {% newStmt $ For (tokPos $1) $2 (Just $4) $5 }
+      | switch expr 'I' cases1 'D'        {% newStmt $ Switch (tokPos $1) $2 $4 }
+      | let pattern '='  expr in scope    {% newStmt $ Let (tokPos $1) $2 (Just $4) (Just $6) }
+      | let pattern in scope              {% newStmt $ Let (tokPos $1) $2 Nothing (Just $4) }
+      | with '(' exprs ')' scope          {% newStmt $ With (tokPos $1) $3 $5 }
 
-if_   : if condition scope else_          {% fmap Stmt $ newStmt $ If (tokPos $1) $2 $3 $4 }
+if_   : if condition scope else_          {% newStmt $ If (tokPos $1) $2 $3 $4 }
       | if condition 'N' else_            {% do
-    blk <- fmap Stmt $ newStmt (Block [])
-    fmap Stmt $ newStmt $ If (tokPos $1) $2 blk $4
+    blk <- newStmt (Block [])
+    newStmt $ If (tokPos $1) $2 blk $4
 }
 else_ : else scope                        { Just $2 }
       | else if_                          {% do
-    blkId <- fmap Stmt $ newStmt (Block [$2])
+    blkId <- newStmt (Block [$2])
     return $ Just blkId
 }
       | {-empty-}                         { Nothing }
@@ -271,9 +271,9 @@ else_ : else scope                        { Just $2 }
 stmts : {-empty-}                         { [] }
       | line 'N' stmts                    { $1 : $3 }
       | block stmts                       { $1 : $2 }
-scope  : 'I' stmts 'D'                    {% fmap Stmt $ newStmt $ Block $2 }
-       | ';' line 'N'                     {% fmap Stmt $ newStmt $ Block [$2] }
-       | ';' 'N'                          {% fmap Stmt $ newStmt $ Block [] }
+scope  : 'I' stmts 'D'                    {% newStmt $ Block $2 }
+       | ';' line 'N'                     {% newStmt $ Block [$2] }
+       | ';' 'N'                          {% newStmt $ Block [] }
 
 cases1 : case                             { [$1] }
        | case cases1                      { $1 : $2 }
@@ -437,8 +437,8 @@ instance MonadInstBuilder Parser where
     liftInstBuilderState (StateT s) = Parser $ state (runIdentity . s)
 
 
-takeInst :: Stmt -> Parser InstBuilderState
-takeInst (Stmt id) = liftInstBuilderState $ do
+takeInst :: StmtID -> Parser InstBuilderState
+takeInst id = liftInstBuilderState $ do
     stmt <- (Map.! id) <$> gets statements
     state <- get
     put initInstBuilderState

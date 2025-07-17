@@ -242,7 +242,7 @@ irGenerateTopInst (TopInst _ [] callType args isRef inst) = do
     liftAstState $ modify $
         \s -> s { instantiations = Map.insert callType funcIrHeader (instantiations s) }
 
-    irGenerateStmt inst (AST.Stmt 0)
+    irGenerateStmt inst 0
 
     funcIr <- liftFuncIrState get
     liftAstState $ modify $ \s -> s
@@ -251,8 +251,8 @@ irGenerateTopInst (TopInst _ [] callType args isRef inst) = do
         }
             
             
-irGenerateStmt :: Inst.InstBuilderState -> AST.Stmt -> IrGenerate ()
-irGenerateStmt inst (AST.Stmt id) = case Inst.statements inst Map.! id of
+irGenerateStmt :: Inst.InstBuilderState -> AST.StmtID -> IrGenerate ()
+irGenerateStmt inst id = case Inst.statements inst Map.! id of
     AST.ExprStmt expr -> void $ irGenerateExpr inst expr
     AST.Block ids     -> mapM_ (irGenerateStmt inst) ids
     AST.Return _ Nothing -> void $ appendStmt (Return Nothing)
@@ -368,7 +368,7 @@ irGenerateStmt inst (AST.Stmt id) = case Inst.statements inst Map.! id of
             withCurrentId ifId (appendStmt Break)
             irGenerateStmt inst stmt
 
-    AST.For _ expr mpat (AST.Stmt blkId) -> do
+    AST.For _ expr mpat blkId -> do
         idx <- initVar I64 (ConstInt 0)
 
         loopId <- appendStmt (Loop [])
