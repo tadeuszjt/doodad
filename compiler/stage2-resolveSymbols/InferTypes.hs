@@ -204,7 +204,7 @@ collect retty params state = do
             _ -> return ()
 
     forM_ (Map.toList $ expressions state) $ \(id, expression) -> withPos expression $ do
-        let exprType = typeOfExpr state (Expr id)
+        let exprType = typeOfExpr state id
         case expression of
             Ident _ symbol -> constraint exprType =<< look symbol
             Reference _ expr -> constraint exprType (typeOfExpr state expr)

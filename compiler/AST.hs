@@ -48,28 +48,28 @@ instance Type.Typeof Retty where
 
 data Pattern
     = Pattern      Int
-    | PatLiteral   Expr                   -- equal(a, b)
+    | PatLiteral   ExprID                 -- equal(a, b)
     | PatIgnore    TextPos                -- fine
     | PatIdent     TextPos Symbol         -- set(&ident, b)
     | PatTuple     TextPos [Pattern]      -- set(&a, first(&z)); set(&b, second(&z)) ...
     | PatSlice     TextPos [Pattern]      
-    | PatGuarded   TextPos Pattern Expr   -- fine
+    | PatGuarded   TextPos Pattern ExprID -- fine
     | PatAnnotated Pattern Type           -- fine
     | PatField     TextPos Symbol Pattern -- just(y) | x.isJust
     deriving (Eq)
 
 data Expr
-    = AExpr        Type  Expr
+    = AExpr        Type  ExprID
     | Int          TextPos Integer
     | Float        TextPos Double
     | Bool         TextPos Bool
     | Char         TextPos Char
     | String       TextPos String
-    | Call         TextPos Type [Expr]
+    | Call         TextPos Type [ExprID]
     | Ident        TextPos Symbol
-    | Match        TextPos Expr Pattern
-    | Reference    TextPos Expr
-    | Array        TextPos [Expr]
+    | Match        TextPos ExprID Pattern
+    | Reference    TextPos ExprID
+    | Array        TextPos [ExprID]
     | Expr         Int
     deriving (Eq)
 
@@ -82,22 +82,23 @@ instance Typeof Pattern where
     typeof a = error $ "can only take typeof PatAnnotated" 
 
 
+type ExprID = Int
 type StmtID = Int
 
 data Stmt
     = Stmt        Int
-    | Let         TextPos Pattern (Maybe Expr) (Maybe StmtID)
-    | With        TextPos [Expr] StmtID
-    | ExprStmt    Expr
-    | Return      TextPos (Maybe Expr)
+    | Let         TextPos Pattern (Maybe ExprID) (Maybe StmtID)
+    | With        TextPos [ExprID] StmtID
+    | ExprStmt    ExprID
+    | Return      TextPos (Maybe ExprID)
     | Block       [StmtID]
-    | If          TextPos Expr StmtID (Maybe StmtID)
-    | While       TextPos Expr StmtID
+    | If          TextPos ExprID StmtID (Maybe StmtID)
+    | While       TextPos ExprID StmtID
     | FuncInst    TextPos Generics Symbol [Param] Retty StmtID
     | Function    TextPos Generics FunDeps Symbol Type
     | Typedef     TextPos Generics Symbol Type
-    | Switch      TextPos Expr [(Pattern, StmtID)]
-    | For         TextPos Expr (Maybe Pattern) StmtID
+    | Switch      TextPos ExprID [(Pattern, StmtID)]
+    | For         TextPos ExprID (Maybe Pattern) StmtID
     | EmbedC      TextPos [(String, Symbol)] String
     | Enum        TextPos Generics Symbol [ (Symbol, [Type] ) ]
     | Derives     TextPos Generics Type [Type]
@@ -106,7 +107,7 @@ data Stmt
 
 instance TextPosition Pattern where
     textPos pattern = case pattern of
-        PatLiteral   e -> textPos e
+        -- PatLiteral   e -> textPos e
         PatIgnore    p -> p
         PatIdent     p _ -> p
         PatTuple     p _ -> p
@@ -118,7 +119,7 @@ instance TextPosition Pattern where
 
 instance TextPosition Expr where
     textPos expression = case expression of
-        AExpr        t expr -> textPos expr
+        -- AExpr        t expr -> textPos expr
         Int          p _    -> p
         Float        p _    -> p
         AST.Bool     p _    -> p
@@ -134,7 +135,7 @@ instance TextPosition Expr where
 
 instance TextPosition Stmt where
     textPos stmt = case stmt of
-        ExprStmt    expr -> textPos expr
+        -- ExprStmt    expr -> textPos expr
         Let         p _ _ _ -> p
         Return      p _ -> p
         -- Block       s -> textPos (head s)

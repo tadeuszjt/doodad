@@ -39,8 +39,8 @@ typeOfPat :: InstBuilderState -> Pattern -> Type
 typeOfPat state (Pattern id) = (types state) Map.! id
 
 
-typeOfExpr :: InstBuilderState -> Expr -> Type
-typeOfExpr state (Expr id) = (types state) Map.! id
+typeOfExpr :: InstBuilderState -> ExprID -> Type
+typeOfExpr state id = (types state) Map.! id
 
 
 typeOfType :: InstBuilderState -> Type -> Type

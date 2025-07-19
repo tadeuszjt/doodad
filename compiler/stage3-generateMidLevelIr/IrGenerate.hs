@@ -479,20 +479,20 @@ irGeneratePattern inst defBlkId (AST.Pattern patId) argId = case Inst.patterns i
     x -> error (show x)
 
 
-irGenerateCondition :: Inst.InstBuilderState -> ID -> AST.Expr -> IrGenerate ID
-irGenerateCondition inst defBlkId (AST.Expr id) = case Inst.expressions inst Map.! id of
+irGenerateCondition :: Inst.InstBuilderState -> ID -> AST.ExprID -> IrGenerate ID
+irGenerateCondition inst defBlkId id = case Inst.expressions inst Map.! id of
     AST.Match _ expr pat -> do
         val <- irGenerateExpr inst expr
         irGeneratePattern inst defBlkId pat val
 
-    _ -> irGenerateExpr inst (AST.Expr id)
+    _ -> irGenerateExpr inst id
 
     x -> error (show x)
 
 
 
-irGenerateExpr :: Inst.InstBuilderState -> AST.Expr -> IrGenerate ID
-irGenerateExpr inst (AST.Expr id) = case Inst.expressions inst Map.! id of
+irGenerateExpr :: Inst.InstBuilderState -> AST.ExprID -> IrGenerate ID
+irGenerateExpr inst id = case Inst.expressions inst Map.! id of
     AST.Ident _ symbol          -> look symbol
     AST.Call _ (Type tid) exprs ->
         irGenerateCall (Inst.types inst Map.! tid) =<< mapM (irGenerateExpr inst) exprs

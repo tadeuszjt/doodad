@@ -435,36 +435,50 @@ resolvePattern instState pattern = withPos pattern $ fmap Pattern $ case pattern
         newType id (Type 0)
 
 
-resolveExpr :: InstBuilderState -> Expr -> Resolve Expr
-resolveExpr state expression = withPos expression $ fmap Expr $ case expression of
-    AExpr typ expr -> do
-        expr'@(Expr id) <- resolveExpr state expr
+resolveExpr :: InstBuilderState -> ExprID -> Resolve ExprID
+resolveExpr state id = case (expressions state) Map.! id of
+    AST.String pos s -> do
+        i <- newExpr (AST.String pos s)
+        newType i (Type 0)
+    AST.Array pos exprs -> do
+        i <- newExpr =<< AST.Array pos <$> mapM (resolveExpr state) exprs
+        newType i (Type 0)
+    AST.Int pos n -> do
+        i <- newExpr (AST.Int pos n)
+        newType i (Type 0)
+    AST.Bool pos b -> do
+        i <- newExpr (AST.Bool pos b)
+        newType i (Type 0)
+    AST.Char pos c -> do
+        i <- newExpr (AST.Char pos c)
+        newType i (Type 0)
+    AST.Float pos f -> do
+        i <- newExpr (AST.Float pos f)
+        newType i (Type 0)
+    Ident pos symbol -> do
+        i <- newExpr =<< Ident pos <$> look symbol KeyVar
+        newType i (Type 0)
+    Reference pos expr -> do
+        i <- newExpr =<< Reference pos <$> resolveExpr state expr
+        newType i (Type 0)
+
+    Call pos typ exprs -> do
+        id <- generateId
         newType id =<< resolveType typ
-        return id
+        i <- newExpr =<< Call pos (Type id) <$> mapM (resolveExpr state) exprs
+        newType i (Type 0)
+        
+    Match pos expr pat -> do
+        expr' <- (resolveExpr state) expr
+        i <- newExpr =<< Match pos expr' <$> resolvePattern state pat
+        newType i (Type 0)
 
-    _ -> do 
-        id <- newExpr =<< case expression of
-            AST.String pos s -> return (AST.String pos s)
-            AST.Array pos exprs -> AST.Array pos <$> mapM (resolveExpr state) exprs
-            AST.Int pos n -> return (AST.Int pos n)
-            AST.Bool pos b -> return (AST.Bool pos b)
-            AST.Char pos c -> return (AST.Char pos c)
-            AST.Float pos f -> return (AST.Float pos f)
-            Ident pos symbol -> Ident pos <$> look symbol KeyVar
-            Reference pos expr -> Reference pos <$> resolveExpr state expr
+    AExpr typ expr -> do
+        i <- resolveExpr state expr
+        newType i =<< resolveType typ
 
-            Call pos typ exprs -> do
-                id <- generateId
-                newType id =<< resolveType typ
-                Call pos (Type id) <$> mapM (resolveExpr state) exprs
+    x -> error (show x)
 
-            Match pos expr pat -> do
-                expr' <- (resolveExpr state) expr
-                Match pos expr' <$> resolvePattern state pat
-
-            x -> error (show x)
-
-        newType id (Type 0)
                     
 
 processCEmbed :: String -> Resolve [(String, Symbol)]
