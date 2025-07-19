@@ -322,25 +322,30 @@ patterns  : {- empty -}                  { [] }
 patterns1 : pattern                      { [$1] }
           | pattern ',' patterns1        { $1 : $3 }
 
-pattern  : '_'                           { PatIgnore (tokPos $1) }
-         | literal                       { PatLiteral $1 }
+pattern  : '_'                           {% newPattern $ PatIgnore (tokPos $1) }
+         | literal                       {% newPattern $ PatLiteral $1 }
          | '-' int_c                     {% do
     intExpr <- newExpr $ AST.Int (tokPos $1) $ 0 - (read $ tokStr $2)
-    return $ PatLiteral intExpr
+    newPattern $ PatLiteral intExpr
 }
-         | ident                         { PatIdent (tokPos $1) (Sym [tokStr $1]) }
-         | '(' patterns ')'              { PatTuple (tokPos $1) $2 }
+         | ident                         {% newPattern $ PatIdent (tokPos $1) (Sym [tokStr $1]) }
+         | '(' patterns ')'              {% newPattern $ PatTuple (tokPos $1) $2 }
          | pattern '|' expr              {% do
     expr <- newExpr $ AExpr Type.Bool $3
-    return $ PatGuarded (tokPos $2) $1 expr
+    newPattern $ PatGuarded (tokPos $2) $1 expr
 }
          | pattern '|' expr '->' pattern {% do
     matchExpr <- newExpr $ Match (tokPos $4) $3 $5
-    return $ PatGuarded (tokPos $2) $1 matchExpr
+    newPattern $ PatGuarded (tokPos $2) $1 matchExpr
 }
-         | pattern ':' type_             { PatAnnotated $1 $3 }
-         | symbol '(' patterns ')'       { PatField (tokPos $2) (snd $1) (case $3 of [x] -> x; xs -> PatTuple (tokPos $2) xs) }
-         | '[' patterns ']'              { PatSlice (tokPos $1) $2 } 
+         | pattern ':' type_             {% newPattern $ PatAnnotated $1 $3 }
+         | '[' patterns ']'              {% newPattern $ PatSlice (tokPos $1) $2 } 
+         | symbol '(' patterns ')'       {% do
+    tupPat <- case $3 of
+        [x] -> return x
+        xs -> newPattern $ PatTuple (tokPos $2) xs
+    newPattern $ PatField (tokPos $2) (snd $1) tupPat
+}
  
 ---------------------------------------------------------------------------------------------------
 -- Expressions ------------------------------------------------------------------------------------

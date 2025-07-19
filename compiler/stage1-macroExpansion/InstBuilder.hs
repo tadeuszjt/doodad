@@ -35,8 +35,8 @@ initInstBuilderState = InstBuilderState
     }
 
 
-typeOfPat :: InstBuilderState -> Pattern -> Type
-typeOfPat state (Pattern id) = (types state) Map.! id
+typeOfPat :: InstBuilderState -> PatternID -> Type
+typeOfPat state id = (types state) Map.! id
 
 
 typeOfExpr :: InstBuilderState -> ExprID -> Type

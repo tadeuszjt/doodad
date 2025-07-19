@@ -315,17 +315,17 @@ irGenerateStmt inst id = case Inst.statements inst Map.! id of
                     irGenerateStmt inst false
                     void $ appendStmt Break
 
-    AST.Let _ (AST.Pattern patId) Nothing Nothing -> do
-        val <- initVar (Inst.typeOfPat inst $ AST.Pattern patId) ConstZero
+    AST.Let _ (patId) Nothing Nothing -> do
+        val <- initVar (Inst.typeOfPat inst patId) ConstZero
         case Inst.patterns inst Map.! patId of
             AST.PatIdent _ symbol -> do
                 define symbol val
 
-    AST.Let _ (AST.Pattern patId) (Just expr) Nothing -> do
+    AST.Let _ patId (Just expr) Nothing -> do
         id <- irGenerateExpr inst expr
         case Inst.patterns inst Map.! patId of
             AST.PatIdent _ symbol -> do
-                let typ = Inst.typeOfPat inst (AST.Pattern patId)
+                let typ = Inst.typeOfPat inst patId
                 stmtm <- getStmt id
                 define symbol =<< case stmtm of
                     Just (Call retArg _ _) -> case retArg of
@@ -337,7 +337,7 @@ irGenerateStmt inst id = case Inst.statements inst Map.! id of
 
             _ -> do
                 curId <- getCurrentId
-                b <- irGeneratePattern inst curId (AST.Pattern patId) id
+                b <- irGeneratePattern inst curId patId id
                 void $ call ["assert", "assert"] [] [b]
 
     AST.With pos exprs blk -> do
@@ -405,16 +405,16 @@ irGenerateStmt inst id = case Inst.statements inst Map.! id of
     x -> error (show x)
 
 
-irGeneratePattern :: Inst.InstBuilderState -> ID -> AST.Pattern -> ID -> IrGenerate ID
-irGeneratePattern inst defBlkId (AST.Pattern patId) argId = case Inst.patterns inst Map.! patId of
+irGeneratePattern :: Inst.InstBuilderState -> ID -> AST.PatternID -> ID -> IrGenerate ID
+irGeneratePattern inst defBlkId patId argId = case Inst.patterns inst Map.! patId of
     AST.PatIgnore _ -> withCurrentId defBlkId $ initVar Type.Bool (ConstBool True)
     AST.PatLiteral expr -> do
         val <- irGenerateExpr inst expr
-        call ["compare", "equal"] [Inst.typeOfPat inst (AST.Pattern patId)] [val, argId]
+        call ["compare", "equal"] [Inst.typeOfPat inst patId] [val, argId]
 
     AST.PatField _ symbol pat -> do
         Just (_, i) <- liftAstState $ gets (Map.lookup symbol . fieldsAll)
-        let sumType   = Inst.typeOfPat inst (AST.Pattern patId)
+        let sumType   = Inst.typeOfPat inst patId
         let fieldType = Inst.typeOfPat inst pat
 
         en  <- call ["builtin", "builtinSumEnum"] [sumType] [argId]
@@ -435,7 +435,7 @@ irGeneratePattern inst defBlkId (AST.Pattern patId) argId = case Inst.patterns i
 
         loopId <- appendStmt (Loop [])
         withCurrentId loopId $ do
-            forM_ (zip pats [0..]) $ \(pat@(AST.Pattern fieldId), i) -> do
+            forM_ (zip pats [0..]) $ \(fieldId, i) -> do
                 let Just patType   = Map.lookup patId (Inst.types inst)
                 let Just fieldType = Map.lookup fieldId (Inst.types inst)
 
@@ -445,7 +445,7 @@ irGeneratePattern inst defBlkId (AST.Pattern patId) argId = case Inst.patterns i
                     [argId]
 
 
-                b <- irGeneratePattern inst defBlkId pat field
+                b <- irGeneratePattern inst defBlkId fieldId field
                 not <- call ["boolean", "not"] [Type.Bool] [b]
 
                 ifId <- appendStmt (If not [])
@@ -470,7 +470,7 @@ irGeneratePattern inst defBlkId (AST.Pattern patId) argId = case Inst.patterns i
         return match
 
     AST.PatIdent _ symbol -> do
-        let typ = Inst.typeOfPat inst (AST.Pattern patId)
+        let typ = Inst.typeOfPat inst patId
         value <- withCurrentId defBlkId $ initVar typ ConstZero
         call ["builtin", "store"] [typ] [value, argId]
         define symbol value

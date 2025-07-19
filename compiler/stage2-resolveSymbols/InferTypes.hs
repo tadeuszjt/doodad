@@ -252,7 +252,7 @@ collect retty params state = do
                         constraint (typeOfPat state pat) (ts !! i)
 
             PatTuple _ pats -> do
-                forM_ (zip pats [0..]) $ \(pat@(Pattern pid), i) -> do
+                forM_ (zip pats [0..]) $ \(pid, i) -> do
                     let Just pType = Map.lookup pid (types state)
                     symbol <- getSymbol (Sym ["tuple", "tuplePattern"])
                     collectCall pType [patType] $ foldType [TypeDef symbol, pType, Size (length pats), Size i, patType]
