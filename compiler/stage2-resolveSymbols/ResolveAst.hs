@@ -317,175 +317,175 @@ resolveTopStmt statement = case statement of
     TopStmt x -> error (show x)
 
 
-resolveInstState :: InstBuilderState -> Resolve InstBuilderState
-resolveInstState instState = do
-    liftInstBuilderState $ modify $ \s -> initInstBuilderState
-    let Just (Block stmts) = Map.lookup 0 (statements instState)
-    withCurId 0 $ mapM (resolveStmt instState) stmts
-    liftInstBuilderState $ get
+deleteExpr :: ExprID -> Resolve ()
+deleteExpr exprId = do
+    b <- liftInstBuilderState $ gets (Map.member exprId . expressions)
+    unless b (error "exprId not found")
+    liftInstBuilderState $ modify $ \s -> s { expressions = Map.delete exprId (expressions s) }
+
+deletePattern :: PatternID -> Resolve ()
+deletePattern patId = do
+    b <- liftInstBuilderState $ gets (Map.member patId . patterns)
+    unless b (error "patId not found")
+    liftInstBuilderState $ modify $ \s -> s { patterns = Map.delete patId (patterns s) }
+
+setExpr :: ExprID -> Expr -> Resolve ()
+setExpr exprId expr = do
+    b <- liftInstBuilderState $ gets (Map.member exprId . expressions)
+    unless b (error "exprId not found")
+    liftInstBuilderState $ modify $ \s -> s { expressions = Map.insert exprId expr (expressions s) }
+
+setPattern :: PatternID -> Pattern -> Resolve ()
+setPattern patId pattern = do
+    b <- liftInstBuilderState $ gets (Map.member patId . patterns)
+    unless b (error "patId not found")
+    liftInstBuilderState $ modify $ \s -> s { patterns = Map.insert patId pattern (patterns s) }
 
 
-resolveBlock :: InstBuilderState -> StmtID -> Resolve ID
-resolveBlock instState id = do
-    let Just stmt = Map.lookup id (statements instState)
+setStmt :: StmtID -> Stmt -> Resolve ()
+setStmt stmtId stmt = do
+    b <- liftInstBuilderState $ gets (Map.member stmtId . statements)
+    unless b (error "stmtId not found")
+    liftInstBuilderState $ modify $ \s -> s { statements = Map.insert stmtId stmt (statements s) }
+
+
+setType :: Int -> Type -> Resolve ()
+setType id typ = liftInstBuilderState $ do
+    modify $ \s -> s { types = Map.insert id typ (types s) }
+
+
+resolveStmt :: StmtID -> Resolve ()
+resolveStmt stmtId = do
+    Just stmt <- liftInstBuilderState $ Map.lookup stmtId <$> gets statements
     case stmt of
         Block stmts -> do
             pushSymbolTable
-            id <- newStmt (Block [])
-            withCurId id $ mapM (resolveStmt instState) stmts
+            mapM_ resolveStmt stmts
             popSymbolTable
-            return id
-        x -> error (show x)
 
-
-resolveStmt :: InstBuilderState -> StmtID -> Resolve ()
-resolveStmt instState id = do
-    let Just statement = Map.lookup id (statements instState)
-    case statement of
-        Block stmts -> do
-            pushSymbolTable
-            id <- appendStmt (Block [])
-            withCurId id $ mapM_ (resolveStmt instState) stmts
-            popSymbolTable
-            
-        Return pos mexpr -> void $ appendStmt . Return pos =<< traverse (resolveExpr instState) mexpr
-        ExprStmt expr -> void $ appendStmt . ExprStmt =<< resolveExpr instState expr
-        EmbedC pos [] str -> do
+        Return pos mexpr -> void (traverse resolveExpr mexpr)
+        ExprStmt expr    -> resolveExpr expr
+        EmbedC pos [] str     -> do
             strMap <- processCEmbed str
-            void $ appendStmt $ EmbedC pos strMap str
-
-        Let pos pattern mexpr Nothing -> do
-            pattern' <- resolvePattern instState pattern
-            mexpr'   <- traverse (resolveExpr instState) mexpr
-            void $ appendStmt $ Let pos pattern' mexpr' Nothing
-
-        With pos exprs blk -> do
-            exprs' <- mapM (resolveExpr instState) exprs
-            id <- resolveBlock instState blk
-            void $ appendStmt $ With pos exprs' id
+            setStmt stmtId $ EmbedC pos strMap str
 
         If pos expr stmt melse -> do
             pushSymbolTable
-            expr' <- resolveExpr instState expr
-            trueId <- resolveBlock instState stmt
+            resolveExpr expr
+            resolveStmt stmt
             popSymbolTable
             pushSymbolTable
-
-            falseId <- traverse (resolveBlock instState) melse
+            traverse resolveStmt melse
             popSymbolTable
-            void $ appendStmt $ If pos expr' trueId falseId
-
-        While pos expr blk -> do
-            pushSymbolTable
-            expr' <- resolveExpr instState expr
-            id <- resolveBlock instState blk
-            popSymbolTable
-            void $ appendStmt $ While pos expr' id
-
-        For pos expr mpat blk -> do
-            pushSymbolTable
-            expr' <- resolveExpr instState expr
-            mpat' <- traverse (resolvePattern instState) mpat
-            id <- resolveBlock instState blk
-            popSymbolTable
-            void $ appendStmt $ For pos expr' mpat' id
 
         Switch pos expr cases -> do
-            pushSymbolTable
-            expr' <- resolveExpr instState expr
-            cases' <- forM cases $ \(pat, stmt) -> do
+            resolveExpr expr
+            forM_ cases $ \(pat, stmt) -> do
                 pushSymbolTable
-                pat' <- resolvePattern instState pat
-                id <- resolveBlock instState stmt
+                resolvePattern pat
+                resolveStmt stmt
                 popSymbolTable
-                return (pat', id)
+
+        Let pos pat mexpr Nothing -> do
+            resolvePattern pat
+            void $ traverse resolveExpr mexpr
+
+        For pos expr mpat stmt -> do
+            resolveExpr expr
+            pushSymbolTable
+            traverse resolvePattern mpat
+            resolveStmt stmt
             popSymbolTable
-            void $ appendStmt $ Switch pos expr' cases'
+
+        While pos expr stmt -> do
+            pushSymbolTable
+            resolveExpr expr
+            resolveStmt stmt 
+            popSymbolTable
+
+        With pos exprs stmt -> do
+            mapM_ resolveExpr exprs
+            pushSymbolTable
+            resolveStmt stmt
+            popSymbolTable
 
         x -> error (show x)
 
 
-resolvePattern :: InstBuilderState -> PatternID -> Resolve PatternID
-resolvePattern instState patId = case (patterns instState) Map.! patId of
-    PatIgnore pos         -> do
-        i <- newPattern (PatIgnore pos)
-        newType i (Type 0)
-    PatTuple pos pats     -> do
-        i <- newPattern =<< PatTuple pos <$> mapM (resolvePattern instState) pats
-        newType i (Type 0)
-    PatLiteral expr       -> do
-        i <- newPattern =<< PatLiteral <$> resolveExpr instState expr
-        newType i (Type 0)
-    PatField pos symbol pat -> do
-        symbol' <- look symbol KeyType
-        i <- newPattern =<< PatField pos symbol' <$> resolvePattern instState pat
-        newType i (Type 0)
+resolveExpr :: ExprID -> Resolve ()
+resolveExpr exprId = do
+    Just expr <- liftInstBuilderState $ Map.lookup exprId <$> gets expressions
+    case expr of
+        Reference pos expr -> resolveExpr expr
+        AST.Int pos n      -> return ()
+        AST.Float pos f    -> return ()
+        AST.Bool pos b     -> return ()
+        AST.Char pos c     -> return ()
+        AST.String pos s   -> return ()
+        Ident pos symbol   -> setExpr exprId . Ident pos =<< look symbol KeyVar
+        AST.Array pos exprs -> mapM_ resolveExpr exprs
 
-    PatGuarded pos pat expr -> do
-        pat' <- resolvePattern instState pat
-        i <- newPattern =<< PatGuarded pos pat' <$> resolveExpr instState expr
-        newType i (Type 0)
+        Call pos typ exprs -> do
+            id <- generateId
+            newType id =<< resolveType typ
+            mapM_ resolveExpr exprs
+            setExpr exprId $ Call pos (Type id) exprs
 
-    PatIdent pos (Sym str) -> do
-        symbol <- genSymbol (SymResolved str)
-        define symbol KeyVar symbol False
-        i <- newPattern (PatIdent pos symbol)
-        newType i (Type 0)
+        Match pos expr pat -> do
+            resolveExpr expr
+            resolvePattern pat
 
-    PatAnnotated pat typ -> do
-        id <- resolvePattern instState pat
-        newType id =<< resolveType typ
-        return id
+        AExpr typ expr -> do
+            resolveExpr expr
+            setExpr exprId =<< liftInstBuilderState (gets $ (Map.! expr) . expressions)
+            setType exprId =<< resolveType typ
+            deleteExpr expr
 
-    x -> error (show x)
+        x -> error (show x)
 
 
+resolvePattern :: PatternID -> Resolve ()
+resolvePattern patId = do
+    Just pattern <- liftInstBuilderState $ Map.lookup patId <$> gets patterns
+    case pattern of
+        PatTuple pos pats -> mapM_ resolvePattern pats
+        PatIgnore pos     -> return ()
+        PatLiteral expr -> resolveExpr expr
 
-resolveExpr :: InstBuilderState -> ExprID -> Resolve ExprID
-resolveExpr state id = case (expressions state) Map.! id of
-    AST.String pos s -> do
-        i <- newExpr (AST.String pos s)
-        newType i (Type 0)
-    AST.Array pos exprs -> do
-        i <- newExpr =<< AST.Array pos <$> mapM (resolveExpr state) exprs
-        newType i (Type 0)
-    AST.Int pos n -> do
-        i <- newExpr (AST.Int pos n)
-        newType i (Type 0)
-    AST.Bool pos b -> do
-        i <- newExpr (AST.Bool pos b)
-        newType i (Type 0)
-    AST.Char pos c -> do
-        i <- newExpr (AST.Char pos c)
-        newType i (Type 0)
-    AST.Float pos f -> do
-        i <- newExpr (AST.Float pos f)
-        newType i (Type 0)
-    Ident pos symbol -> do
-        i <- newExpr =<< Ident pos <$> look symbol KeyVar
-        newType i (Type 0)
-    Reference pos expr -> do
-        i <- newExpr =<< Reference pos <$> resolveExpr state expr
-        newType i (Type 0)
+        PatField pos symbol pat -> do
+            symbol' <- look symbol KeyType
+            resolvePattern pat -- TODO
+            setPattern patId $ PatField pos symbol' pat
 
-    Call pos typ exprs -> do
-        id <- generateId
-        newType id =<< resolveType typ
-        i <- newExpr =<< Call pos (Type id) <$> mapM (resolveExpr state) exprs
-        newType i (Type 0)
-        
-    Match pos expr pat -> do
-        expr' <- (resolveExpr state) expr
-        i <- newExpr =<< Match pos expr' <$> resolvePattern state pat
-        newType i (Type 0)
+        PatIdent pos (Sym str) -> do
+            symbol <- genSymbol (SymResolved str)
+            define symbol KeyVar symbol False
+            setPattern patId $ PatIdent pos symbol
 
-    AExpr typ expr -> do
-        i <- resolveExpr state expr
-        newType i =<< resolveType typ
+        PatGuarded pos pat expr -> do
+            resolvePattern pat
+            resolveExpr expr
 
-    x -> error (show x)
+        PatAnnotated pat typ -> do
+            resolvePattern pat
+            setPattern patId =<< liftInstBuilderState (gets $ (Map.! pat) . patterns)
+            setType patId =<< resolveType typ
+            deletePattern pat
 
-                    
+        x -> error (show x)
+
+
+resolveInstState :: InstBuilderState -> Resolve InstBuilderState
+resolveInstState instState = do
+    liftInstBuilderState $ put instState
+    forM_ (Map.keys $ expressions instState) $ \exprId -> do
+        newType exprId (Type 0)
+    forM_ (Map.keys $ patterns instState) $ \patId -> do
+        newType patId (Type 0)
+
+    resolveStmt 0
+    liftInstBuilderState $ get
+
 
 processCEmbed :: String -> Resolve [(String, Symbol)]
 processCEmbed ('$':xs) = do
