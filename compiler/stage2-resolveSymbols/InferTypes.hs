@@ -117,7 +117,7 @@ collectCall exprType exprTypes callType = do
     -- functional dependencies. If the independent variables fully describe the call type,
     -- it can be said that no other overlapping definition could conflict with it so we can
     -- type check.
-    Just (Function _ featureGenerics funDeps _ _) <- Map.lookup funcSymbol . featuresAll <$> ask
+    Just (Function featureGenerics funDeps _ _) <- Map.lookup funcSymbol . featuresAll <$> ask
     unless (length callTypeArgs == length featureGenerics) (error "xs needs to be > 0")
     let indices = map snd $ filter
             (\(g, _) -> not $ elem g $ map snd funDeps)
@@ -130,7 +130,7 @@ collectCall exprType exprTypes callType = do
             let (generics, typ) = case stmt of
                     TopInst _ generics typ _ _ _                       -> (generics, typ)
                     TopField _ generics typ _                          -> (generics, typ)
-                    TopStmt (Derives _ generics argType [featureType]) ->
+                    TopStmt (Derives generics argType [featureType]) ->
                         (generics, Apply featureType argType) in
 
                 let genericsToVars = zip (map TypeDef generics) (map Type [-1, -2..]) in 
@@ -160,7 +160,7 @@ collectDefault params state = do
     forM_ (Map.toList $ expressions state) $ \(id, expression) -> do
         let Just exprType = Map.lookup id (types state)
         case expression of
-            Call _ callType exprs -> case unfoldType (typeOfType state callType) of
+            Call callType exprs -> case unfoldType (typeOfType state callType) of
                 (TypeDef symbol, ts) | symbolsCouldMatch symbol (Sym ["convert", "convert"]) -> do
                     constraintDefault exprType (typeOfExpr state $ exprs !! 0)
 
@@ -198,49 +198,49 @@ collect retty params state = do
         Param _ symbol typ -> define symbol typ
         x -> error (show x)
 
-    forM_ (Map.toList $ patterns state) $ \(id, pattern) -> withPos pattern $
+    forM_ (Map.toList $ patterns state) $ \(id, pattern) -> withPos ((textPositions state) Map.! id) $
         let Just patType = Map.lookup id (types state) in case pattern of
-            PatIdent _ symbol -> define symbol patType
+            PatIdent symbol -> define symbol patType
             _ -> return ()
 
-    forM_ (Map.toList $ expressions state) $ \(id, expression) -> withPos expression $ do
+    forM_ (Map.toList $ expressions state) $ \(id, expression) -> withPos ((textPositions state) Map.! id) $ do
         let exprType = typeOfExpr state id
         case expression of
-            Ident _ symbol -> constraint exprType =<< look symbol
-            Reference _ expr -> constraint exprType (typeOfExpr state expr)
-            AST.Int _ _ -> constraint exprType I64
-            AST.Float _ _ -> constraint exprType F64
-            AST.Bool _ _ -> constraint exprType Type.Bool
-            AST.Char _ _ -> constraint exprType Type.Char
-            AST.String _ _ -> constraint exprType (Apply Slice Type.Char)
+            Ident symbol -> constraint exprType =<< look symbol
+            Reference expr -> constraint exprType (typeOfExpr state expr)
+            AST.Int _ -> constraint exprType I64
+            AST.Float _ -> constraint exprType F64
+            AST.Bool _ -> constraint exprType Type.Bool
+            AST.Char _ -> constraint exprType Type.Char
+            AST.String _ -> constraint exprType (Apply Slice Type.Char)
 
-            AST.Array _ exprs -> do
+            AST.Array exprs -> do
                 when (length exprs > 0) $ do
                     constraint exprType (Apply Type.Slice $ typeOfExpr state $ exprs !! 0)
                     forM_ exprs $ \expr -> do
                         constraint (typeOfExpr state expr) (typeOfExpr state $ exprs !! 0)
 
-            Call _ (Type tid) exprs -> do
+            Call (Type tid) exprs -> do
                 let Just callType = Map.lookup tid (types state)
                 let exprTypes = map (typeOfExpr state) exprs
                 collectCall exprType exprTypes callType
 
-            Match _ expr pat -> do
+            Match expr pat -> do
                 constraint exprType Type.Bool
                 constraint (typeOfExpr state expr) (typeOfPat state pat)
         
             x -> error (show x)
 
-    forM_ (Map.toList $ patterns state) $ \(id, pattern) -> withPos pattern $
+    forM_ (Map.toList $ patterns state) $ \(id, pattern) -> withPos ((textPositions state) Map.! id) $
         let Just patType = Map.lookup id (types state) in case pattern of
-            PatIdent _ symbol -> constraint patType =<< look symbol
+            PatIdent symbol -> constraint patType =<< look symbol
             PatLiteral expr -> constraint patType (typeOfExpr state expr)
 
-            PatGuarded _ pat expr -> do
+            PatGuarded pat expr -> do
                 constraint (typeOfExpr state expr) (Type.Bool)
                 constraint patType (typeOfPat state pat)
 
-            PatField _ symbol pat -> do
+            PatField symbol pat -> do
                 Just (sumSym, i) <- (Map.lookup symbol . fieldsAll) <$> ask
                 resm <- baseTypeOfm patType
                 case resm of
@@ -251,29 +251,29 @@ collect retty params state = do
                         let (Sum, ts) = unfoldType base
                         constraint (typeOfPat state pat) (ts !! i)
 
-            PatTuple _ pats -> do
+            PatTuple pats -> do
                 forM_ (zip pats [0..]) $ \(pid, i) -> do
                     let Just pType = Map.lookup pid (types state)
                     symbol <- getSymbol (Sym ["tuple", "tuplePattern"])
                     collectCall pType [patType] $ foldType [TypeDef symbol, pType, Size (length pats), Size i, patType]
 
-            PatIgnore _ -> return ()
+            PatIgnore -> return ()
 
             x -> error (show x)
     
     forM_ (Map.toList $ statements state) $ \(id, statement) -> case statement of
         Block _ -> return ()
         ExprStmt _ -> return ()
-        EmbedC _ _ _ -> return ()
-        Let _ pat Nothing Nothing -> return ()
-        With _ _ _ -> return ()
-        Return _ Nothing -> return ()
-        Return _ (Just expr) -> constraint (typeOfExpr state expr) retty
-        Let _ pat (Just expr) Nothing -> constraint (typeOfPat state pat) (typeOfExpr state expr)
-        If _ expr _ _ -> constraint (typeOfExpr state expr) Type.Bool
-        While _ expr _ -> constraint (typeOfExpr state expr) Type.Bool
-        Switch _ expr cases -> forM_ cases $ \(pat, _) -> constraint (typeOfPat state pat) (typeOfExpr state expr)
-        For _ expr mpat _ -> case mpat of
+        EmbedC _ _ -> return ()
+        Let pat Nothing Nothing -> return ()
+        With _ _ -> return ()
+        Return Nothing -> return ()
+        Return (Just expr) -> constraint (typeOfExpr state expr) retty
+        Let pat (Just expr) Nothing -> constraint (typeOfPat state pat) (typeOfExpr state expr)
+        If expr _ _ -> constraint (typeOfExpr state expr) Type.Bool
+        While expr _ -> constraint (typeOfExpr state expr) Type.Bool
+        Switch expr cases -> forM_ cases $ \(pat, _) -> constraint (typeOfPat state pat) (typeOfExpr state expr)
+        For expr mpat _ -> case mpat of
             Nothing -> return ()
             Just pat -> do
                 symbol <- getSymbol (Sym ["container", "forAt"])

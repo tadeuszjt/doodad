@@ -255,9 +255,9 @@ irGenerateStmt :: Inst.InstBuilderState -> AST.StmtID -> IrGenerate ()
 irGenerateStmt inst id = case Inst.statements inst Map.! id of
     AST.ExprStmt expr -> void $ irGenerateExpr inst expr
     AST.Block ids     -> mapM_ (irGenerateStmt inst) ids
-    AST.Return _ Nothing -> void $ appendStmt (Return Nothing)
+    AST.Return Nothing -> void $ appendStmt (Return Nothing)
 
-    AST.Return _ (Just expr) -> do
+    AST.Return (Just expr) -> do
         id <- irGenerateExpr inst expr
         irRet <- liftFuncIrState (gets irReturn)
         stmtm <- liftFuncIrState $ gets (Map.lookup id . irStmts)
@@ -282,13 +282,13 @@ irGenerateStmt inst id = case Inst.statements inst Map.! id of
                     ArgRef   _ _ _ -> call ["builtin", "copy"] [Inst.typeOfExpr inst expr] [id]
 
 
-    AST.EmbedC _ strMap str -> do
+    AST.EmbedC strMap str -> do
         strMap' <- forM strMap $ \(s, symbol) -> do
             id' <- look symbol
             return (s, id')
         void $ appendStmt (EmbedC strMap' str)
 
-    AST.With _ exprs blk -> do
+    AST.With exprs blk -> do
         args <- forM exprs $ \expr -> do
             id <- irGenerateExpr inst expr
             let typ = Inst.typeOfExpr inst expr 
@@ -298,7 +298,7 @@ irGenerateStmt inst id = case Inst.statements inst Map.! id of
         withCurrentId withId $ irGenerateStmt inst blk
 
 
-    AST.If _ cnd true mfalse -> do
+    AST.If cnd true mfalse -> do
         curId <- getCurrentId
         arg <- irGenerateCondition inst curId cnd 
         case mfalse of
@@ -315,16 +315,15 @@ irGenerateStmt inst id = case Inst.statements inst Map.! id of
                     irGenerateStmt inst false
                     void $ appendStmt Break
 
-    AST.Let _ (patId) Nothing Nothing -> do
+    AST.Let (patId) Nothing Nothing -> do
         val <- initVar (Inst.typeOfPat inst patId) ConstZero
         case Inst.patterns inst Map.! patId of
-            AST.PatIdent _ symbol -> do
-                define symbol val
+            AST.PatIdent symbol -> define symbol val
 
-    AST.Let _ patId (Just expr) Nothing -> do
+    AST.Let patId (Just expr) Nothing -> do
         id <- irGenerateExpr inst expr
         case Inst.patterns inst Map.! patId of
-            AST.PatIdent _ symbol -> do
+            AST.PatIdent symbol -> do
                 let typ = Inst.typeOfPat inst patId
                 stmtm <- getStmt id
                 define symbol =<< case stmtm of
@@ -340,11 +339,11 @@ irGenerateStmt inst id = case Inst.statements inst Map.! id of
                 b <- irGeneratePattern inst curId patId id
                 void $ call ["assert", "assert"] [] [b]
 
-    AST.With pos exprs blk -> do
+    AST.With exprs blk -> do
         error "with"
 
 
-    AST.Switch _ expr cases -> do
+    AST.Switch expr cases -> do
         arg <- irGenerateExpr inst expr
         loopId <- appendStmt (Loop [])
         withCurrentId loopId $ do
@@ -358,7 +357,7 @@ irGenerateStmt inst id = case Inst.statements inst Map.! id of
             -- todo assert
             void $ appendStmt Break
 
-    AST.While _ cnd stmt -> do
+    AST.While cnd stmt -> do
         loopId <- appendStmt (Loop [])
 
         withCurrentId loopId $ do
@@ -368,7 +367,7 @@ irGenerateStmt inst id = case Inst.statements inst Map.! id of
             withCurrentId ifId (appendStmt Break)
             irGenerateStmt inst stmt
 
-    AST.For _ expr mpat blkId -> do
+    AST.For expr mpat blkId -> do
         idx <- initVar I64 (ConstInt 0)
 
         loopId <- appendStmt (Loop [])
@@ -407,12 +406,12 @@ irGenerateStmt inst id = case Inst.statements inst Map.! id of
 
 irGeneratePattern :: Inst.InstBuilderState -> ID -> AST.PatternID -> ID -> IrGenerate ID
 irGeneratePattern inst defBlkId patId argId = case Inst.patterns inst Map.! patId of
-    AST.PatIgnore _ -> withCurrentId defBlkId $ initVar Type.Bool (ConstBool True)
+    AST.PatIgnore -> withCurrentId defBlkId $ initVar Type.Bool (ConstBool True)
     AST.PatLiteral expr -> do
         val <- irGenerateExpr inst expr
         call ["compare", "equal"] [Inst.typeOfPat inst patId] [val, argId]
 
-    AST.PatField _ symbol pat -> do
+    AST.PatField symbol pat -> do
         Just (_, i) <- liftAstState $ gets (Map.lookup symbol . fieldsAll)
         let sumType   = Inst.typeOfPat inst patId
         let fieldType = Inst.typeOfPat inst pat
@@ -430,7 +429,7 @@ irGeneratePattern inst defBlkId patId argId = case Inst.patterns inst Map.! patI
         return match
 
 
-    AST.PatTuple _ pats -> do
+    AST.PatTuple pats -> do
         match <- withCurrentId defBlkId $ initVar Type.Bool (ConstBool True)
 
         loopId <- appendStmt (Loop [])
@@ -458,7 +457,7 @@ irGeneratePattern inst defBlkId patId argId = case Inst.patterns inst Map.! patI
 
         return match
 
-    AST.PatGuarded _ pat expr -> do
+    AST.PatGuarded pat expr -> do
         patMatch <- irGeneratePattern inst defBlkId pat argId
         match <- withCurrentId defBlkId $ initVar Type.Bool (ConstBool False)
 
@@ -469,7 +468,7 @@ irGeneratePattern inst defBlkId patId argId = case Inst.patterns inst Map.! patI
 
         return match
 
-    AST.PatIdent _ symbol -> do
+    AST.PatIdent symbol -> do
         let typ = Inst.typeOfPat inst patId
         value <- withCurrentId defBlkId $ initVar typ ConstZero
         call ["builtin", "store"] [typ] [value, argId]
@@ -481,7 +480,7 @@ irGeneratePattern inst defBlkId patId argId = case Inst.patterns inst Map.! patI
 
 irGenerateCondition :: Inst.InstBuilderState -> ID -> AST.ExprID -> IrGenerate ID
 irGenerateCondition inst defBlkId id = case Inst.expressions inst Map.! id of
-    AST.Match _ expr pat -> do
+    AST.Match expr pat -> do
         val <- irGenerateExpr inst expr
         irGeneratePattern inst defBlkId pat val
 
@@ -493,18 +492,18 @@ irGenerateCondition inst defBlkId id = case Inst.expressions inst Map.! id of
 
 irGenerateExpr :: Inst.InstBuilderState -> AST.ExprID -> IrGenerate ID
 irGenerateExpr inst id = case Inst.expressions inst Map.! id of
-    AST.Ident _ symbol          -> look symbol
-    AST.Call _ (Type tid) exprs ->
+    AST.Ident symbol          -> look symbol
+    AST.Call (Type tid) exprs ->
         irGenerateCall (Inst.types inst Map.! tid) =<< mapM (irGenerateExpr inst) exprs
 
-    AST.Reference _ expr -> irGenerateExpr inst expr
+    AST.Reference expr -> irGenerateExpr inst expr
 
-    AST.Float _ f  -> initVar F64 (ConstFloat f)
-    AST.Int _ n    -> initVar I64 (ConstInt n)
-    AST.Bool _ b   -> initVar Type.Bool (ConstBool b)
-    AST.Char _ c   -> initVar Type.Char (ConstChar c)
-    AST.String _ s -> initVar (Apply Slice Type.Char) (ConstString s)
-    AST.Array _ es -> do
+    AST.Float f  -> initVar F64 (ConstFloat f)
+    AST.Int n    -> initVar I64 (ConstInt n)
+    AST.Bool b   -> initVar Type.Bool (ConstBool b)
+    AST.Char c   -> initVar Type.Char (ConstChar c)
+    AST.String s -> initVar (Apply Slice Type.Char) (ConstString s)
+    AST.Array es -> do
         let typ = (Inst.types inst Map.! id)
         base <- baseTypeOf typ
         case unfoldType base of

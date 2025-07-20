@@ -130,43 +130,43 @@ topStmts : {-empty-}                  { () }
 
 
 topStmtLine
-    : type generics Symbol type_                {% addTopStmt $ TopStmt $ Typedef (fst $3) $2 (snd $3) $4 }
+    : type generics Symbol type_                {% addTopStmt $ TopStmt $ Typedef $2 (snd $3) $4 }
     | enumMacro                                 {% addTopStmt (TopStmt $1) }
-    | derives generics type_ '(' callTypes1 ')' {% addTopStmt $ TopStmt $ Derives (tokPos $1) $2 $3 $5 }
+    | derives generics type_ '(' callTypes1 ')' {% addTopStmt $ TopStmt (Derives $2 $3 $5) }
     | func funcGenerics ident '(' types ')' typeMaybe {%
-        addTopStmt $ TopStmt $ Function (tokPos $1) (fst $2) (snd $2) (Sym [tokStr $3]) $
+        addTopStmt $ TopStmt $ Function (fst $2) (snd $2) (Sym [tokStr $3]) $
             foldType (Type.Func : maybe Tuple id $7 : $5)
     }
     | func funcGenerics ident '::' callType {%
-        addTopStmt $ TopStmt $ Function (tokPos $1) (fst $2) (snd $2) (Sym [tokStr $3]) $5
+        addTopStmt $ TopStmt $ Function (fst $2) (snd $2) (Sym [tokStr $3]) $5
     }
     | func funcGenerics ident '::' type_ {%
-        addTopStmt $ TopStmt $ Function (tokPos $1) (fst $2) (snd $2) (Sym [tokStr $3]) $5
+        addTopStmt $ TopStmt $ Function (fst $2) (snd $2) (Sym [tokStr $3]) $5
     }
     | tuple generics Ident '{' tupleFields '}' {% do
         let pos = tokPos $1
         let generics = $2
         let fields = $5
         let symbol = (Sym [tokStr $3])
-        void $ addTopStmt $ TopStmt $ Typedef pos generics symbol (foldl Apply Tuple $ map snd fields)
+        void $ addTopStmt $ TopStmt $ Typedef generics symbol (foldl Apply Tuple $ map snd fields)
         forM_ (zip fields [0..]) $ \((fieldSymbol, fieldType), i) -> do
             -- write field feature
             let a = Sym ["A"]
             let b = Sym ["B"]
-            addTopStmt $ TopStmt $ Function pos [a, b] [(a, b)] fieldSymbol $ foldType [Type.Func, TypeDef b, TypeDef a]
+            addTopStmt $ TopStmt $ Function [a, b] [(a, b)] fieldSymbol $ foldType [Type.Func, TypeDef b, TypeDef a]
 
             -- write instance
             let typ = foldType (TypeDef symbol : map TypeDef generics)
             let acq = foldType [TypeDef fieldSymbol, typ, fieldType]
-            identExpr <- newExpr $ AST.Ident pos (Sym ["x"])
-            appendStmt . Return pos . Just =<< field pos fieldType i identExpr
+            identExpr <- newExpr pos $ AST.Ident (Sym ["x"])
+            appendStmt . Return . Just =<< field pos fieldType i identExpr
             inst0 <- takeInst 0
 
             addTopStmt $ TopInst pos generics acq [Param pos (Sym ["x"]) (Apply Type.Ref Tuple)] True inst0
 
             let acq2 = foldType [TypeDef fieldSymbol, Apply Table typ, Apply Slice fieldType]
-            identExpr2 <- newExpr $ AST.Ident pos (Sym ["x"])
-            appendStmt . Return pos . Just =<< field pos (Apply Slice fieldType) i identExpr2
+            identExpr2 <- newExpr pos $ AST.Ident (Sym ["x"])
+            appendStmt . Return . Just =<< field pos (Apply Slice fieldType) i identExpr2
             inst1 <- takeInst 0
             addTopStmt $ TopInst pos generics acq2 [Param pos (Sym ["x"]) (Apply Ref Tuple)] False inst1
     }
@@ -184,7 +184,7 @@ topStmtBlock
             RefRetty _ -> return True
             Retty _    -> return False
 
-        addTopStmt $ TopStmt $ Function (tokPos $1) $2 [] (Sym[tokStr $3]) $ foldType (Type.Func : typeof $7 : argTypes)
+        addTopStmt $ TopStmt $ Function $2 [] (Sym[tokStr $3]) $ foldType (Type.Func : typeof $7 : argTypes)
 
         let callType = foldl Apply (TypeDef $ Sym [tokStr $3]) $ map TypeDef $2
 
@@ -194,7 +194,7 @@ topStmtBlock
 ---------------------------------------------------------------------------------------------------
 -- Macros -----------------------------------------------------------------------------------------
 
-enumMacro : enum generics Ident '{' enumCases '}' { AST.Enum (tokPos $1) $2 (Sym [tokStr $3]) $5 }
+enumMacro : enum generics Ident '{' enumCases '}' { AST.Enum $2 (Sym [tokStr $3]) $5 }
 
 enumCases : {-empty-}                         { [] }
           | enumCase                          { [$1] }
@@ -242,34 +242,34 @@ retty : {-empty-}     { Retty Tuple }
       | '&' type_     { RefRetty $2 }
       | '[' ']' type_ { Retty (foldl Apply Type.Slice [$3]) }
 
-line : let pattern '=' expr               {% newStmt $ Let (tokPos $1) $2 (Just $4) Nothing }  
-     | let pattern                        {% newStmt $ Let (tokPos $1) $2 Nothing Nothing }
-     | expr                               {% newStmt $ ExprStmt $1 }
+line : let pattern '=' expr               {% newStmt (tokPos $1) $ Let $2 (Just $4) Nothing }  
+     | let pattern                        {% newStmt (tokPos $1) $ Let $2 Nothing Nothing }
+     | expr                               {% newStmt (TextPos "" 0 0) $ ExprStmt $1 }
      | expr '=' expr                      {% do
-    refExpr <- newExpr $ Reference (tokPos $2) $1
-    calExpr <- newExpr $ Call (tokPos $2) (TypeDef $ Sym ["store"]) [refExpr, $3]
-    newStmt $ ExprStmt calExpr
+    refExpr <- newExpr (tokPos $2) $ Reference $1
+    calExpr <- newExpr (tokPos $2) $ Call (TypeDef $ Sym ["store"]) [refExpr, $3]
+    newStmt (tokPos $2) $ ExprStmt calExpr
 }
-     | return mexpr                       {% newStmt $ Return (tokPos $1) $2 }
-     | embed_c                            {% newStmt $ AST.EmbedC (tokPos $1) [] (tokStr $1) }
+     | return mexpr                       {% newStmt (tokPos $1) $ Return $2 }
+     | embed_c                            {% newStmt (tokPos $1) $ AST.EmbedC [] (tokStr $1) }
 
 block : if_                               { $1 }
-      | while condition scope             {% newStmt $ While (tokPos $1) $2 $3 }
-      | for expr scope                    {% newStmt $ For (tokPos $1) $2 Nothing $3 }
-      | for expr '->' pattern scope       {% newStmt $ For (tokPos $1) $2 (Just $4) $5 }
-      | switch expr 'I' cases1 'D'        {% newStmt $ Switch (tokPos $1) $2 $4 }
-      | let pattern '='  expr in scope    {% newStmt $ Let (tokPos $1) $2 (Just $4) (Just $6) }
-      | let pattern in scope              {% newStmt $ Let (tokPos $1) $2 Nothing (Just $4) }
-      | with '(' exprs ')' scope          {% newStmt $ With (tokPos $1) $3 $5 }
+      | while condition scope             {% newStmt (tokPos $1) $ While $2 $3 }
+      | for expr scope                    {% newStmt (tokPos $1) $ For $2 Nothing $3 }
+      | for expr '->' pattern scope       {% newStmt (tokPos $1) $ For $2 (Just $4) $5 }
+      | switch expr 'I' cases1 'D'        {% newStmt (tokPos $1) $ Switch $2 $4 }
+      | let pattern '='  expr in scope    {% newStmt (tokPos $1) $ Let $2 (Just $4) (Just $6) }
+      | let pattern in scope              {% newStmt (tokPos $1) $ Let $2 Nothing (Just $4) }
+      | with '(' exprs ')' scope          {% newStmt (tokPos $1) (With $3 $5) }
 
-if_   : if condition scope else_          {% newStmt $ If (tokPos $1) $2 $3 $4 }
+if_   : if condition scope else_          {% newStmt (tokPos $1) $ If $2 $3 $4 }
       | if condition 'N' else_            {% do
-    blk <- newStmt (Block [])
-    newStmt $ If (tokPos $1) $2 blk $4
+    blk <- newStmt (tokPos $1) (Block [])
+    newStmt (tokPos $1) $ If $2 blk $4
 }
 else_ : else scope                        { Just $2 }
       | else if_                          {% do
-    blkId <- newStmt (Block [$2])
+    blkId <- newStmt (tokPos $1) (Block [$2])
     return $ Just blkId
 }
       | {-empty-}                         { Nothing }
@@ -277,9 +277,9 @@ else_ : else scope                        { Just $2 }
 stmts : {-empty-}                         { [] }
       | line 'N' stmts                    { $1 : $3 }
       | block stmts                       { $1 : $2 }
-scope  : 'I' stmts 'D'                    {% newStmt $ Block $2 }
-       | ';' line 'N'                     {% newStmt $ Block [$2] }
-       | ';' 'N'                          {% newStmt $ Block [] }
+scope  : 'I' stmts 'D'                    {% newStmt (tokPos $1) $ Block $2 }
+       | ';' line 'N'                     {% newStmt (tokPos $1) $ Block [$2] }
+       | ';' 'N'                          {% newStmt (tokPos $1) $ Block [] }
 
 cases1 : case                             { [$1] }
        | case cases1                      { $1 : $2 }
@@ -322,29 +322,29 @@ patterns  : {- empty -}                  { [] }
 patterns1 : pattern                      { [$1] }
           | pattern ',' patterns1        { $1 : $3 }
 
-pattern  : '_'                           {% newPattern $ PatIgnore (tokPos $1) }
+pattern  : '_'                           {% newPattern $ PatIgnore }
          | literal                       {% newPattern $ PatLiteral $1 }
          | '-' int_c                     {% do
-    intExpr <- newExpr $ AST.Int (tokPos $1) $ 0 - (read $ tokStr $2)
+    intExpr <- newExpr (tokPos $1) $ AST.Int $ 0 - (read $ tokStr $2)
     newPattern $ PatLiteral intExpr
 }
-         | ident                         {% newPattern $ PatIdent (tokPos $1) (Sym [tokStr $1]) }
-         | '(' patterns ')'              {% newPattern $ PatTuple (tokPos $1) $2 }
+         | ident                         {% newPattern $ PatIdent (Sym [tokStr $1]) }
+         | '(' patterns ')'              {% newPattern $ PatTuple $2 }
          | pattern '|' expr              {% do
-    expr <- newExpr $ AExpr Type.Bool $3
-    newPattern $ PatGuarded (tokPos $2) $1 expr
+    expr <- newExpr (tokPos $2) $ AExpr Type.Bool $3
+    newPattern $ PatGuarded $1 expr
 }
          | pattern '|' expr '->' pattern {% do
-    matchExpr <- newExpr $ Match (tokPos $4) $3 $5
-    newPattern $ PatGuarded (tokPos $2) $1 matchExpr
+    matchExpr <- newExpr (tokPos $2) $ Match $3 $5
+    newPattern $ PatGuarded $1 matchExpr
 }
          | pattern ':' type_             {% newPattern $ PatAnnotated $1 $3 }
-         | '[' patterns ']'              {% newPattern $ PatSlice (tokPos $1) $2 } 
+         | '[' patterns ']'              {% newPattern $ PatSlice $2 } 
          | symbol '(' patterns ')'       {% do
     tupPat <- case $3 of
         [x] -> return x
-        xs -> newPattern $ PatTuple (tokPos $2) xs
-    newPattern $ PatField (tokPos $2) (snd $1) tupPat
+        xs -> newPattern $ PatTuple xs
+    newPattern $ PatField (snd $1) tupPat
 }
  
 ---------------------------------------------------------------------------------------------------
@@ -357,92 +357,92 @@ mexpr  : {-empty-}                               { Nothing }
        | expr                                    { Just $1 }
 
 condition : expr                                 { $1 }
-          | expr '->' pattern                    {% newExpr $ Match (tokPos $2) $1 $3 }
+          | expr '->' pattern                    {% newExpr (tokPos $2) $ Match $1 $3 }
 
 expr   : literal                                 { $1 }
-       | expr ':' type_                          {% newExpr $ AExpr $3 $1 }
-       | symbol                                  {% newExpr $ AST.Ident (fst $1) (snd $1) }
+       | expr ':' type_                          {% newExpr (tokPos $2) $ AExpr $3 $1 }
+       | symbol                                  {% newExpr (fst $1) $ AST.Ident (snd $1) }
        | '[' exprs ']'                           {% do
-    arrExpr <- newExpr $ AST.Array (tokPos $1) $2
-    newExpr $ Call (tokPos $1) (TypeDef $ Sym ["slice", "makeSlice"]) [arrExpr]
+    arrExpr <- newExpr (tokPos $1) $ AST.Array $2
+    newExpr (tokPos $1) $ Call (TypeDef $ Sym ["slice", "makeSlice"]) [arrExpr]
 }
        | expr '.' int_c                          {% do
-    refExpr <- newExpr $ AST.Reference (tokPos $2) $1
-    newExpr $ Call (tokPos $2) (foldType $ [TypeDef (Sym ["builtin", "field"]), Size (read $ tokStr $3), Type 0, Type 0]) [refExpr]
+    refExpr <- newExpr (tokPos $2) $ AST.Reference $1
+    newExpr (tokPos $2) $ Call (foldType $ [TypeDef (Sym ["builtin", "field"]), Size (read $ tokStr $3), Type 0, Type 0]) [refExpr]
 }
-       | '&' expr                                {% newExpr $ AST.Reference (tokPos $1) $2 }
+       | '&' expr                                {% newExpr (tokPos $1) $ AST.Reference $2 }
        | expr '[' expr ']'                       {% do
-    refExpr <- newExpr $ AST.Reference (tokPos $2) $1
-    newExpr $ Call (tokPos $2) (TypeDef $ Sym ["container", "at"]) [refExpr, $3]
+    refExpr <- newExpr (tokPos $2) $ AST.Reference $1
+    newExpr (tokPos $2) $ Call (TypeDef $ Sym ["container", "at"]) [refExpr, $3]
 }
        | expr '[' '..' ']'                       {% do
-    refExpr <- newExpr $ AST.Reference (tokPos $2) $1
-    intExpr <- newExpr $ AST.Int (tokPos $2) 0
-    calExpr <- newExpr $ Call (tokPos $2) (TypeDef $ Sym ["limits", "limitMax"]) []
-    newExpr $ Call (tokPos $2) (TypeDef $ Sym ["slice", "slice"]) [ refExpr , intExpr , calExpr ]
+    refExpr <- newExpr (tokPos $2) $ AST.Reference $1
+    intExpr <- newExpr (tokPos $2) $ AST.Int 0
+    calExpr <- newExpr (tokPos $2) $ Call (TypeDef $ Sym ["limits", "limitMax"]) []
+    newExpr (tokPos $2) $ Call (TypeDef $ Sym ["slice", "slice"]) [ refExpr , intExpr , calExpr ]
 }
        | expr '[' '..' expr ']'                  {% do
-    refExpr <- newExpr $ AST.Reference (tokPos $2) $1
-    intExpr <- newExpr $ AST.Int (tokPos $2) 0
-    newExpr $ Call (tokPos $2) (TypeDef $ Sym ["slice", "slice"]) [ refExpr , intExpr , $4 ]
+    refExpr <- newExpr (tokPos $2) $ AST.Reference $1
+    intExpr <- newExpr (tokPos $2) $ AST.Int 0
+    newExpr (tokPos $2) $ Call (TypeDef $ Sym ["slice", "slice"]) [ refExpr , intExpr , $4 ]
 }
        | expr '[' expr '..' ']'                  {% do
-    refExpr <- newExpr $ AST.Reference (tokPos $2) $1
-    callExpr <- newExpr $ Call (tokPos $2) (TypeDef $ Sym ["limits", "limitMax"]) []
-    newExpr $ Call (tokPos $2) (TypeDef $ Sym ["slice", "slice"]) [ refExpr , $3 , callExpr ]
+    refExpr <- newExpr (tokPos $2) $ AST.Reference $1
+    callExpr <- newExpr (tokPos $2) $ Call (TypeDef $ Sym ["limits", "limitMax"]) []
+    newExpr (tokPos $2) $ Call (TypeDef $ Sym ["slice", "slice"]) [ refExpr , $3 , callExpr ]
 }
        | expr '[' expr '..' expr ']'             {% do
-    refExpr <- newExpr $ AST.Reference (tokPos $2) $1
-    newExpr $ Call (tokPos $2) (TypeDef $ Sym ["slice", "slice"]) [refExpr, $3, $5]
+    refExpr <- newExpr (tokPos $2) $ AST.Reference $1
+    newExpr (tokPos $2) $ Call (TypeDef $ Sym ["slice", "slice"]) [refExpr, $3, $5]
 }
        | expr '.' callType                       {% do
-    refExpr <- newExpr $ AST.Reference (tokPos $2) $1
-    newExpr $ Call (tokPos $2) $3 [refExpr]
+    refExpr <- newExpr (tokPos $2) $ AST.Reference $1
+    newExpr (tokPos $2) $ Call $3 [refExpr]
 }
        | expr '.' callType  '(' exprs ')'        {% do
-    refExpr <- newExpr $ AST.Reference (tokPos $2) $1
-    newExpr $ Call (tokPos $4) $3 (refExpr : $5)
+    refExpr <- newExpr (tokPos $2) $ AST.Reference $1
+    newExpr (tokPos $4) $ Call $3 (refExpr : $5)
 }
-       | callType '(' exprs ')'                  {% newExpr $ Call (tokPos $2) $1 $3 }
+       | callType '(' exprs ')'                  {% newExpr (tokPos $2) $ Call $1 $3 }
        | Symbol '(' exprs ')'                    {% do
     expr <- case $3 of
         [x] -> return x
-        xs  -> newExpr $ Call (tokPos $2) (TypeDef $ Sym ["tuple", "make" ++ show (length xs) ]) $3
-    newExpr $ AExpr (TypeDef $ snd $1) expr
+        xs  -> newExpr (tokPos $2) $ Call (TypeDef $ Sym ["tuple", "make" ++ show (length xs) ]) $3
+    newExpr (tokPos $2) $ AExpr (TypeDef $ snd $1) expr
 }
-       | '(' exprs ')'                           {% case $2 of [x] -> return x; xs -> newExpr $ Call (tokPos $1) (TypeDef $ Sym ["tuple", "make" ++ show (length xs) ]) $2 }
-       | expr '+' expr                           {% newExpr $ Call (tokPos $2) (TypeDef $ Sym ["add"]) [$1, $3] }
-       | expr '-' expr                           {% newExpr $ Call (tokPos $2) (TypeDef $ Sym ["subtract"]) [$1, $3] } 
-       | expr '*' expr                           {% newExpr $ Call (tokPos $2) (TypeDef $ Sym ["multiply"]) [$1, $3] } 
-       | expr '/' expr                           {% newExpr $ Call (tokPos $2) (TypeDef $ Sym ["divide"]) [$1, $3] }
-       | expr '%' expr                           {% newExpr $ Call (tokPos $2) (TypeDef $ Sym ["modulo"]) [$1, $3] } 
-       | expr '<' expr                           {% newExpr $ Call (tokPos $2) (TypeDef $ Sym ["lessThan"]) [$1, $3] } 
-       | expr '>' expr                           {% newExpr $ Call (tokPos $2) (TypeDef $ Sym ["greaterThan"]) [$1, $3] } 
-       | expr '==' expr                          {% newExpr $ Call (tokPos $2) (TypeDef $ Sym ["equal"]) [$1, $3] } 
-       | expr '!=' expr                          {% newExpr $ Call (tokPos $2) (TypeDef $ Sym ["notEqualTo"]) [$1, $3] } 
-       | expr '&&' expr                          {% newExpr $ Call (tokPos $2) (TypeDef $ Sym ["boolean", "and"]) [$1, $3] } 
-       | expr '||' expr                          {% newExpr $ Call (tokPos $2) (TypeDef $ Sym ["boolean", "or"]) [$1, $3] } 
-       | expr '<=' expr                          {% newExpr $ Call (tokPos $2) (TypeDef $ Sym ["compare", "lessThanEqual"]) [$1, $3] } 
-       | expr '>=' expr                          {% newExpr $ Call (tokPos $2) (TypeDef $ Sym ["compare", "greaterThanEqual"]) [$1, $3] } 
-       | '!' expr                                {% newExpr $ Call (tokPos $1) (TypeDef $ Sym ["boolean", "not"]) [$2] }
-       | '-' expr                                {% newExpr $ Call (tokPos $1) (TypeDef $ Sym ["arithmetic", "negate"]) [$2] }
-       | '@' type_                               {% newExpr $ Call (tokPos $1) (foldType [TypeDef (Sym ["builtin", "builtinContext"]), $2]) [] }
+       | '(' exprs ')'                           {% case $2 of [x] -> return x; xs -> newExpr (tokPos $1) $ Call (TypeDef $ Sym ["tuple", "make" ++ show (length xs) ]) $2 }
+       | expr '+' expr                           {% newExpr (tokPos $2) $ Call (TypeDef $ Sym ["add"]) [$1, $3] }
+       | expr '-' expr                           {% newExpr (tokPos $2) $ Call (TypeDef $ Sym ["subtract"]) [$1, $3] } 
+       | expr '*' expr                           {% newExpr (tokPos $2) $ Call (TypeDef $ Sym ["multiply"]) [$1, $3] } 
+       | expr '/' expr                           {% newExpr (tokPos $2) $ Call (TypeDef $ Sym ["divide"]) [$1, $3] }
+       | expr '%' expr                           {% newExpr (tokPos $2) $ Call (TypeDef $ Sym ["modulo"]) [$1, $3] } 
+       | expr '<' expr                           {% newExpr (tokPos $2) $ Call (TypeDef $ Sym ["lessThan"]) [$1, $3] } 
+       | expr '>' expr                           {% newExpr (tokPos $2) $ Call (TypeDef $ Sym ["greaterThan"]) [$1, $3] } 
+       | expr '==' expr                          {% newExpr (tokPos $2) $ Call (TypeDef $ Sym ["equal"]) [$1, $3] } 
+       | expr '!=' expr                          {% newExpr (tokPos $2) $ Call (TypeDef $ Sym ["notEqualTo"]) [$1, $3] } 
+       | expr '&&' expr                          {% newExpr (tokPos $2) $ Call (TypeDef $ Sym ["boolean", "and"]) [$1, $3] } 
+       | expr '||' expr                          {% newExpr (tokPos $2) $ Call (TypeDef $ Sym ["boolean", "or"]) [$1, $3] } 
+       | expr '<=' expr                          {% newExpr (tokPos $2) $ Call (TypeDef $ Sym ["compare", "lessThanEqual"]) [$1, $3] } 
+       | expr '>=' expr                          {% newExpr (tokPos $2) $ Call (TypeDef $ Sym ["compare", "greaterThanEqual"]) [$1, $3] } 
+       | '!' expr                                {% newExpr (tokPos $1) $ Call (TypeDef $ Sym ["boolean", "not"]) [$2] }
+       | '-' expr                                {% newExpr (tokPos $1) $ Call (TypeDef $ Sym ["arithmetic", "negate"]) [$2] }
+       | '@' type_                               {% newExpr (tokPos $1) $ Call (foldType [TypeDef (Sym ["builtin", "builtinContext"]), $2]) [] }
 
 
 literal : int_c                                  {% do
-    intExpr <- newExpr $ AST.Int (tokPos $1) (read $ tokStr $1)
-    newExpr $ Call (tokPos $1) (TypeDef $ Sym ["convert", "convert"]) [intExpr]
+    intExpr <- newExpr (tokPos $1) $ AST.Int (read $ tokStr $1)
+    newExpr (tokPos $1) $ Call (TypeDef $ Sym ["convert", "convert"]) [intExpr]
 }
         | float_c                                {% do
-    floatExpr <- newExpr $ AST.Float (tokPos $1) (read $ tokStr $1)
-    newExpr $ Call (tokPos $1) (TypeDef $ Sym ["convert", "convert"]) [floatExpr]
+    floatExpr <- newExpr (tokPos $1) $ AST.Float (read $ tokStr $1)
+    newExpr (tokPos $1) $ Call (TypeDef $ Sym ["convert", "convert"]) [floatExpr]
 }
-        | char_c                                 {% newExpr $ AST.Char (tokPos $1) (read $ tokStr $1) }
-        | true                                   {% newExpr $ AST.Bool (tokPos $1) True }
-        | false                                  {% newExpr $ AST.Bool (tokPos $1) False }
+        | char_c                                 {% newExpr (tokPos $1) $ AST.Char (read $ tokStr $1) }
+        | true                                   {% newExpr (tokPos $1) $ AST.Bool True }
+        | false                                  {% newExpr (tokPos $1) $ AST.Bool False }
         | string_c                               {% do
-    strExpr <- newExpr $ AST.String (tokPos $1) (processString $ tokStr $1)
-    newExpr $ Call (tokPos $1) (TypeDef $ Sym ["slice", "makeSlice"]) [strExpr]
+    strExpr <- newExpr (tokPos $1) $ AST.String (processString $ tokStr $1)
+    newExpr (tokPos $1) $ Call (TypeDef $ Sym ["slice", "makeSlice"]) [strExpr]
 }
 
 ---------------------------------------------------------------------------------------------------
@@ -508,8 +508,8 @@ tokPos tok = tokPosn tok
 
 field :: TextPos -> Type -> Integer -> ExprID -> Parser ExprID
 field pos fieldType i expr = do 
-    callExpr <- newExpr $ Call pos typ [expr]
-    newExpr $ AExpr fieldType callExpr
+    callExpr <- newExpr pos $ Call typ [expr]
+    newExpr pos $ AExpr fieldType callExpr
     where
         typ = foldType [TypeDef (Sym ["builtin", "builtinField"]), Size (fromIntegral i), Type 0, Type 0]
     

@@ -162,17 +162,17 @@ resolveAst ast imports = do
 
             -- pre-define top-level symbols
             topStmts' <- forM (topStmts ast) $ \stmt -> case stmt of
-                TopStmt (Typedef pos generics (Sym str) typ) -> do
+                TopStmt (Typedef generics (Sym str) typ) -> do
                     symbol' <- genSymbol (SymResolved str)
                     define symbol' KeyType symbol' False
-                    return $ TopStmt (Typedef pos generics symbol' typ)
+                    return $ TopStmt (Typedef generics symbol' typ)
 
-                TopStmt (Function pos generics funDeps symbol funcType) -> do
+                TopStmt (Function generics funDeps symbol funcType) -> do
                     symbol' <- genSymbol (SymResolved $ symStr symbol)
                     define symbol' KeyType symbol' False
-                    return $ TopStmt (Function pos generics funDeps symbol' funcType)
+                    return $ TopStmt (Function generics funDeps symbol' funcType)
 
-                TopStmt (Enum pos generics symbol fields) -> do
+                TopStmt (Enum generics symbol fields) -> do
                     symbol' <- genSymbol (SymResolved $ symStr symbol)
                     define symbol' KeyType symbol' False
 
@@ -181,7 +181,7 @@ resolveAst ast imports = do
                         define fieldSymbol' KeyType fieldSymbol' False
                         return fieldSymbol'
 
-                    return $ TopStmt $ Enum pos generics symbol' $ zip fieldSymbols' (map snd fields)
+                    return $ TopStmt $ Enum generics symbol' $ zip fieldSymbols' (map snd fields)
 
 
                 _ -> return stmt
@@ -254,7 +254,7 @@ resolveType typ = case typ of
 
 resolveTopStmt :: TopStmt -> Resolve TopStmt
 resolveTopStmt statement = case statement of
-    TopStmt (Function pos generics funDeps symbol funcType) -> do
+    TopStmt (Function generics funDeps symbol funcType) -> do
         unless (symbolIsResolved symbol) (fail "feature symbol wasn't resolved")
         pushSymbolTable
         generics' <- defineGenerics generics
@@ -264,7 +264,7 @@ resolveTopStmt statement = case statement of
             return (a', b')
         funcType' <- resolveType funcType
         popSymbolTable
-        return $ TopStmt (Function pos generics' funDeps' symbol funcType')
+        return $ TopStmt (Function generics' funDeps' symbol funcType')
 
 
     TopInst pos generics typ args isRef instState -> do
@@ -279,7 +279,7 @@ resolveTopStmt statement = case statement of
         return $ TopInst pos generics' typ' args' isRef instState'
 
 
-    TopStmt (Typedef pos generics symbol typ) -> do
+    TopStmt (Typedef generics symbol typ) -> do
         symbol' <- case symbol of
             SymResolved _ -> return symbol
             Sym str       -> do
@@ -291,17 +291,17 @@ resolveTopStmt statement = case statement of
         generics' <- defineGenerics generics
         typ' <- resolveType typ
         popSymbolTable
-        return $ TopStmt (Typedef pos generics' symbol' typ')
+        return $ TopStmt (Typedef generics' symbol' typ')
 
-    TopStmt (Derives pos generics t1 ts) -> do
+    TopStmt (Derives generics t1 ts) -> do
         pushSymbolTable
         generics' <- defineGenerics generics
         t1' <- resolveType t1
         ts' <- mapM resolveType ts
         popSymbolTable
-        return $ TopStmt (Derives pos generics' t1' ts')
+        return $ TopStmt (Derives generics' t1' ts')
 
-    TopStmt (Enum pos generics symbol fields) -> do
+    TopStmt (Enum generics symbol fields) -> do
         symbol' <- case symbol of
             SymResolved _ -> return symbol
 
@@ -312,46 +312,9 @@ resolveTopStmt statement = case statement of
         fieldSymbols' <- forM fields $ \(fieldSymbol, _) -> case fieldSymbol of
             SymResolved _ -> return fieldSymbol
 
-        return $ TopStmt $ Enum pos generics' symbol' (zip fieldSymbols' fieldTypes')
+        return $ TopStmt $ Enum generics' symbol' (zip fieldSymbols' fieldTypes')
 
     TopStmt x -> error (show x)
-
-
-deleteExpr :: ExprID -> Resolve ()
-deleteExpr exprId = do
-    b <- liftInstBuilderState $ gets (Map.member exprId . expressions)
-    unless b (error "exprId not found")
-    liftInstBuilderState $ modify $ \s -> s { expressions = Map.delete exprId (expressions s) }
-
-deletePattern :: PatternID -> Resolve ()
-deletePattern patId = do
-    b <- liftInstBuilderState $ gets (Map.member patId . patterns)
-    unless b (error "patId not found")
-    liftInstBuilderState $ modify $ \s -> s { patterns = Map.delete patId (patterns s) }
-
-setExpr :: ExprID -> Expr -> Resolve ()
-setExpr exprId expr = do
-    b <- liftInstBuilderState $ gets (Map.member exprId . expressions)
-    unless b (error "exprId not found")
-    liftInstBuilderState $ modify $ \s -> s { expressions = Map.insert exprId expr (expressions s) }
-
-setPattern :: PatternID -> Pattern -> Resolve ()
-setPattern patId pattern = do
-    b <- liftInstBuilderState $ gets (Map.member patId . patterns)
-    unless b (error "patId not found")
-    liftInstBuilderState $ modify $ \s -> s { patterns = Map.insert patId pattern (patterns s) }
-
-
-setStmt :: StmtID -> Stmt -> Resolve ()
-setStmt stmtId stmt = do
-    b <- liftInstBuilderState $ gets (Map.member stmtId . statements)
-    unless b (error "stmtId not found")
-    liftInstBuilderState $ modify $ \s -> s { statements = Map.insert stmtId stmt (statements s) }
-
-
-setType :: Int -> Type -> Resolve ()
-setType id typ = liftInstBuilderState $ do
-    modify $ \s -> s { types = Map.insert id typ (types s) }
 
 
 resolveStmt :: StmtID -> Resolve ()
@@ -363,13 +326,13 @@ resolveStmt stmtId = do
             mapM_ resolveStmt stmts
             popSymbolTable
 
-        Return pos mexpr -> void (traverse resolveExpr mexpr)
+        Return mexpr -> void (traverse resolveExpr mexpr)
         ExprStmt expr    -> resolveExpr expr
-        EmbedC pos [] str     -> do
+        EmbedC [] str     -> do
             strMap <- processCEmbed str
-            setStmt stmtId $ EmbedC pos strMap str
+            setStmt stmtId $ EmbedC strMap str
 
-        If pos expr stmt melse -> do
+        If expr stmt melse -> do
             pushSymbolTable
             resolveExpr expr
             resolveStmt stmt
@@ -378,7 +341,7 @@ resolveStmt stmtId = do
             traverse resolveStmt melse
             popSymbolTable
 
-        Switch pos expr cases -> do
+        Switch expr cases -> do
             resolveExpr expr
             forM_ cases $ \(pat, stmt) -> do
                 pushSymbolTable
@@ -386,24 +349,24 @@ resolveStmt stmtId = do
                 resolveStmt stmt
                 popSymbolTable
 
-        Let pos pat mexpr Nothing -> do
+        Let pat mexpr Nothing -> do
             resolvePattern pat
             void $ traverse resolveExpr mexpr
 
-        For pos expr mpat stmt -> do
+        For expr mpat stmt -> do
             resolveExpr expr
             pushSymbolTable
             traverse resolvePattern mpat
             resolveStmt stmt
             popSymbolTable
 
-        While pos expr stmt -> do
+        While expr stmt -> do
             pushSymbolTable
             resolveExpr expr
             resolveStmt stmt 
             popSymbolTable
 
-        With pos exprs stmt -> do
+        With exprs stmt -> do
             mapM_ resolveExpr exprs
             pushSymbolTable
             resolveStmt stmt
@@ -416,22 +379,22 @@ resolveExpr :: ExprID -> Resolve ()
 resolveExpr exprId = do
     Just expr <- liftInstBuilderState $ Map.lookup exprId <$> gets expressions
     case expr of
-        Reference pos expr -> resolveExpr expr
-        AST.Int pos n      -> return ()
-        AST.Float pos f    -> return ()
-        AST.Bool pos b     -> return ()
-        AST.Char pos c     -> return ()
-        AST.String pos s   -> return ()
-        Ident pos symbol   -> setExpr exprId . Ident pos =<< look symbol KeyVar
-        AST.Array pos exprs -> mapM_ resolveExpr exprs
+        Reference expr -> resolveExpr expr
+        AST.Int n      -> return ()
+        AST.Float f    -> return ()
+        AST.Bool b     -> return ()
+        AST.Char c     -> return ()
+        AST.String s   -> return ()
+        Ident symbol   -> setExpr exprId . Ident =<< look symbol KeyVar
+        AST.Array exprs -> mapM_ resolveExpr exprs
 
-        Call pos typ exprs -> do
+        Call typ exprs -> do
             id <- generateId
             newType id =<< resolveType typ
             mapM_ resolveExpr exprs
-            setExpr exprId $ Call pos (Type id) exprs
+            setExpr exprId $ Call (Type id) exprs
 
-        Match pos expr pat -> do
+        Match expr pat -> do
             resolveExpr expr
             resolvePattern pat
 
@@ -448,21 +411,21 @@ resolvePattern :: PatternID -> Resolve ()
 resolvePattern patId = do
     Just pattern <- liftInstBuilderState $ Map.lookup patId <$> gets patterns
     case pattern of
-        PatTuple pos pats -> mapM_ resolvePattern pats
-        PatIgnore pos     -> return ()
+        PatTuple pats -> mapM_ resolvePattern pats
+        PatIgnore         -> return ()
         PatLiteral expr -> resolveExpr expr
 
-        PatField pos symbol pat -> do
+        PatField symbol pat -> do
             symbol' <- look symbol KeyType
-            resolvePattern pat -- TODO
-            setPattern patId $ PatField pos symbol' pat
+            resolvePattern pat
+            setPattern patId (PatField symbol' pat)
 
-        PatIdent pos (Sym str) -> do
+        PatIdent (Sym str) -> do
             symbol <- genSymbol (SymResolved str)
             define symbol KeyVar symbol False
-            setPattern patId $ PatIdent pos symbol
+            setPattern patId (PatIdent symbol)
 
-        PatGuarded pos pat expr -> do
+        PatGuarded pat expr -> do
             resolvePattern pat
             resolveExpr expr
 
@@ -477,14 +440,11 @@ resolvePattern patId = do
 
 resolveInstState :: InstBuilderState -> Resolve InstBuilderState
 resolveInstState instState = do
-    liftInstBuilderState $ put instState
-    forM_ (Map.keys $ expressions instState) $ \exprId -> do
-        newType exprId (Type 0)
-    forM_ (Map.keys $ patterns instState) $ \patId -> do
-        newType patId (Type 0)
-
+    liftInstBuilderState (put instState)
+    forM_ (Map.keys $ expressions instState) $ \exprId -> newType exprId (Type 0)
+    forM_ (Map.keys $ patterns instState) $ \patId -> newType patId (Type 0)
     resolveStmt 0
-    liftInstBuilderState $ get
+    liftInstBuilderState get
 
 
 processCEmbed :: String -> Resolve [(String, Symbol)]

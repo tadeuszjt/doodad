@@ -48,27 +48,27 @@ instance Type.Typeof Retty where
 
 data Pattern
     = PatLiteral   ExprID                 -- equal(a, b)
-    | PatIgnore    TextPos                -- fine
-    | PatIdent     TextPos Symbol         -- set(&ident, b)
-    | PatTuple     TextPos [PatternID]      -- set(&a, first(&z)); set(&b, second(&z)) ...
-    | PatSlice     TextPos [PatternID]      
-    | PatGuarded   TextPos PatternID ExprID -- fine
+    | PatIgnore                           -- fine
+    | PatIdent     Symbol         -- set(&ident, b)
+    | PatTuple     [PatternID]      -- set(&a, first(&z)); set(&b, second(&z)) ...
+    | PatSlice     [PatternID]      
+    | PatGuarded   PatternID ExprID -- fine
     | PatAnnotated PatternID Type           -- fine
-    | PatField     TextPos Symbol PatternID -- just(y) | x.isJust
+    | PatField     Symbol PatternID -- just(y) | x.isJust
     deriving (Eq)
 
 data Expr
     = AExpr        Type  ExprID
-    | Int          TextPos Integer
-    | Float        TextPos Double
-    | Bool         TextPos Bool
-    | Char         TextPos Char
-    | String       TextPos String
-    | Call         TextPos Type [ExprID]
-    | Ident        TextPos Symbol
-    | Match        TextPos ExprID PatternID
-    | Reference    TextPos ExprID
-    | Array        TextPos [ExprID]
+    | Int          Integer
+    | Float        Double
+    | Bool         Bool
+    | Char         Char
+    | String       String
+    | Call         Type [ExprID]
+    | Ident        Symbol
+    | Match        ExprID PatternID
+    | Reference    ExprID
+    | Array        [ExprID]
     deriving (Eq)
 
 instance Typeof Expr where
@@ -85,70 +85,22 @@ type StmtID = Int
 type PatternID = Int
 
 data Stmt
-    = Stmt        Int
-    | Let         TextPos PatternID (Maybe ExprID) (Maybe StmtID)
-    | With        TextPos [ExprID] StmtID
+    = Let         PatternID (Maybe ExprID) (Maybe StmtID)
+    | With        [ExprID] StmtID
     | ExprStmt    ExprID
-    | Return      TextPos (Maybe ExprID)
+    | Return      (Maybe ExprID)
     | Block       [StmtID]
-    | If          TextPos ExprID StmtID (Maybe StmtID)
-    | While       TextPos ExprID StmtID
-    | FuncInst    TextPos Generics Symbol [Param] Retty StmtID
-    | Function    TextPos Generics FunDeps Symbol Type
-    | Typedef     TextPos Generics Symbol Type
-    | Switch      TextPos ExprID [(PatternID, StmtID)]
-    | For         TextPos ExprID (Maybe PatternID) StmtID
-    | EmbedC      TextPos [(String, Symbol)] String
-    | Enum        TextPos Generics Symbol [ (Symbol, [Type] ) ]
-    | Derives     TextPos Generics Type [Type]
+    | If          ExprID StmtID (Maybe StmtID)
+    | While       ExprID StmtID
+    | Function    Generics FunDeps Symbol Type
+    | Typedef     Generics Symbol Type
+    | Switch      ExprID [(PatternID, StmtID)]
+    | For         ExprID (Maybe PatternID) StmtID
+    | EmbedC      [(String, Symbol)] String
+    | Enum        Generics Symbol [ (Symbol, [Type] ) ]
+    | Derives     Generics Type [Type]
     deriving (Eq, Show)
 
-
-instance TextPosition Pattern where
-    textPos pattern = case pattern of
-        -- PatLiteral   e -> textPos e
-        PatIgnore    p -> p
-        PatIdent     p _ -> p
-        PatTuple     p _ -> p
-        PatGuarded   p _ _ -> p
-        PatSlice     p _ -> p
-        -- PatAnnotated pat _ -> textPos pat
-        PatField     p _ _ -> p
-
-
-instance TextPosition Expr where
-    textPos expression = case expression of
-        -- AExpr        t expr -> textPos expr
-        Int          p _    -> p
-        Float        p _    -> p
-        AST.Bool     p _    -> p
-        AST.Char    p _    -> p
-        String       p _    -> p
-        Ident        p _    -> p
-        Call         p _ _ -> p 
-        Match        p _ _ -> p
-        Reference    p _ -> p
-        AST.Array    p _ -> p
-        _ -> error (show expression)
-
-
-instance TextPosition Stmt where
-    textPos stmt = case stmt of
-        -- ExprStmt    expr -> textPos expr
-        Let         p _ _ _ -> p
-        Return      p _ -> p
-        -- Block       s -> textPos (head s)
-        If          p _ _ _ -> p
-        While       p _ _ -> p
-        FuncInst     p _ _ _ _ _ -> p
-        Typedef     p _ _ _ -> p
-        Switch      p _ _ -> p
-        For         p _ _ _ -> p
-        EmbedC      p _ _ -> p
-        Function     p _ _ _ _ -> p
-        Enum        p _ _ _ -> p
-        Derives     p _ _ _ -> p
-        x -> error ("invalid statement")
 
 tupStrs, arrStrs, brcStrs :: [String] -> String
 tupStrs strs = "(" ++ intercalate ", " strs ++ ")"
@@ -178,28 +130,28 @@ instance Show Retty where
 instance Show Pattern where
     show pattern = case pattern of
         PatLiteral c             -> show c
-        PatIgnore pos            -> "_"
-        PatIdent pos symbol      -> prettySymbol symbol
-        PatTuple pos ps          -> tupStrs (map show ps)
-        PatGuarded pos pat expr  -> show pat ++ " | " ++ show expr
+        PatIgnore                -> "_"
+        PatIdent symbol      -> prettySymbol symbol
+        PatTuple ps          -> tupStrs (map show ps)
+        PatGuarded pat expr  -> show pat ++ " | " ++ show expr
         PatAnnotated pat typ     -> show pat ++ ":" ++ show typ
-        PatField _ symbol pat    -> prettySymbol symbol ++ " " ++ show pat
-        PatSlice _ pats          -> arrStrs (map show pats)
+        PatField symbol pat    -> prettySymbol symbol ++ " " ++ show pat
+        PatSlice pats          -> arrStrs (map show pats)
 
 
 instance Show Expr where
     show expression = case expression of
-        AExpr t expr                       -> show expr ++ ":" ++ show t 
-        Int pos n                          -> show n
-        Float pos f                        -> show f
-        AST.Bool pos b                     -> if b then "true" else "false"
-        AST.Char pos c                     -> show c
-        String pos s                       -> show s
-        AST.Array pos exprs                -> arrStrs (map show exprs)
-        Ident p s                          -> prettySymbol s 
-        Call pos typ exprs                  -> show typ ++ tupStrs (map show exprs)
-        Match pos expr1 expr2              -> "(" ++ show expr1 ++ " -> " ++ show expr2 ++ ")"
-        Reference pos expr                 -> "&" ++ show expr
+        AExpr t expr                   -> show expr ++ ":" ++ show t 
+        Int n                          -> show n
+        Float f                        -> show f
+        AST.Bool b                     -> if b then "true" else "false"
+        AST.Char c                     -> show c
+        String s                       -> show s
+        AST.Array exprs                -> arrStrs (map show exprs)
+        Ident s                          -> prettySymbol s 
+        Call typ exprs                  -> show typ ++ tupStrs (map show exprs)
+        Match expr1 expr2              -> "(" ++ show expr1 ++ " -> " ++ show expr2 ++ ")"
+        Reference expr                 -> "&" ++ show expr
 
 
 -- every function must end on a newline and print pre before every line

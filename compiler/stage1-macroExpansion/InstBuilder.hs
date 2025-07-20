@@ -6,6 +6,7 @@ import Control.Monad.Identity
 
 import AST
 import Type
+import Error
 
 
 type ID = Int
@@ -17,6 +18,7 @@ data InstBuilderState = InstBuilderState
     , expressions   :: Map.Map ID Expr
     , patterns      :: Map.Map ID Pattern
     , types         :: Map.Map ID Type
+    , textPositions :: Map.Map ID TextPos
     , idSupply      :: ID
     , curId         :: ID
     }
@@ -30,6 +32,7 @@ initInstBuilderState = InstBuilderState
     , expressions = Map.empty
     , patterns    = Map.empty
     , types      = Map.empty
+    , textPositions = Map.empty
     , idSupply   = globalId + 1
     , curId      = globalId
     }
@@ -72,10 +75,13 @@ appendId id = do
     liftInstBuilderState $ modify $ \s -> s { statements = Map.insert curId stmt' (statements s) }
 
 
-newStmt :: MonadInstBuilder m => Stmt -> m ID
-newStmt stmt = do
+newStmt :: MonadInstBuilder m => TextPos -> Stmt -> m ID
+newStmt pos stmt = do
     id <- generateId
-    liftInstBuilderState $ modify $ \s -> s { statements = Map.insert id stmt (statements s) }
+    liftInstBuilderState $ modify $ \s -> s
+        { statements = Map.insert id stmt (statements s)
+        , textPositions = Map.insert id pos (textPositions s)
+        } 
     return id
 
 
@@ -87,10 +93,13 @@ newType id typ = do
     return id
 
 
-newExpr :: MonadInstBuilder m => Expr -> m ID
-newExpr expr = do
+newExpr :: MonadInstBuilder m => TextPos -> Expr -> m ID
+newExpr pos expr = do
     id <- generateId
-    liftInstBuilderState $ modify $ \s -> s { expressions = Map.insert id expr (expressions s) }
+    liftInstBuilderState $ modify $ \s -> s
+        { expressions = Map.insert id expr (expressions s)
+        , textPositions = Map.insert id pos (textPositions s)
+        }
     return id
 
 newPattern :: MonadInstBuilder m => Pattern -> m ID
@@ -115,6 +124,42 @@ withCurId id f = do
     liftInstBuilderState $ modify $ \s -> s { curId = prevId }
     return a
 
+
+deleteExpr :: MonadInstBuilder m => ExprID -> m ()
+deleteExpr exprId = do
+    b <- liftInstBuilderState $ gets (Map.member exprId . expressions)
+    unless b (error "exprId not found")
+    liftInstBuilderState $ modify $ \s -> s { expressions = Map.delete exprId (expressions s) }
+
+deletePattern :: MonadInstBuilder m => PatternID -> m ()
+deletePattern patId = do
+    b <- liftInstBuilderState $ gets (Map.member patId . patterns)
+    unless b (error "patId not found")
+    liftInstBuilderState $ modify $ \s -> s { patterns = Map.delete patId (patterns s) }
+
+setExpr :: MonadInstBuilder m => ExprID -> Expr -> m ()
+setExpr exprId expr = do
+    b <- liftInstBuilderState $ gets (Map.member exprId . expressions)
+    unless b (error "exprId not found")
+    liftInstBuilderState $ modify $ \s -> s { expressions = Map.insert exprId expr (expressions s) }
+
+setPattern :: MonadInstBuilder m => PatternID -> Pattern -> m ()
+setPattern patId pattern = do
+    b <- liftInstBuilderState $ gets (Map.member patId . patterns)
+    unless b (error "patId not found")
+    liftInstBuilderState $ modify $ \s -> s { patterns = Map.insert patId pattern (patterns s) }
+
+
+setStmt :: MonadInstBuilder m => StmtID -> Stmt -> m ()
+setStmt stmtId stmt = do
+    b <- liftInstBuilderState $ gets (Map.member stmtId . statements)
+    unless b (error "stmtId not found")
+    liftInstBuilderState $ modify $ \s -> s { statements = Map.insert stmtId stmt (statements s) }
+
+
+setType :: MonadInstBuilder m => Int -> Type -> m ()
+setType id typ = liftInstBuilderState $ do
+    modify $ \s -> s { types = Map.insert id typ (types s) }
 
 prettyInst :: InstBuilderState -> IO ()
 prettyInst state = do

@@ -66,7 +66,7 @@ makeInstantiation :: ASTResolved -> Type -> Except Error (Maybe TopStmt)
 makeInstantiation ast callType = do
     -- In haskell, instances are globally visible, so we do not have to worry about different instances.
     results <- fmap catMaybes $ forM (Map.toList $ instancesAll ast) $ \(symbol, stmt) -> case stmt of
-        TopStmt (Derives _ generics argType [featureType]) -> do
+        TopStmt (Derives generics argType [featureType]) -> do
             let genericSubs = zip (map TypeDef generics) (map Type [1..])
             let upperType = applyType genericSubs $ Apply featureType argType
 
